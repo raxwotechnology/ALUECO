@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     DollarSign, ShoppingCart, TrendingUp, AlertTriangle,
@@ -16,6 +17,7 @@ import Badge from '../components/ui/Badge';
 import {
     useDashboardKpis, useRevenueChart, useTopProducts, useTopCustomers,
 } from '../features/reports/useReports';
+import { useSocket } from '../hooks/useSocket';
 
 export default function DashboardPage() {
     const navigate = useNavigate();
@@ -23,6 +25,24 @@ export default function DashboardPage() {
     const { data: revenueData } = useRevenueChart(6);
     const { data: topProductsData } = useTopProducts({ period: 'month', limit: 5 });
     const { data: topCustomersData } = useTopCustomers({ period: 'month', limit: 5 });
+    const { socket } = useSocket();
+    const [realtimeAlerts, setRealtimeAlerts] = useState([]);
+
+    useEffect(() => {
+        if (socket) {
+            socket.on('low_stock_alert', (alert) => {
+                setRealtimeAlerts((prev) => {
+                    if (prev.some(a => a.productCode === alert.productCode)) return prev;
+                    return [alert, ...prev];
+                });
+            });
+        }
+        return () => {
+            if (socket) {
+                socket.off('low_stock_alert');
+            }
+        };
+    }, [socket]);
 
     const k = kpisData?.data;
 
@@ -38,6 +58,34 @@ export default function DashboardPage() {
     return (
         <div>
             <PageHeader title="Dashboard" description="Real-time overview of your business" />
+
+            {realtimeAlerts.length > 0 && (
+                <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4 shadow-sm animate-pulse">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 text-red-800">
+                            <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
+                            <div>
+                                <p className="font-bold text-sm">CRITICAL STOCK WARNING (LIVE UPDATE)</p>
+                                <ul className="list-disc pl-4 mt-1 text-xs space-y-1">
+                                    {realtimeAlerts.map((alert, idx) => (
+                                        <li key={idx}>
+                                            <strong>{alert.productName}</strong> ({alert.productCode}) is strictly below 10 units! Current quantity: <strong>{alert.quantity}</strong>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white text-red-700 border-red-200 hover:bg-red-50 text-xs font-semibold px-2.5 py-1"
+                            onClick={() => setRealtimeAlerts([])}
+                        >
+                            Clear Alerts
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {/* Primary KPIs */}
             <div className="grid grid-cols-4 gap-4 mb-6">

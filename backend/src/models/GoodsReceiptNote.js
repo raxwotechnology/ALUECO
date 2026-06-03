@@ -53,6 +53,9 @@ const grnSchema = new mongoose.Schema({
 
     totalReceivedValue: { type: Number, default: 0 },
     totalAcceptedValue: { type: Number, default: 0 },
+    totalPayableLKR: { type: Number, default: 0 },
+    paidAmountLKR: { type: Number, default: 0 },
+    balanceDueLKR: { type: Number, default: 0 },
 
     status: {
         type: String,

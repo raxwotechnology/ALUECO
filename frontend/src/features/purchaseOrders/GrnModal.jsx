@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { PackageCheck } from 'lucide-react';
+import { PackageCheck, Sparkles } from 'lucide-react';
 
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Textarea from '../../components/ui/Textarea';
 import { useCreateGrn } from './usePurchaseOrders';
+import api from '../../api/axios';
 
 export default function GrnModal({ isOpen, onClose, purchaseOrder }) {
     const createMutation = useCreateGrn();
@@ -17,6 +18,7 @@ export default function GrnModal({ isOpen, onClose, purchaseOrder }) {
     const [driverName, setDriverName] = useState('');
     const [notes, setNotes] = useState('');
     const [items, setItems] = useState([]);
+    const [predictions, setPredictions] = useState({});
 
     useEffect(() => {
         if (isOpen && purchaseOrder) {
@@ -46,8 +48,56 @@ export default function GrnModal({ isOpen, onClose, purchaseOrder }) {
             setVehicleNumber('');
             setDriverName('');
             setNotes('');
+            setPredictions({});
         }
     }, [isOpen, purchaseOrder]);
+
+    const fetchPrediction = async (productId, weight, idx, cacheKey) => {
+        if (!productId || !weight || weight <= 0) return;
+        try {
+            const { data } = await api.get('/products/predict-yield', {
+                params: { productId, inputWeight: weight }
+            });
+            if (data?.success && data?.data) {
+                setPredictions(prev => ({
+                    ...prev,
+                    [idx]: {
+                        weight: data.data.predictedWeight,
+                        name: data.data.outputProduct?.name,
+                        unit: data.data.outputProduct?.unitOfMeasure || 'kg',
+                        cacheKey
+                    }
+                }));
+            } else {
+                setPredictions(prev => ({
+                    ...prev,
+                    [idx]: { cacheKey, noRule: true }
+                }));
+            }
+        } catch (err) {
+            console.warn('Yield prediction failed:', err.message);
+        }
+    };
+
+    useEffect(() => {
+        items.forEach((item, idx) => {
+            const qty = Number(item.acceptedQuantity) || 0;
+            if (qty > 0) {
+                const cacheKey = `${item.productId}-${qty}`;
+                if (predictions[idx]?.cacheKey !== cacheKey) {
+                    fetchPrediction(item.productId, qty, idx, cacheKey);
+                }
+            } else {
+                if (predictions[idx]) {
+                    setPredictions(prev => {
+                        const next = { ...prev };
+                        delete next[idx];
+                        return next;
+                    });
+                }
+            }
+        });
+    }, [items]);
 
     const updateItem = (idx, field, value) => {
         const newItems = [...items];
@@ -138,6 +188,12 @@ export default function GrnModal({ isOpen, onClose, purchaseOrder }) {
                                         <div className="mt-2">
                                             <Input label="Rejection Reason" placeholder="Why were these rejected?"
                                                 value={item.rejectionReason} onChange={(e) => updateItem(idx, 'rejectionReason', e.target.value)} />
+                                        </div>
+                                    )}
+                                    {predictions[idx] && !predictions[idx].noRule && (
+                                        <div className="mt-3 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-2 rounded-lg flex items-center gap-2">
+                                            <Sparkles size={14} className="text-purple-600 animate-pulse" />
+                                            <span>Live Yield Forecast: Expected output weight is <strong>{predictions[idx].weight} {predictions[idx].unit}</strong> of {predictions[idx].name}</span>
                                         </div>
                                     )}
                                 </div>

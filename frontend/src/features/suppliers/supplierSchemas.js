@@ -43,4 +43,6 @@ export const supplierFormSchema = z.object({
 
     status: z.enum(['active', 'inactive', 'blacklisted', 'on_hold']),
     notes: z.string().max(2000).optional().or(z.literal('')),
+    supplierSource: z.enum(['own_farm', 'external_farmer', 'import']).default('external_farmer'),
+    supplierShortCode: z.string().max(12).optional().or(z.literal('')),
 });

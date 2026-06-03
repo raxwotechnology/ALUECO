@@ -116,6 +116,39 @@ const supplierSchema = new mongoose.Schema(
         notes: { type: String, trim: true, maxlength: 2000 },
         internalNotes: { type: String, trim: true, maxlength: 2000 },
 
+        // ── ALE-specific additions ────────────────────────────────────────────────
+        supplierShortCode: {
+            type: String,
+            trim: true,
+            uppercase: true,
+            maxlength: 12,
+            // Used in Julian batch codes: "CHAMINDA", "ISHAN", "OWN-FARM"
+        },
+        isOwnFarm: {
+            type: Boolean,
+            default: false,
+            // When true, intra-company transfer price applies
+        },
+        internalTransferPrice: {
+            type: Number,
+            default: 0,
+            // Rs per Kg — set by Managing Director for Own Farm produce
+        },
+        supplierType: {
+            type: String,
+            enum: ['farmer', 'transport', 'packing', 'chemical', 'own_farm', 'other'],
+            default: 'other',
+        },
+        supplierSource: {
+            type: String,
+            enum: ['own_farm', 'external_farmer', 'import'],
+            default: 'external_farmer',
+        },
+        balanceDueLKR: {
+            type: Number,
+            default: 0,
+        },
+
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         deletedAt: { type: Date, default: null },

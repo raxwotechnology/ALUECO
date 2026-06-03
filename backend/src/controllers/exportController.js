@@ -34,7 +34,7 @@ export const exportPettyCash = asyncHandler(async (req, res) => {
 });
 
 export const exportProduction = asyncHandler(async (req, res) => {
-    const data = await ProductionBatch.find().populate('product').sort({ createdAt: -1 });
+    const data = await ProductionBatch.find().populate('productId').sort({ createdAt: -1 });
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Production');
 
@@ -51,7 +51,7 @@ export const exportProduction = asyncHandler(async (req, res) => {
     data.forEach(item => {
         sheet.addRow({
             batchNumber: item.batchNumber,
-            productName: item.product?.name || 'N/A',
+            productName: item.productId?.name || item.product || 'N/A',
             status: item.status,
             totalInputWeight: item.totalInputWeight,
             totalOutputWeight: item.totalOutputWeight,

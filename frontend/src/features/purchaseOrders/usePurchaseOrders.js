@@ -58,3 +58,18 @@ export const useGrns = (filters = {}) => useQuery({
     queryKey: ['grns', filters],
     queryFn: () => grnsApi.list(filters),
 });
+
+export const useApproveGrnQA = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }) => grnsApi.approveQA(id, data),
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+            qc.invalidateQueries({ queryKey: ['purchaseOrder'] });
+            qc.invalidateQueries({ queryKey: ['grns'] });
+            qc.invalidateQueries({ queryKey: ['stock'] });
+            toast.success(res.message || 'QA approved successfully');
+        },
+        onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve GRN'),
+    });
+};

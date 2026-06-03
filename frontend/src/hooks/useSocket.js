@@ -34,6 +34,19 @@ export const useSocket = () => {
                 });
             });
 
+            socket.on('low_stock_alert', (alert) => {
+                toast(alert.message, {
+                    icon: '⚠️',
+                    duration: 8000,
+                    style: {
+                        background: '#fff5f5',
+                        color: '#c53030',
+                        border: '1px solid #feb2b2',
+                        fontWeight: 'bold',
+                    }
+                });
+            });
+
             socket.on('disconnect', () => {
                 console.log('⚡ Disconnected from socket server');
             });

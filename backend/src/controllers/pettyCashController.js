@@ -2,6 +2,36 @@ import asyncHandler from 'express-async-handler';
 import PettyCash from '../models/PettyCash.js';
 import { createAuditLog } from '../utils/auditLogger.js';
 import excelService from '../services/excelService.js';
+import { getIO } from '../services/socketService.js';
+
+const broadcastPettyCashBalance = async () => {
+    try {
+        const [summary] = await PettyCash.aggregate([
+            { $match: { deletedAt: null, poolId: 'MAIN' } },
+            {
+                $group: {
+                    _id: null,
+                    totalReceipts: {
+                        $sum: { $cond: [{ $eq: ['$transactionType', 'receipt'] }, '$amount', 0] }
+                    },
+                    totalExpenses: {
+                        $sum: { $cond: [{ $eq: ['$transactionType', 'expense'] }, '$amount', 0] }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    runningBalance: { $subtract: ['$totalReceipts', '$totalExpenses'] }
+                }
+            }
+        ]);
+        const balance = summary ? summary.runningBalance : 0;
+        const io = getIO();
+        io.emit('petty_cash_balance', { balance });
+    } catch (err) {
+        console.warn('[PettyCash Socket] Error:', err.message);
+    }
+};
 
 /**
  * @desc    Submit a petty cash expense or replenishment
@@ -27,6 +57,7 @@ export const createPettyCashEntry = asyncHandler(async (req, res) => {
     
     // Sync to Excel
     excelService.appendExcelRow('petty_cash', entry.toObject()).catch(console.error);
+    broadcastPettyCashBalance();
 });
 
 /**
@@ -80,6 +111,7 @@ export const updatePettyCashEntry = asyncHandler(async (req, res) => {
 
     // Sync to Excel
     excelService.updateExcelRow('petty_cash', entry.toObject()).catch(console.error);
+    broadcastPettyCashBalance();
 });
 
 // Soft delete a petty cash entry
@@ -102,6 +134,7 @@ export const deletePettyCashEntry = asyncHandler(async (req, res) => {
     
     // Sync to Excel
     excelService.deleteExcelRow('petty_cash', entry.toObject()).catch(console.error);
+    broadcastPettyCashBalance();
 });
 
 /**
@@ -131,4 +164,78 @@ export const updatePettyCashStatus = asyncHandler(async (req, res) => {
     });
 
     res.json({ success: true, data: entry });
+    broadcastPettyCashBalance();
+});
+
+/**
+ * @desc    Get petty cash running balance and per-category breakdown
+ * @route   GET /api/finance/petty-cash/balance
+ * @access  Private
+ *
+ * Running Balance = Σ(receipt amounts) − Σ(expense amounts)
+ */
+export const getPettyCashBalance = asyncHandler(async (req, res) => {
+    const { poolId = 'MAIN' } = req.query;
+
+    const [summary] = await PettyCash.aggregate([
+        { $match: { deletedAt: null, poolId } },
+        { $sort:  { date: 1, createdAt: 1 } },
+        {
+            $group: {
+                _id: null,
+                totalReceipts: {
+                    $sum: { $cond: [{ $eq: ['$transactionType', 'receipt'] }, '$amount', 0] }
+                },
+                totalExpenses: {
+                    $sum: { $cond: [{ $eq: ['$transactionType', 'expense'] }, '$amount', 0] }
+                },
+                rawMaterials: { $sum: '$rawMaterial_cost' },
+                chemicals:    { $sum: '$chemicals' },
+                transport:    { $sum: '$transport' },
+                welfare:      { $sum: '$welfare' },
+                fuel:         { $sum: '$fuel' },
+                maintenance:  { $sum: '$maintenance' },
+                stationery:   { $sum: '$stationary' },
+                miscWages:    { $sum: '$miscWages' },
+                wood:         { $sum: '$wood' },
+                packing:      { $sum: '$packingMaterials' },
+                entryCount:   { $sum: 1 },
+            }
+        },
+        {
+            $addFields: {
+                runningBalance: { $subtract: ['$totalReceipts', '$totalExpenses'] }
+            }
+        }
+    ]);
+
+    if (!summary) {
+        return res.json({
+            success: true,
+            data: { poolId, totalReceipts: 0, totalExpenses: 0, runningBalance: 0, categories: {} }
+        });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            poolId,
+            totalReceipts:  summary.totalReceipts,
+            totalExpenses:  summary.totalExpenses,
+            runningBalance: summary.runningBalance,
+            entryCount:     summary.entryCount,
+            categories: {
+                rawMaterials: summary.rawMaterials,
+                chemicals:    summary.chemicals,
+                transport:    summary.transport,
+                welfare:      summary.welfare,
+                fuel:         summary.fuel,
+                maintenance:  summary.maintenance,
+                stationery:   summary.stationery,
+                miscWages:    summary.miscWages,
+                wood:         summary.wood,
+                packing:      summary.packing,
+            }
+        }
+    });
 });

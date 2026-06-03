@@ -68,7 +68,7 @@ const QuotationsPage = () => {
     const fetchData = async () => {
         try {
             const [prodRes, leadRes] = await Promise.all([
-                api.get('/inventory/products'),
+                api.get('/products'),
                 api.get('/crm/inquiries')
             ]);
             setProducts(prodRes.data.data || []);

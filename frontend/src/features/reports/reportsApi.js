@@ -34,6 +34,10 @@ export const returnsReportsApi = {
 
 export const financialReportsApi = {
     snapshot: async (params = {}) => (await api.get('/reports/financial/snapshot', { params })).data,
+    targets: async () => (await api.get('/reports/financial/targets')).data,
+    setTarget: async (data) => (await api.post('/reports/financial/targets', data)).data,
+    variance: async (params = {}) => (await api.get('/reports/financial/variance', { params })).data,
+    comparison: async (params = {}) => (await api.get('/reports/financial/comparison', { params })).data,
 };
 
 export const hrReportsApi = {
@@ -41,4 +45,5 @@ export const hrReportsApi = {
     attendance: async (params = {}) => (await api.get('/reports/hr/attendance-summary', { params })).data,
     leavePatterns: async (params = {}) => (await api.get('/reports/hr/leave-patterns', { params })).data,
     payrollSummary: async (params = {}) => (await api.get('/reports/hr/payroll-summary', { params })).data,
+    shiftWise: async (params = {}) => (await api.get('/reports/hr/shift-wise', { params })).data,
 };

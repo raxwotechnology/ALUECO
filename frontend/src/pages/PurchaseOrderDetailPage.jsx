@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import GrnModal from '../features/purchaseOrders/GrnModal';
+import QaApprovalModal from '../features/purchaseOrders/QaApprovalModal';
 import { usePurchaseOrder, useChangePoStatus } from '../features/purchaseOrders/usePurchaseOrders';
 import { useAuthStore } from '../store/authStore';
 
@@ -24,6 +25,7 @@ export default function PurchaseOrderDetailPage() {
     const [action, setAction] = useState(null);
     const [reason, setReason] = useState('');
     const [isGrnOpen, setIsGrnOpen] = useState(false);
+    const [selectedGrnToApprove, setSelectedGrnToApprove] = useState(null);
 
     const { data, isLoading } = usePurchaseOrder(id);
     const changeStatus = useChangePoStatus();
@@ -171,12 +173,23 @@ export default function PurchaseOrderDetailPage() {
                             <h3 className="text-sm font-semibold text-gray-700 mb-3">Goods Received</h3>
                             <div className="space-y-2">
                                 {po.grns.map((g) => (
-                                    <div key={g._id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <div key={g._id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100 hover:shadow-sm transition-shadow">
                                         <div>
-                                            <p className="text-sm font-mono">{g.grnNumber}</p>
+                                            <p className="text-sm font-bold font-mono text-gray-800">{g.grnNumber}</p>
                                             <p className="text-xs text-gray-500">{fmtDate(g.receiptDate)}</p>
                                         </div>
-                                        <Badge variant="success">Received</Badge>
+                                        {g.status === 'pending_approval' ? (
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="warning">Pending QA</Badge>
+                                                {canApprove && (
+                                                    <Button size="xs" variant="primary" onClick={() => setSelectedGrnToApprove(g)}>
+                                                        Approve QA
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <Badge variant="success">Approved</Badge>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -213,6 +226,8 @@ export default function PurchaseOrderDetailPage() {
             </div>
 
             <GrnModal isOpen={isGrnOpen} onClose={() => setIsGrnOpen(false)} purchaseOrder={po} />
+
+            <QaApprovalModal isOpen={!!selectedGrnToApprove} onClose={() => setSelectedGrnToApprove(null)} grn={selectedGrnToApprove} />
 
             <ConfirmDialog
                 isOpen={!!action}

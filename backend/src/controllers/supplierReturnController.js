@@ -120,6 +120,13 @@ export const sendSupplierReturn = asyncHandler(async (req, res) => {
                 item.stockMovementId = result.movement._id;
             }
 
+            // Deduct from supplier active accounts payable ledger
+            const supplier = await Supplier.findById(sr.supplierId).session(session);
+            if (supplier) {
+                supplier.balanceDueLKR = +(Math.max(0, (supplier.balanceDueLKR || 0) - sr.totalReturnValue)).toFixed(2);
+                await supplier.save({ session });
+            }
+
             sr.status = 'sent';
             sr.approvedBy = req.user._id;
             await sr.save({ session });

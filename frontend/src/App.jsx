@@ -47,6 +47,9 @@ import QuotationsPage from './pages/QuotationsPage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import PettyCashPage from './pages/PettyCashPage';
 import FleetPage from './pages/FleetPage';
+import GatePassPage from './pages/GatePassPage';
+import GateScreenPage from './pages/GateScreenPage';
+import EmployeeOfMonthPage from './pages/EmployeeOfMonthPage';
 import MaintenancePage from './pages/MaintenancePage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
@@ -92,6 +95,8 @@ import ProductionReportPage from './pages/reports/ProductionReportPage';
 import ReturnsReportPage from './pages/reports/ReturnsReportPage';
 import FinancialSnapshotPage from './pages/reports/FinancialSnapshotPage';
 import HrReportsPage from './pages/reports/HrReportsPage';
+import VarianceComparisonPage from './pages/reports/VarianceComparisonPage';
+import ShiftReportingPage from './pages/reports/ShiftReportingPage';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
@@ -153,6 +158,7 @@ function App() {
         <Route path="/crm/inquiries" element={<ProtectedRoute requiredPermission="customers.view"><InquiriesPage /></ProtectedRoute>} />
         <Route path="/crm/quotations" element={<ProtectedRoute requiredPermission="sales.view"><QuotationsPage /></ProtectedRoute>} />
         <Route path="/logistics/shipments" element={<ProtectedRoute requiredPermission="inventory.view"><ShipmentsPage /></ProtectedRoute>} />
+        <Route path="/logistics/gate-passes" element={<ProtectedRoute requiredPermission="inventory.view"><GatePassPage /></ProtectedRoute>} />
 
         <Route path="/finance/petty-cash" element={<ProtectedRoute requiredPermission="payments.view"><PettyCashPage /></ProtectedRoute>} />
         <Route path="/fleet/vehicles" element={<ProtectedRoute requiredPermission="inventory.view"><FleetPage /></ProtectedRoute>} />
@@ -180,6 +186,7 @@ function App() {
         <Route path="/designations" element={<ProtectedRoute requiredPermission="hr.employees.view"><DesignationsPage /></ProtectedRoute>} />
         <Route path="/shifts" element={<ProtectedRoute requiredPermission="hr.employees.view"><ShiftsPage /></ProtectedRoute>} />
         <Route path="/attendance" element={<ProtectedRoute requiredPermission="hr.attendance.view"><AttendancePage /></ProtectedRoute>} />
+        <Route path="/employees/month" element={<ProtectedRoute requiredPermission="hr.employees.view"><EmployeeOfMonthPage /></ProtectedRoute>} />
         <Route path="/leaves" element={<ProtectedRoute requiredPermission="hr.leaves.view"><LeaveRequestsPage /></ProtectedRoute>} />
         <Route path="/holidays" element={<ProtectedRoute requiredPermission="hr.employees.view"><HolidaysPage /></ProtectedRoute>} />
         <Route path="/salary-structures" element={<ProtectedRoute requiredPermission="hr.salary.view"><SalaryStructuresPage /></ProtectedRoute>} />
@@ -200,7 +207,9 @@ function App() {
         <Route path="/reports/returns-damages" element={<ProtectedRoute requiredPermission="reports.sales"><ReturnsReportPage /></ProtectedRoute>} />
         <Route path="/reports/financial" element={<ProtectedRoute requiredPermission="reports.financial"><FinancialSnapshotPage /></ProtectedRoute>} />
         <Route path="/reports/daily-pnl" element={<ProtectedRoute requiredPermission="reports.financial"><DailyPnLPage /></ProtectedRoute>} />
+        <Route path="/reports/variance-comparator" element={<ProtectedRoute requiredPermission="reports.financial"><VarianceComparisonPage /></ProtectedRoute>} />
         <Route path="/reports/hr" element={<ProtectedRoute requiredPermission="reports.hr"><HrReportsPage /></ProtectedRoute>} />
+        <Route path="/reports/shift-wise" element={<ProtectedRoute requiredPermission="reports.hr"><ShiftReportingPage /></ProtectedRoute>} />
 
         {/* Admin only */}
         <Route path="/users" element={<ProtectedRoute requiredPermission="admin.users.view"><UsersPage /></ProtectedRoute>} />
@@ -212,6 +221,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
+      <Route path="/gate-screen" element={<GateScreenPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

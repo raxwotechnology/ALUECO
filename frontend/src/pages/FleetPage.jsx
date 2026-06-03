@@ -38,9 +38,34 @@ const FleetPage = () => {
 
     const tripColumns = [
         { key: 'date', label: 'Date', render: (r) => new Date(r.startDate).toLocaleDateString() },
-        { key: 'vehicle', label: 'Vehicle', render: (r) => r.vehicleId?.licensePlate || '—' },
+        { key: 'vehicle', label: 'Vehicle', render: (r) => r.vehicleId?.registrationNo || r.vehicleId?.licensePlate || '—' },
         { key: 'route', label: 'Route', render: (r) => `${r.origin} → ${r.destination}` },
+        { 
+            key: 'shift', 
+            label: 'Shift', 
+            render: (r) => (
+                <Badge variant={r.shift === 'night' ? 'dark' : 'warning'}>
+                    {r.shift === 'night' ? 'Night Shift' : 'Day Shift'}
+                </Badge>
+            ) 
+        },
         { key: 'purpose', label: 'Purpose', render: (r) => <Badge>{r.purpose}</Badge> },
+        {
+            key: 'items',
+            label: 'Items & Weight',
+            render: (r) => (
+                <div className="max-w-[220px]">
+                    <span className="font-semibold text-xs text-gray-700 block">
+                        {r.quantityWeightTransported ? `${r.quantityWeightTransported} kg` : '—'}
+                    </span>
+                    {r.itemsTransported && r.itemsTransported.length > 0 && (
+                        <span className="text-[10px] text-gray-500 block truncate" title={r.itemsTransported.map(i => `${i.item} (${i.quantity} ${i.uom})`).join(', ')}>
+                            {r.itemsTransported.map(i => `${i.item} (${i.quantity} ${i.uom})`).join(', ')}
+                        </span>
+                    )}
+                </div>
+            )
+        },
         { key: 'distance', label: 'Distance', render: (r) => r.endOdometer ? `${r.endOdometer - r.startOdometer} km` : 'Active' },
         {
             key: 'status',

@@ -5,6 +5,7 @@ import {
     getProductById,
     updateProduct,
     deleteProduct,
+    predictYield,
 } from '../controllers/productController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -14,6 +15,8 @@ import { createProductSchema, updateProductSchema } from '../validators/productV
 const router = express.Router();
 
 router.use(protect);
+
+router.get('/predict-yield', requirePermission('products.view'), predictYield);
 
 router
     .route('/')

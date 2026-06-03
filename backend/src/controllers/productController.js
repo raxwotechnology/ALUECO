@@ -155,3 +155,50 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 
     backupEmitter.emit(BACKUP_EVENTS.PRODUCT_CHANGED);
 });
+
+export const predictYield = asyncHandler(async (req, res) => {
+    const { productId, inputWeight } = req.query;
+
+    if (!productId || !inputWeight) {
+        res.status(400);
+        throw new Error('productId and inputWeight are required');
+    }
+
+    const weight = Number(inputWeight);
+    if (isNaN(weight) || weight <= 0) {
+        res.status(400);
+        throw new Error('inputWeight must be a valid positive number');
+    }
+
+    const { default: ConversionRule } = await import('../models/ConversionRule.js');
+    
+    // Find active conversion rule for this raw material
+    const rule = await ConversionRule.findOne({ sourceProduct: productId, isActive: true })
+        .populate('outputProduct', 'name productCode unitOfMeasure');
+
+    if (!rule) {
+        return res.json({
+            success: false,
+            message: 'No active yield formula or conversion factor configured for this raw material.',
+            prediction: null
+        });
+    }
+
+    const predictedWeight = +(weight * rule.expectedRatio).toFixed(3);
+
+    res.json({
+        success: true,
+        data: {
+            sourceProductId: productId,
+            inputWeight: weight,
+            ratio: rule.expectedRatio,
+            predictedWeight,
+            outputProduct: {
+                _id: rule.outputProduct?._id,
+                name: rule.outputProduct?.name,
+                productCode: rule.outputProduct?.productCode,
+                unitOfMeasure: rule.outputProduct?.unitOfMeasure
+            }
+        }
+    });
+});

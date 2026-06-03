@@ -46,6 +46,7 @@ const reportGroups = [
         reports: [
             { title: 'Financial Snapshot', description: 'Revenue vs expenses, A/R + A/P aging, cash flow', path: '/reports/financial', icon: DollarSign },
             { title: 'Daily P&L Master', description: 'Direct CRUD for Daily Profit & Loss records', path: '/reports/daily-pnl', icon: TrendingUp },
+            { title: 'Variance & Sales Comparator', description: 'Monthly targets vs actual and growth comparator', path: '/reports/variance-comparator', icon: TrendingUp },
         ],
     },
     {
@@ -53,6 +54,7 @@ const reportGroups = [
         color: 'text-pink-600', bg: 'bg-pink-50',
         reports: [
             { title: 'HR Reports', description: 'Headcount, attendance, leave patterns, payroll summary', path: '/reports/hr', icon: Users },
+            { title: 'Shift Operations Logs', description: 'Attendance, yield, and logistics split by shifts', path: '/reports/shift-wise', icon: Users },
         ],
     },
 ];

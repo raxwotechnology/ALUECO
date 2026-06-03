@@ -3,6 +3,45 @@ import mongoose from 'mongoose';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import SalesOrder from '../models/SalesOrder.js';
+import Warehouse from '../models/Warehouse.js';
+import { decreaseStock } from '../services/stockService.js';
+
+const deductStockForInvoice = async (invoice, userId) => {
+    if (invoice.invoiceType === 'proforma') return; // Proforma NEVER impacts stock
+    if (invoice.stockDeducted) return;
+
+    let whId = invoice.warehouseId;
+    if (!whId) {
+        const wh = await Warehouse.findOne({ deletedAt: null });
+        whId = wh?._id;
+    }
+    if (!whId) return;
+
+    for (const item of invoice.items) {
+        if (!item.productId) continue;
+        try {
+            await decreaseStock({
+                productId: item.productId,
+                warehouseId: whId,
+                quantity: item.quantity,
+                movementType: 'sale_dispatch',
+                sourceDocument: {
+                    type: 'invoice',
+                    id: invoice._id,
+                    number: invoice.invoiceNumber
+                },
+                reason: `Inventory deduction for Commercial Invoice ${invoice.invoiceNumber}`,
+                userId
+            });
+        } catch (err) {
+            console.warn(`[Invoice Stock Deduction] Failed for ${item.productName}:`, err.message);
+        }
+    }
+
+    invoice.stockDeducted = true;
+    invoice.warehouseId = whId;
+    await invoice.save();
+};
 
 /**
  * Helper: recalculate customer credit balance
@@ -84,6 +123,7 @@ export const createInvoice = asyncHandler(async (req, res) => {
     });
 
     await invoice.save();
+    await deductStockForInvoice(invoice, req.user._id);
     await updateCustomerBalance(customer._id);
 
     const populated = await Invoice.findById(invoice._id)
@@ -180,6 +220,7 @@ export const createFromSalesOrder = asyncHandler(async (req, res) => {
     });
 
     await invoice.save();
+    await deductStockForInvoice(invoice, req.user._id);
 
     // Update sales orders to "invoiced" or "completed"
     for (const order of orders) {
@@ -327,6 +368,10 @@ export const changeInvoiceStatus = asyncHandler(async (req, res) => {
 
     invoice.status = status;
     invoice.updatedBy = req.user._id;
+
+    if (['approved', 'sent', 'viewed', 'paid'].includes(status)) {
+        await deductStockForInvoice(invoice, req.user._id);
+    }
 
     if (status === 'sent') invoice.sentAt = new Date();
     if (status === 'cancelled') {

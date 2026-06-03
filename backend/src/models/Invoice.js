@@ -40,8 +40,16 @@ const invoiceSchema = new mongoose.Schema({
 
     invoiceType: {
         type: String,
+        enum: ['proforma', 'commercial', 'standard', 'credit_note'],
         default: 'standard',
+        // IMPORTANT: proforma invoices must NEVER appear in P&L calculations
+        // Revenue recognised only on 'commercial' invoices with paymentStatus='paid'
     },
+
+    // ── Proforma tracking fields ──────────────────────────────────────────────
+    proformaExpiryDate:     { type: Date },
+    convertedToCommercial:  { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+    paymentReceivedDate:    { type: Date }, // Date TT/LC confirmed
 
     // Parties
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: false },
@@ -130,6 +138,9 @@ const invoiceSchema = new mongoose.Schema({
     internalNotes: String,
     paymentInstructions: String,
     termsAndConditions: String,
+
+    warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+    stockDeducted: { type: Boolean, default: false },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -2,6 +2,7 @@ import express from 'express';
 import {
     createPettyCashEntry,
     getPettyCashEntries,
+    getPettyCashBalance,
     updatePettyCashStatus,
     updatePettyCashEntry,
     deletePettyCashEntry,
@@ -12,6 +13,10 @@ import { protect, authorize } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 router.use(protect);
+
+// Running balance + category breakdown
+// GET /api/finance/petty-cash/balance?poolId=MAIN
+router.get('/balance', getPettyCashBalance);
 
 router.route('/')
     .post(createPettyCashEntry)

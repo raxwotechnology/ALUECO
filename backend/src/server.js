@@ -51,6 +51,8 @@ import maintenanceRoutes from './routes/maintenanceRoutes.js';
 import machineRoutes from './routes/machineRoutes.js';
 import { initSocket } from './services/socketService.js';
 import './services/autoBackupService.js'; // Initialize automated backup listener
+import { initCertificationAlerts } from './services/certificationAlertService.js';
+import gatePassRoutes from './routes/gatePassRoutes.js';
 
 import { seedDefaults } from './utils/seedDefaults.js';
 
@@ -67,6 +69,8 @@ connectDB().then(async () => {
         // Drop problematic legacy index if it exists
         const { default: PettyCash } = await import('./models/PettyCash.js');
         await PettyCash.collection.dropIndex('voucherCode_1').catch(() => {});
+        const { default: ProductionBatch } = await import('./models/ProductionBatch.js');
+        await ProductionBatch.collection.dropIndex('batchCode_1').catch(() => {});
         
         const { default: excelService } = await import('./services/excelService.js');
         await excelService.syncAllFilesToDB();
@@ -150,6 +154,7 @@ app.use('/api/finance/petty-cash', pettyCashRoutes);
 app.use('/api/fleet', fleetRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/production/machines', machineRoutes);
+app.use('/api/gate-passes', gatePassRoutes);
 
 
 // Health check endpoint
@@ -168,8 +173,10 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 const httpServer = createServer(app);
-initSocket(httpServer);
+const io = initSocket(httpServer);
+// Initialise certification expiry alert cron (daily 08:00 AM)
+initCertificationAlerts(io);
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });

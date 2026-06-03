@@ -51,6 +51,27 @@ const employeeSchema = new mongoose.Schema({
         type: String,
         default: 'permanent',
     },
+    employeeCategory: {
+        type: String,
+        enum: ['Permanent', 'Trainee'],
+        default: 'Permanent',
+    },
+    epfRate: {
+        type: Number,
+        default: 8, // employee contribution %
+    },
+    etfRate: {
+        type: Number,
+        default: 3, // employer contribution %
+    },
+    basicWageRate: {
+        type: Number,
+        default: 0, // rate per hour/day
+    },
+    otCutoffHours: {
+        type: Number,
+        default: 45, // OT limit per month
+    },
 
     dateOfJoining: { type: Date, required: false },
     probationEndDate: Date,

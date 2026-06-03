@@ -34,6 +34,8 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
             creditLimit: 0,
             status: 'active',
             averageLeadTimeDays: 7,
+            supplierSource: 'external_farmer',
+            supplierShortCode: '',
         },
     });
 
@@ -64,6 +66,8 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
                 averageLeadTimeDays: supplier.averageLeadTimeDays || 7,
                 status: supplier.status || 'active',
                 notes: supplier.notes || '',
+                supplierSource: supplier.supplierSource || 'external_farmer',
+                supplierShortCode: supplier.supplierShortCode || '',
             });
         } else if (isOpen) {
             reset({
@@ -74,6 +78,8 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
                 creditLimit: 0,
                 status: 'active',
                 averageLeadTimeDays: 7,
+                supplierSource: 'external_farmer',
+                supplierShortCode: '',
             });
         }
         setActiveTab('basic');
@@ -107,6 +113,8 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
             averageLeadTimeDays: data.averageLeadTimeDays || 0,
             status: data.status,
             notes: data.notes || undefined,
+            supplierSource: data.supplierSource,
+            supplierShortCode: data.supplierShortCode,
         };
 
         try {
@@ -170,6 +178,17 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
                             <div className="grid grid-cols-2 gap-4">
                                 <Input label="Tax Registration (VAT)" {...register('taxRegistrationNumber')} />
                                 <Input label="Business Registration" {...register('businessRegistrationNumber')} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <Select label="Supplier Source" required
+                                    options={[
+                                        { value: 'own_farm', label: 'Internal / Own Farm' },
+                                        { value: 'external_farmer', label: 'External Farmer' },
+                                        { value: 'import', label: 'Import' },
+                                    ]}
+                                    {...register('supplierSource')} />
+                                <Input label="Supplier Short Code (for Batch Tracking)" placeholder="e.g. ISHAN" {...register('supplierShortCode')} />
                             </div>
 
                             <Select label="Status" required

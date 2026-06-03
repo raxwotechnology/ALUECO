@@ -69,6 +69,23 @@ export default function SuppliersPage() {
             render: (r) => <Badge>{categoryLabels[r.category]}</Badge>,
         },
         {
+            key: 'supplierSource', label: 'Source',
+            render: (r) => {
+                const s = r.supplierSource || 'external_farmer';
+                if (s === 'own_farm') return <Badge variant="success">Own Farm</Badge>;
+                if (s === 'import') return <Badge variant="info">Import</Badge>;
+                return <Badge variant="default">External Farmer</Badge>;
+            }
+        },
+        {
+            key: 'balanceDueLKR', label: 'Ledger Balance',
+            render: (r) => (
+                <span className={`font-semibold text-xs ${r.balanceDueLKR > 0 ? 'text-red-600 font-bold' : 'text-green-600'}`}>
+                    LKR {(r.balanceDueLKR || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+            ),
+        },
+        {
             key: 'contact', label: 'Contact',
             render: (r) => (
                 <div className="text-xs">

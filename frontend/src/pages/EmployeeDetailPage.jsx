@@ -88,6 +88,7 @@ export default function EmployeeDetailPage() {
                             <div><p className="text-gray-500">Department</p><p>{emp.departmentId?.name || '—'}</p></div>
                             <div><p className="text-gray-500">Designation</p><p>{emp.designationId?.name || '—'}</p></div>
                             <div><p className="text-gray-500">Employment Type</p><p>{emp.employmentType?.replace(/_/g, ' ')}</p></div>
+                            <div><p className="text-gray-500">Employee Category</p><p>{emp.employeeCategory || 'Permanent'}</p></div>
                             <div><p className="text-gray-500">Date of Joining</p><p>{fmtDate(emp.dateOfJoining)}</p></div>
                             {emp.probationEndDate && <div><p className="text-gray-500">Probation Ends</p><p>{fmtDate(emp.probationEndDate)}</p></div>}
                             {emp.workLocation && <div><p className="text-gray-500">Work Location</p><p>{emp.workLocation}</p></div>}
@@ -102,8 +103,8 @@ export default function EmployeeDetailPage() {
                             <h3 className="text-sm font-semibold">Statutory & Bank</h3>
                         </div>
                         <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div><p className="text-gray-500">EPF Number</p><p className="font-mono">{emp.epfNumber || '—'}</p></div>
-                            <div><p className="text-gray-500">ETF Number</p><p className="font-mono">{emp.etfNumber || '—'}</p></div>
+                            <div><p className="text-gray-500">EPF Number</p><p className="font-mono">{emp.epfNumber || '—'} {emp.epfRate !== undefined ? `(${emp.epfRate}%)` : ''}</p></div>
+                            <div><p className="text-gray-500">ETF Number</p><p className="font-mono">{emp.etfNumber || '—'} {emp.etfRate !== undefined ? `(${emp.etfRate}%)` : ''}</p></div>
                             <div><p className="text-gray-500">TIN</p><p className="font-mono">{emp.taxRegistrationNumber || '—'}</p></div>
                         </div>
                         <div className="mt-4 pt-4 border-t">
@@ -120,6 +121,8 @@ export default function EmployeeDetailPage() {
                         <h3 className="text-sm font-semibold mb-4">Compensation</h3>
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between"><span className="text-gray-600">Basic Salary</span><span className="font-semibold">{fmt(emp.basicSalary)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Basic Wage Rate</span><span className="font-semibold">{fmt(emp.basicWageRate)}/hr</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">OT Monthly Cutoff</span><span className="font-semibold">{emp.otCutoffHours || 45} hours</span></div>
                             {emp.salaryStructureId && (
                                 <div className="flex justify-between"><span className="text-gray-600">Structure</span><span>{emp.salaryStructureId.name}</span></div>
                             )}

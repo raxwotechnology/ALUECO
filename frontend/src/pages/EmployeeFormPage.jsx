@@ -51,6 +51,11 @@ export default function EmployeeFormPage() {
         salaryStructureId: '', basicSalary: 0,
         status: 'active',
         notes: '',
+        employeeCategory: 'Permanent',
+        epfRate: 8,
+        etfRate: 3,
+        basicWageRate: 0,
+        otCutoffHours: 45,
     });
 
     useEffect(() => {
@@ -80,6 +85,11 @@ export default function EmployeeFormPage() {
                 basicSalary: e.basicSalary || 0,
                 status: e.status || 'active',
                 notes: e.notes || '',
+                employeeCategory: e.employeeCategory || 'Permanent',
+                epfRate: e.epfRate !== undefined ? e.epfRate : 8,
+                etfRate: e.etfRate !== undefined ? e.etfRate : 3,
+                basicWageRate: e.basicWageRate || 0,
+                otCutoffHours: e.otCutoffHours !== undefined ? e.otCutoffHours : 45,
             });
         }
     }, [isEdit, existingData]);
@@ -279,12 +289,30 @@ export default function EmployeeFormPage() {
 
                     {tab === 'compensation' && (
                         <>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Select label="Employee Category" required
+                                    options={[
+                                        { value: 'Permanent', label: 'Permanent' },
+                                        { value: 'Trainee', label: 'Trainee' }
+                                    ]}
+                                    value={form.employeeCategory} onChange={(e) => update('employeeCategory', e.target.value)} />
+                                <Input label="Basic Wage Rate (LKR/hour)" type="number" min="0"
+                                    value={form.basicWageRate} onChange={(e) => update('basicWageRate', Number(e.target.value))} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <Input label="EPF Rate (%)" type="number" min="0" max="100"
+                                    value={form.epfRate} onChange={(e) => update('epfRate', Number(e.target.value))} />
+                                <Input label="ETF Rate (%)" type="number" min="0" max="100"
+                                    value={form.etfRate} onChange={(e) => update('etfRate', Number(e.target.value))} />
+                                <Input label="Automated OT Cutoff (Hours/month)" type="number" min="0"
+                                    value={form.otCutoffHours} onChange={(e) => update('otCutoffHours', Number(e.target.value))} />
+                            </div>
                             <Select label="Salary Structure" placeholder="None (use basic only)" options={structureOptions}
                                 value={form.salaryStructureId} onChange={(e) => update('salaryStructureId', e.target.value)} />
                             <Input label="Basic Salary (LKR/month)" type="number" step="0.01" min="0"
                                 value={form.basicSalary} onChange={(e) => update('basicSalary', e.target.value)} />
                             <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900 mt-2">
-                                <strong>Payroll tip:</strong> Allowances from the salary structure will be added on top of basic when payroll runs. EPF (8% employee + 12% employer) and ETF (3%) auto-calculate. APIT income tax applies if gross exceeds LKR 150,000/month.
+                                <strong>Payroll tip:</strong> Allowances from the salary structure will be added on top of basic when payroll runs. EPF (employee rate + employer 12%) and ETF (employer rate) auto-calculate. Hourly wage rates and OT hour cutoffs apply based on shift details.
                             </div>
                             <Textarea label="Notes" rows={3} value={form.notes} onChange={(e) => update('notes', e.target.value)} />
                         </>

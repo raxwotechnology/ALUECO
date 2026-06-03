@@ -4,6 +4,31 @@ import StockMovement from '../models/StockMovement.js';
 import StockReservation from '../models/StockReservation.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
+import { getIO } from './socketService.js';
+
+export const checkAndAlertLowStock = async (productId, session) => {
+    try {
+        const product = await Product.findById(productId).session(session || null);
+        if (product && (product.productType === 'finished_good' || product.productType === 'trading')) {
+            // Aggregate total quantities across all warehouses
+            const stockItems = await StockItem.find({ productId }).session(session || null);
+            const totalQty = stockItems.reduce((sum, item) => sum + (item.quantities?.onHand || 0), 0);
+            
+            if (totalQty < 10) {
+                const io = getIO();
+                io.emit('low_stock_alert', {
+                    productId: product._id,
+                    productCode: product.productCode,
+                    productName: product.name,
+                    quantity: totalQty,
+                    message: `LOW STOCK: ${product.name} is strictly below 10 units! Current stock: ${totalQty}`
+                });
+            }
+        }
+    } catch (err) {
+        console.warn('[LowStock Socket] Error:', err.message);
+    }
+};
 
 /**
  * Increase stock (purchases, opening stock, adjustments in, transfers in, returns).
@@ -63,6 +88,7 @@ export const increaseStock = async ({
     }
     stockItem.lastMovementDate = new Date();
     await stockItem.save({ session: session || undefined });
+    checkAndAlertLowStock(productId, session);
 
     // Record movement
     const movement = new StockMovement({
@@ -129,6 +155,7 @@ export const decreaseStock = async ({
     stockItem.quantities.onHand -= quantity;
     stockItem.lastMovementDate = new Date();
     await stockItem.save({ session: session || undefined });
+    checkAndAlertLowStock(productId, session);
 
     const product = await Product.findById(productId).session(session || null);
 

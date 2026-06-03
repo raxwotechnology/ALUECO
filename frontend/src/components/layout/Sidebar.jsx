@@ -52,6 +52,8 @@ const menuGroups = [
         items: [
             { label: 'Shipment Tracking', icon: Ship, path: '/logistics/shipments', permission: 'inventory.view' },
             { label: 'Warehouse Export', icon: Warehouse, path: '/warehouses', permission: 'inventory.view' },
+            { label: 'Gate Passes', icon: ShieldCheck, path: '/logistics/gate-passes', permission: 'inventory.view' },
+            { label: 'Gate Security Screen', icon: Navigation, path: '/gate-screen', permission: 'inventory.view' },
         ],
     },
     {
@@ -116,6 +118,7 @@ const menuGroups = [
             { label: 'Designations', icon: Award, path: '/designations', permission: 'hr.employees.view' },
             { label: 'Shifts', icon: Clock, path: '/shifts', permission: 'hr.employees.view' },
             { label: 'Attendance', icon: CalendarIcon, path: '/attendance', permission: 'hr.attendance.view' },
+            { label: 'Employee of Month', icon: Award, path: '/employees/month', permission: 'hr.employees.view' },
             { label: 'Leave Requests', icon: Plane, path: '/leaves', permission: 'hr.leaves.view' },
             { label: 'Holidays', icon: CalendarIcon, path: '/holidays', permission: 'hr.employees.view' },
             { label: 'Salary Structures', icon: Calculator, path: '/salary-structures', permission: 'hr.salary.view' },
@@ -141,7 +144,7 @@ export default function Sidebar({ isOpen, onClose }) {
         if (!isOpen) return;
 
         const handleOutsideClick = (e) => {
-            if (sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+            if (window.innerWidth < 1024 && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
                 onClose();
             }
         };
@@ -206,10 +209,10 @@ export default function Sidebar({ isOpen, onClose }) {
                                 <p className="text-xs text-gray-500 mt-0.5">ERP System</p>
                             </div>
                         </div>
-                        {/* Close button (visible on all sizes) */}
+                        {/* Close button (visible on mobile only) */}
                         <button
                             onClick={onClose}
-                            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition lg:hidden"
                             aria-label="Close sidebar"
                         >
                             <X size={16} />
@@ -231,7 +234,7 @@ export default function Sidebar({ isOpen, onClose }) {
                                         const Icon = item.icon;
                                         return (
                                             <NavLink
-                                                key={item.path}
+                                                key={`${item.label}-${item.path}`}
                                                 to={item.path}
                                                 className={({ isActive }) =>
                                                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
