@@ -181,7 +181,7 @@ export const getBillById = asyncHandler(async (req, res) => {
 });
 
 export const getPayablesAging = asyncHandler(async (req, res) => {
-    const match = { paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] }, deletedAt: null };
+    const match = { paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] }, deletedAt: null };
 
     const aggregation = await Bill.aggregate([
         { $match: match },

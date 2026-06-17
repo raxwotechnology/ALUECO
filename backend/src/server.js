@@ -32,6 +32,8 @@ import supplierReturnRoutes from './routes/supplierReturnRoutes.js';
 import repairRoutes from './routes/repairRoutes.js';
 import hrRoutes from './routes/hrRoutes.js';
 import payrollRoutes from './routes/payrollRoutes.js';
+import farmRoutes from './routes/farmRoutes.js';
+import farmHarvestRoutes from './routes/farmHarvestRoutes.js';
 
 import reportsRoutes from './routes/reportsRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
@@ -130,6 +132,8 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/grns', grnRoutes);
+app.use('/api/farms', farmRoutes);
+app.use('/api/farm-harvests', farmHarvestRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/payments', paymentRoutes);

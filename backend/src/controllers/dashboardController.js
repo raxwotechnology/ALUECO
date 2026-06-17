@@ -60,18 +60,18 @@ export const getDashboardKpis = asyncHandler(async (req, res) => {
     // Outstanding receivables (unpaid + overdue)
     const [arTotal, overdueAr] = await Promise.all([
         Invoice.aggregate([
-            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
             { $group: { _id: null, total: { $sum: '$balanceDue' } } },
         ]),
         Invoice.aggregate([
-            { $match: { deletedAt: null, paymentStatus: 'overdue' } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['overdue', 'Overdue'] } } },
             { $group: { _id: null, total: { $sum: '$balanceDue' }, count: { $sum: 1 } } },
         ]),
     ]);
 
     // Outstanding payables
     const apTotal = await Bill.aggregate([
-        { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+        { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
         { $group: { _id: null, total: { $sum: '$balanceDue' } } },
     ]);
 
@@ -293,6 +293,14 @@ export const getDepartmentDashboardMetrics = asyncHandler(async (req, res) => {
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
+    // Fetch targets for current month
+    const targetDoc = await mongoose.model('MonthlyTarget').findOne({
+        year: today.getFullYear(),
+        month: today.getMonth() + 1
+    });
+    const targetProduction = targetDoc?.productionTarget || 0;
+    const targetExpenditure = targetDoc?.expenditureTarget || 0;
+
     // 1. General Management (MD)
     const [recentInvoices, recentGrns, recentBatches, recentOrders] = await Promise.all([
         Invoice.find({ deletedAt: null }).sort({ createdAt: -1 }).limit(5).populate('customerId', 'displayName'),
@@ -328,6 +336,14 @@ export const getDepartmentDashboardMetrics = asyncHandler(async (req, res) => {
         ProductionOrder.countDocuments({ status: 'completed', actualEndDate: { $gte: startOfMonth }, deletedAt: null })
     ]);
 
+    // Calculate actual finished output (kg) for completed batches this month
+    const completedBatchesThisMonth = await ProductionBatch.find({
+        status: 'completed',
+        date: { $gte: startOfMonth },
+        deletedAt: null
+    });
+    const actualProductionThisMonth = completedBatchesThisMonth.reduce((sum, b) => sum + (b.outputWeight_total || 0), 0);
+
     // 3. Finance
     const bankAccounts = await BankAccount.find({ deletedAt: null });
     const bankSummary = bankAccounts.map(b => ({
@@ -355,14 +371,33 @@ export const getDepartmentDashboardMetrics = asyncHandler(async (req, res) => {
 
     const [arTotal, apTotal] = await Promise.all([
         Invoice.aggregate([
-            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
             { $group: { _id: null, total: { $sum: '$balanceDue' } } }
         ]),
         Bill.aggregate([
-            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
             { $group: { _id: null, total: { $sum: '$balanceDue' } } }
         ])
     ]);
+
+    // Calculate actual approved petty cash expenses for the current month
+    const pettyExpensesThisMonth = await PettyCash.find({
+        transactionType: 'expense',
+        status: 'approved',
+        date: { $gte: startOfMonth },
+        deletedAt: null
+    });
+    const actualExpenditureThisMonth = pettyExpensesThisMonth.reduce((sum, pe) => sum + (pe.amount || 0), 0);
+
+    const categoryTotals = {};
+    pettyExpensesThisMonth.forEach(pe => {
+        const cat = pe.category || 'Other';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + (pe.amount || 0);
+    });
+    const pettyCategories = Object.keys(categoryTotals).map(cat => ({
+        category: cat,
+        amount: categoryTotals[cat]
+    })).sort((a, b) => b.amount - a.amount);
 
     // 4. Sales
     const funnelStages = await Inquiry.aggregate([
@@ -429,14 +464,21 @@ export const getDepartmentDashboardMetrics = asyncHandler(async (req, res) => {
             operations: {
                 lowestStock,
                 activeProduction: activeProd,
-                completedProductionThisMonth: completedProdThisMonth
+                completedProductionThisMonth: completedProdThisMonth,
+                targetProduction,
+                actualProduction: actualProductionThisMonth,
+                productionPercentage: targetProduction > 0 ? +((actualProductionThisMonth / targetProduction) * 100).toFixed(1) : 0
             },
             finance: {
                 bankSummary,
                 totalBankBalance,
                 pettyCashBalance,
                 receivables: arTotal[0]?.total || 0,
-                payables: apTotal[0]?.total || 0
+                payables: apTotal[0]?.total || 0,
+                targetExpenditure,
+                actualExpenditure: actualExpenditureThisMonth,
+                isLimitExceeded: targetExpenditure > 0 && actualExpenditureThisMonth > targetExpenditure,
+                pettyCategories
             },
             sales: {
                 pipelineFunnel,

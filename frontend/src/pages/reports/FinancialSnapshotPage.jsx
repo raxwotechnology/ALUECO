@@ -40,7 +40,7 @@ export default function FinancialSnapshotPage() {
 
             {f && (
                 <>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <KpiCard label="Revenue (Invoiced)" value={fmt(f.revenue)} iconBg="bg-green-50" iconColor="text-green-600" />
                         <KpiCard label="Expenses (Billed)" value={fmt(f.expenses)} iconBg="bg-red-50" iconColor="text-red-600" />
                         <KpiCard label="Gross Profit" value={fmt(f.grossProfit)}
@@ -49,7 +49,7 @@ export default function FinancialSnapshotPage() {
                             subtext={`${fmt(f.collected)} in / ${fmt(f.paid)} out`} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Card className="p-6">
                             <h3 className="text-sm font-semibold mb-4">Accounts Receivable (Aging)</h3>
                             <div className="space-y-2 text-sm">

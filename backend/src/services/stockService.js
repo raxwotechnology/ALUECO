@@ -136,9 +136,30 @@ export const decreaseStock = async ({
 }) => {
     if (!quantity || quantity <= 0) throw new Error('Quantity must be greater than 0');
 
-    const stockItem = await StockItem.findOne({
+    let stockItem = await StockItem.findOne({
         productId, warehouseId, batchNumber,
     }).session(session || null);
+
+    if (!stockItem && !batchNumber) {
+        // Fallback: If no batchNumber was requested, find any batch with stock, sorting by FIFO (createdAt: 1)
+        stockItem = await StockItem.findOne({
+            productId,
+            warehouseId,
+            'quantities.onHand': { $gt: 0 }
+        })
+        .sort({ createdAt: 1 })
+        .session(session || null);
+
+        // If still no stock item found with positive stock, just find any stock item for this product/warehouse to allow negative adjustments if allowed
+        if (!stockItem) {
+            stockItem = await StockItem.findOne({
+                productId,
+                warehouseId
+            })
+            .sort({ createdAt: 1 })
+            .session(session || null);
+        }
+    }
 
     if (!stockItem) {
         throw new Error(`No stock found for this product in the selected warehouse`);
@@ -163,7 +184,7 @@ export const decreaseStock = async ({
         productId,
         productCode: product?.productCode,
         productName: product?.name,
-        batchNumber,
+        batchNumber: stockItem.batchNumber || batchNumber,
         movementType,
         direction: 'out',
         quantity,

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import GoodsReceiptNote from '../models/GoodsReceiptNote.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
+import Bill from '../models/Bill.js';
 import { increaseStock } from '../services/stockService.js';
 import { generateJulianBatchCode } from '../utils/julianDate.js';
 import { getIO } from '../services/socketService.js';
@@ -12,48 +13,97 @@ import { sendGrnConfirmationSms, sendGrnCreationSms } from '../services/smsServi
  * Create a GRN — saves in 'pending_approval' queue state and does NOT update active stock immediately.
  */
 export const createGrn = asyncHandler(async (req, res) => {
-    const { purchaseOrderId, warehouseId, items, ...rest } = req.body;
+    const { purchaseOrderId, warehouseId, items, sourceType, supplierId, farmId, ...rest } = req.body;
 
-    const po = await PurchaseOrder.findById(purchaseOrderId);
-    if (!po) { res.status(404); throw new Error('Purchase order not found'); }
-    if (!['approved', 'sent', 'partially_received'].includes(po.status)) {
-        res.status(400);
-        throw new Error(`Cannot receive against PO with status '${po.status}'`);
+    let po = null;
+    let supplierName = '';
+    let resolvedSupplierId = supplierId;
+    let resolvedFarmId = farmId;
+    let farmName = '';
+
+    if (purchaseOrderId) {
+        po = await PurchaseOrder.findById(purchaseOrderId);
+        if (!po) { res.status(404); throw new Error('Purchase order not found'); }
+        if (!['approved', 'sent', 'partially_received'].includes(po.status)) {
+            res.status(400);
+            throw new Error(`Cannot receive against PO with status '${po.status}'`);
+        }
+        resolvedSupplierId = po.supplierId;
+        supplierName = po.supplierSnapshot?.name || '';
+    } else {
+        // Direct GRN
+        if (sourceType === 'own_farm') {
+            const Farm = mongoose.model('Farm');
+            const farm = await Farm.findById(farmId);
+            if (!farm) { res.status(404); throw new Error('Farm not found'); }
+            farmName = farm.name;
+        } else {
+            const Supplier = mongoose.model('Supplier');
+            const supplier = await Supplier.findById(supplierId);
+            if (!supplier) { res.status(404); throw new Error('Supplier not found'); }
+            supplierName = supplier.displayName || supplier.companyName || '';
+        }
     }
 
-    // Validate items against PO
-    const poItemsMap = new Map(po.items.map((i) => [i._id.toString(), i]));
-
     // Build GRN line items (status is pending QA inspection)
-    const grnItems = items.map((item) => {
-        const poLine = item.poLineItemId ? poItemsMap.get(item.poLineItemId) : null;
-        
-        return {
-            poLineItemId: item.poLineItemId,
+    const grnItems = [];
+    const Product = mongoose.model('Product');
+
+    for (const item of items) {
+        let productCode = '';
+        let productName = '';
+        let unitOfMeasure = '';
+        let orderedQuantity = 0;
+        let unitPrice = Number(item.unitPrice) || 0;
+
+        if (po) {
+            const poItemsMap = new Map(po.items.map((i) => [i._id.toString(), i]));
+            const poLine = item.poLineItemId ? poItemsMap.get(item.poLineItemId) : null;
+            if (poLine) {
+                productCode = poLine.productCode || '';
+                productName = poLine.productName || '';
+                unitOfMeasure = poLine.unitOfMeasure || '';
+                orderedQuantity = poLine.orderedQuantity || 0;
+                unitPrice = unitPrice || poLine.unitPrice || 0;
+            }
+        } else {
+            const product = await Product.findById(item.productId);
+            if (!product) { res.status(404); throw new Error(`Product ${item.productId} not found`); }
+            productCode = product.productCode || '';
+            productName = product.name || '';
+            unitOfMeasure = product.unitOfMeasure || '';
+            unitPrice = unitPrice || product.basePrice || 0;
+        }
+
+        grnItems.push({
+            poLineItemId: item.poLineItemId || null,
             productId: item.productId,
-            productCode: poLine?.productCode || '',
-            productName: poLine?.productName || '',
-            orderedQuantity: poLine?.orderedQuantity || 0,
-            receivedQuantity: item.receivedQuantity,
+            productCode,
+            productName,
+            orderedQuantity,
+            receivedQuantity: Number(item.receivedQuantity) || 0,
             acceptedQuantity: 0, // Set during QA approval
             rejectedQuantity: 0, // Set during QA approval
-            damagedQuantity: item.damagedQuantity || 0,
-            unitOfMeasure: poLine?.unitOfMeasure || '',
-            unitPrice: item.unitPrice || poLine?.unitPrice || 0,
+            damagedQuantity: Number(item.damagedQuantity) || 0,
+            unitOfMeasure,
+            unitPrice,
             batchNumber: item.batchNumber || null,
             manufactureDate: item.manufactureDate || null,
             expiryDate: item.expiryDate || null,
             rejectionReason: null,
             notes: item.notes,
             qcStatus: 'pending',
-        };
-    });
+        });
+    }
 
     const grn = new GoodsReceiptNote({
-        purchaseOrderId: po._id,
-        poNumber: po.poNumber,
-        supplierId: po.supplierId,
-        supplierName: po.supplierSnapshot?.name,
+        purchaseOrderId: po?._id || null,
+        poNumber: po?.poNumber || null,
+        sourceType: sourceType || 'supplier',
+        supplierId: sourceType === 'own_farm' ? null : resolvedSupplierId || null,
+        supplierName: sourceType === 'own_farm' ? null : supplierName || null,
+        farmId: sourceType === 'own_farm' ? resolvedFarmId || null : null,
+        farmName: sourceType === 'own_farm' ? farmName || null : null,
         warehouseId,
         items: grnItems,
         status: 'pending_approval', // Entered by procurement, pending QA
@@ -92,16 +142,28 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
         throw new Error(`Cannot perform QA approval on GRN with status '${grn.status}'`);
     }
 
-    const supplier = await Supplier.findById(grn.supplierId);
-    if (!supplier) {
-        res.status(404);
-        throw new Error('Supplier associated with this GRN not found');
+    let supplier = null;
+    if (grn.sourceType !== 'own_farm' && grn.supplierId) {
+        supplier = await Supplier.findById(grn.supplierId);
+        if (!supplier) {
+            res.status(404);
+            throw new Error('Supplier associated with this GRN not found');
+        }
     }
 
-    const po = await PurchaseOrder.findById(grn.purchaseOrderId);
-    if (!po) {
-        res.status(404);
-        throw new Error('Associated Purchase Order not found');
+    let farm = null;
+    if (grn.sourceType === 'own_farm' && grn.farmId) {
+        const Farm = mongoose.model('Farm');
+        farm = await Farm.findById(grn.farmId);
+        if (!farm) {
+            res.status(404);
+            throw new Error('Farm associated with this GRN not found');
+        }
+    }
+
+    let po = null;
+    if (grn.purchaseOrderId) {
+        po = await PurchaseOrder.findById(grn.purchaseOrderId);
     }
 
     const session = await mongoose.startSession();
@@ -124,9 +186,14 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                 grnItem.qcStatus = rejectedQty > 0 ? 'failed' : 'approved';
                 grnItem.rejectionReason = approval.rejectionReason;
 
-                // 1. Generate Julian Tracking Batch Code: [SupplierCode]-ALE[YearShort][JulianDay]
-                const supCode = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
-                const batchCode = generateJulianBatchCode(supCode, grn.receiptDate);
+                // 1. Generate Julian Tracking Batch Code
+                let codePrefix = 'SUP';
+                if (grn.sourceType === 'own_farm' && farm) {
+                    codePrefix = farm.farmCode || farm.name;
+                } else if (supplier) {
+                    codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
+                }
+                const batchCode = generateJulianBatchCode(codePrefix, grn.receiptDate);
                 grnItem.batchNumber = approval.batchNumber || batchCode;
 
                 totalPayable += acceptedQty * grnItem.unitPrice;
@@ -153,7 +220,7 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                 }
 
                 // 3. Update PO received quantity
-                if (grnItem.poLineItemId) {
+                if (po && grnItem.poLineItemId) {
                     const poLine = po.items.id(grnItem.poLineItemId);
                     if (poLine) {
                         poLine.receivedQuantity = (poLine.receivedQuantity || 0) + acceptedQty;
@@ -171,31 +238,96 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
 
             // Save GRN and PO
             await grn.save({ session });
+
+            // Auto-generate Bill from GRN
+            const billItems = grn.items
+                .filter(gi => gi.acceptedQuantity > 0)
+                .map(gi => ({
+                    productId: gi.productId,
+                    productCode: gi.productCode,
+                    productName: gi.productName,
+                    quantity: gi.acceptedQuantity,
+                    unitOfMeasure: gi.unitOfMeasure,
+                    unitPrice: gi.unitPrice,
+                    taxRate: 0,
+                    taxable: false,
+                    grnLineItemId: gi._id,
+                }));
+
+            if (billItems.length > 0) {
+                let finalDueDate = grn.receiptDate || new Date();
+                let paymentTermsType = 'cash';
+                let creditDays = 0;
+
+                if (supplier) {
+                    paymentTermsType = supplier.paymentTerms?.type || 'credit';
+                    creditDays = supplier.paymentTerms?.creditDays || 0;
+                    if (paymentTermsType === 'credit') {
+                        const d = new Date(finalDueDate);
+                        d.setDate(d.getDate() + creditDays);
+                        finalDueDate = d;
+                    }
+                }
+
+                const bill = new Bill({
+                    supplierInvoiceNumber: grn.grnNumber,
+                    supplierId: supplier ? supplier._id : null,
+                    supplierSnapshot: {
+                        name: supplier ? supplier.displayName : (grn.farmName || 'Own Farm'),
+                        code: supplier ? (supplier.supplierShortCode || supplier.supplierCode || 'SUP') : (farm ? (farm.farmCode || 'FRM') : 'FRM'),
+                        taxRegistrationNumber: supplier ? supplier.taxRegistrationNumber : undefined,
+                    },
+                    purchaseOrderIds: po ? [po._id] : [],
+                    purchaseOrderNumbers: po && po.poNumber ? [po.poNumber] : [],
+                    grnIds: [grn._id],
+                    grnNumbers: [grn.grnNumber],
+                    billDate: grn.receiptDate || new Date(),
+                    dueDate: finalDueDate,
+                    paymentTerms: {
+                        type: paymentTermsType,
+                        creditDays: creditDays,
+                    },
+                    items: billItems,
+                    amountPaid: grn.paidAmountLKR || 0,
+                    status: 'approved',
+                    approvedBy: req.user._id,
+                    approvedAt: new Date(),
+                    createdBy: req.user._id,
+                });
+
+                await bill.save({ session });
+            }
             
             // Check PO status
-            let allReceived = true;
-            po.items.forEach(i => {
-                if ((i.receivedQuantity || 0) < i.orderedQuantity) {
-                    allReceived = false;
-                }
-            });
-            po.status = allReceived ? 'received' : 'partially_received';
-            po.grns = [...(po.grns || []), grn._id];
-            await po.save({ session });
+            if (po) {
+                let allReceived = true;
+                po.items.forEach(i => {
+                    if ((i.receivedQuantity || 0) < i.orderedQuantity) {
+                        allReceived = false;
+                    }
+                });
+                po.status = allReceived ? 'received' : 'partially_received';
+                po.grns = [...(po.grns || []), grn._id];
+                await po.save({ session });
+            }
 
             // 5. Update Supplier Accounts Payable ledger
-            supplier.balanceDueLKR = +( (supplier.balanceDueLKR || 0) + balanceDue ).toFixed(2);
-            await supplier.save({ session });
+            if (supplier) {
+                supplier.balanceDueLKR = +( (supplier.balanceDueLKR || 0) + balanceDue ).toFixed(2);
+                await supplier.save({ session });
+            }
 
             // 6. Broadcast Real-Time Stock & Balance via Socket.io
             try {
                 const io = getIO();
-                // Emit petty cash / supplier balance change
-                io.emit('supplier_balance_update', {
-                    supplierId: supplier._id,
-                    displayName: supplier.displayName,
-                    balanceDueLKR: supplier.balanceDueLKR,
-                });
+                if (supplier) {
+                    // Emit petty cash / supplier balance change
+                    io.emit('supplier_balance_update', {
+                        supplierId: supplier._id,
+                        displayName: supplier.displayName,
+                        balanceDueLKR: supplier.balanceDueLKR,
+                    });
+                }
                 
                 // Emit stock threshold check alert
                 io.emit('stock_update', {

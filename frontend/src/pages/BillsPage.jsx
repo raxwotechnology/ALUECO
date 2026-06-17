@@ -70,7 +70,7 @@ export default function BillsPage() {
         <div>
             <PageHeader title="Supplier Bills" description="Track what you owe suppliers" />
 
-            <div className="grid grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
                 {[
                     { key: 'current', label: 'Current', color: 'bg-green-50 text-green-700 border-green-200' },
                     { key: '1_30', label: '1-30 days', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },

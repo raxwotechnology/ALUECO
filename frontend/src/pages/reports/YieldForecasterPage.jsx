@@ -180,7 +180,7 @@ export default function YieldForecasterPage() {
             )}
 
             {!isLoading && forecastingData && forecastingData.history.length > 0 && (
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Charts Panel */}
                     <div className="col-span-2 space-y-6">
                         <Card className="p-6">
@@ -219,7 +219,7 @@ export default function YieldForecasterPage() {
                         </Card>
 
                         {/* Batch Stats Panel */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <Card className="p-4 bg-slate-50 border border-slate-100">
                                 <span className="text-gray-500 text-xs block font-medium">Batches Tracked</span>
                                 <span className="text-2xl font-bold text-slate-800">{forecastingData.statistics.count} Runs</span>

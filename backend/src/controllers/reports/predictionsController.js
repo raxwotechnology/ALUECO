@@ -127,7 +127,7 @@ export const getPredictionsDashboard = asyncHandler(async (req, res) => {
     const [allProducts, stockItems, recentSales] = await Promise.all([
         Product.find({ deletedAt: null, status: 'active' }).select('name productCode basePrice unitOfMeasure stockLevels.minimumLevel'),
         StockItem.aggregate([
-            { $match: { 'quantities.available': { $gt: 0 } } },
+            { $match: { productId: { $ne: null }, 'quantities.available': { $gt: 0 } } },
             {
                 $group: {
                     _id: '$productId',
@@ -157,6 +157,7 @@ export const getPredictionsDashboard = asyncHandler(async (req, res) => {
     // Create maps for fast lookup
     const stockMap = {};
     stockItems.forEach(item => {
+        if (!item._id) return; // skip orphaned stock items with null productId
         stockMap[item._id.toString()] = {
             available: item.availableStock,
             onHand: item.onHandStock
@@ -165,6 +166,7 @@ export const getPredictionsDashboard = asyncHandler(async (req, res) => {
 
     const salesVelocityMap = {};
     recentSales.forEach(item => {
+        if (!item._id) return; // skip invoice line items with null productId
         salesVelocityMap[item._id.toString()] = item.qtySold / 30; // units per day
     });
 

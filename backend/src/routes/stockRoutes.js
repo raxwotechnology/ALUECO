@@ -2,7 +2,7 @@ import express from 'express';
 import {
     getStockItems, getStockByProduct, getStockMovements,
     createOpeningStock, transferStock, adjustStock,
-    getReservations,
+    getReservations, convertStock,
 } from '../controllers/stockController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -18,5 +18,6 @@ router.get('/by-product/:productId', requirePermission('inventory.view'), getSto
 router.post('/opening', requirePermission('inventory.opening'), createOpeningStock);
 router.post('/transfer', requirePermission('inventory.transfer'), transferStock);
 router.post('/adjustment', requirePermission('inventory.adjust'), adjustStock);
+router.post('/convert', requirePermission('inventory.adjust'), convertStock);
 
 export default router;

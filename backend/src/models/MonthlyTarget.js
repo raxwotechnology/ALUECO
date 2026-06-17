@@ -17,6 +17,16 @@ const monthlyTargetSchema = new mongoose.Schema({
         default: 0,
         min: 0,
     },
+    productionTarget: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    expenditureTarget: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     notes: {
         type: String,
         trim: true,

@@ -79,7 +79,7 @@ export default function SalesByProductReportPage() {
                 </div>
             </Card>
 
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <Card className="p-4"><p className="text-sm text-gray-600">Products Sold</p><p className="text-2xl font-semibold">{products.length}</p></Card>
                 <Card className="p-4"><p className="text-sm text-gray-600">Total Units</p><p className="text-2xl font-semibold">{fmtNum(totalQty)}</p></Card>
                 <Card className="p-4"><p className="text-sm text-gray-600">Total Net Revenue</p><p className="text-2xl font-semibold">{fmt(totalRevenue)}</p></Card>

@@ -7,7 +7,7 @@ import {
     RotateCcw, Wrench, AlertTriangle, FileMinus, X, Users as UsersIcon, Building2, Clock, Calendar as CalendarIcon, Plane, Calculator, DollarSign, Upload,
     ClipboardList, UserPlus, Ship, Layers, History, FileSpreadsheet,
     ChevronDown, ChevronRight, CheckSquare, ClipboardCheck, BadgeCheck,
-    PackageCheck, CreditCard, Tag, Mail, Sparkles,
+    PackageCheck, CreditCard, Tag, Mail, Sparkles, Home,
 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 
@@ -32,6 +32,15 @@ const menuGroups = [
         items: [
             { label: 'Warehouses', icon: Warehouse, path: '/warehouses', permission: 'inventory.view' },
             { label: 'Stock', icon: Boxes, path: '/stock', permission: 'inventory.view' },
+            { label: 'Raw Materials', icon: Layers, path: '/inventory/raw-materials', permission: 'inventory.view' },
+            { label: 'Direct Converter', icon: Workflow, path: '/inventory/converter', permission: 'inventory.adjust' },
+        ],
+    },
+    {
+        label: 'Farms',
+        items: [
+            { label: 'Farms Registry', icon: Home, path: '/farms', permission: 'grn.manage' },
+            { label: 'Own Farm Harvests', icon: CalendarIcon, path: '/farms/harvests', permission: 'grn.manage' },
         ],
     },
     {
@@ -64,6 +73,7 @@ const menuGroups = [
         items: [
             { label: 'Suppliers', icon: Truck, path: '/suppliers', permission: 'suppliers.view' },
             { label: 'Purchase Orders', icon: ShoppingBag, path: '/purchase-orders', permission: 'purchasing.view' },
+            { label: 'GRNs (Material Receipts)', icon: PackageCheck, path: '/grns', permission: 'grn.manage' },
             { label: 'Bills', icon: Receipt, path: '/bills', permission: 'bills.view' },
         ],
     },

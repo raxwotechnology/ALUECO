@@ -43,7 +43,7 @@ export default function HrReportsPage() {
             {head && (
                 <>
                     <h3 className="text-sm font-semibold mb-3">Headcount</h3>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <KpiCard label="Total Employees" value={head.total} />
                         <KpiCard label="Departments" value={head.byDepartment.length} />
                         <KpiCard label="Active"
@@ -52,7 +52,7 @@ export default function HrReportsPage() {
                             value={head.byStatus.find((s) => s._id === 'probation')?.count || 0} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <Card>
                             <div className="px-6 py-4 border-b"><h3 className="text-sm font-semibold">By Department</h3></div>
                             <Table columns={[
@@ -100,7 +100,7 @@ export default function HrReportsPage() {
             </Card>
 
             {leave && (
-                <div className="grid grid-cols-2 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <Card>
                         <div className="px-6 py-4 border-b"><h3 className="text-sm font-semibold">By Leave Type</h3></div>
                         <Table columns={[
@@ -123,7 +123,7 @@ export default function HrReportsPage() {
             <h3 className="text-sm font-semibold mb-3">Payroll Summary ({year})</h3>
             {payroll && (
                 <>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <KpiCard label="YTD Gross" value={fmt(payroll.yearTotals.gross)} />
                         <KpiCard label="YTD Net Pay" value={fmt(payroll.yearTotals.netPay)} />
                         <KpiCard label="YTD EPF (8%+12%)" value={fmt(payroll.yearTotals.epfEmployee + payroll.yearTotals.epfEmployer)} />

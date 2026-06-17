@@ -42,13 +42,13 @@ export default function ReturnsReportPage() {
 
             {r && (
                 <>
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         <KpiCard label="Total Returns" value={r.summary.totalReturns || 0} />
                         <KpiCard label="Return Value" value={fmt(r.summary.totalValue)} />
                         <KpiCard label="Total Refunded" value={fmt(r.summary.totalRefunded)} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <Card className="p-6">
                             <h3 className="text-sm font-semibold mb-4">Top Reasons</h3>
                             {r.byReason.length === 0 ? (
@@ -91,7 +91,7 @@ export default function ReturnsReportPage() {
 
             {d && (
                 <>
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         <KpiCard label="Damage Incidents" value={d.summary.count || 0} />
                         <KpiCard label="Total Value Lost" value={fmt(d.summary.totalValue)} />
                     </div>

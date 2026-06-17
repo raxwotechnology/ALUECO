@@ -35,8 +35,11 @@ const grnSchema = new mongoose.Schema({
 
     purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', required: false },
     poNumber: String, // denormalized
+    sourceType: { type: String, enum: ['supplier', 'own_farm'], default: 'supplier' },
     supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: false },
     supplierName: String,
+    farmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: false },
+    farmName: String,
 
     warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: false },
 

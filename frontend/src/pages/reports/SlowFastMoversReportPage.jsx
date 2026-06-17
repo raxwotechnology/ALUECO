@@ -67,7 +67,7 @@ export default function SlowFastMoversReportPage() {
                 <div className="py-16 text-center text-gray-500">Loading...</div>
             ) : (
                 <>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         {Object.entries(classBadges).map(([key, b]) => {
                             const count = report.summary[
                                 key === 'A' ? 'fastMovers' : key === 'B' ? 'mediumMovers' : key === 'C' ? 'slowMovers' : 'deadStock'

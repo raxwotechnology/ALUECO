@@ -98,7 +98,7 @@ export default function SalesSummaryReportPage() {
                 <div className="py-16 text-center text-gray-500">Loading...</div>
             ) : (
                 <>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <KpiCard label="Total Orders" value={s.orders.totalOrders}
                             subtext={`Avg: ${fmt(s.orders.avgOrderValue)}`} />
                         <KpiCard label="Gross Order Value" value={fmt(s.orders.totalValue)} />
@@ -108,7 +108,7 @@ export default function SalesSummaryReportPage() {
                             subtext={`${s.collectionEfficiency}% efficiency`} />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-6 mb-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                         <Card className="col-span-2 p-6">
                             <h3 className="text-sm font-semibold text-gray-700 mb-4">Order Trend</h3>
                             <ResponsiveContainer width="100%" height={300}>
@@ -144,7 +144,7 @@ export default function SalesSummaryReportPage() {
 
                     <Card className="p-6">
                         <h3 className="text-sm font-semibold text-gray-700 mb-4">Financial Flow</h3>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div className="bg-blue-50 rounded-lg p-4">
                                 <p className="text-xs text-blue-700">Invoiced</p>
                                 <p className="text-xl font-bold text-blue-900">{fmt(s.invoices.total)}</p>

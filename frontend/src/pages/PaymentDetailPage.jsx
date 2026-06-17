@@ -31,78 +31,107 @@ export default function PaymentDetailPage() {
                         {p.direction === 'received' ? 'MONEY IN' : 'MONEY OUT'}
                     </Badge>
                 </span>}
-                description={`${fmtDate(p.paymentDate)} · ${p.method.replace('_', ' ')}`}
+                description={`${fmtDate(p.paymentDate)}${p.method ? ' · ' + p.method.replace(/_/g, ' ') : ''}`}
                 actions={<Button variant="outline" onClick={() => navigate('/payments')}>
                     <ArrowLeft size={16} className="mr-1.5" /> Back
                 </Button>}
             />
 
-            <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2 space-y-6">
-                    <Card className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-2 space-y-5">
+                    <Card className="p-5">
                         <h3 className="text-sm font-semibold text-gray-700 mb-4">Details</h3>
-                        <div className="grid grid-cols-2 gap-6 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-sm">
                             <div>
-                                <p className="text-xs text-gray-500 uppercase mb-1">{p.direction === 'received' ? 'From' : 'To'}</p>
-                                <p className="font-medium">{p.partyName}</p>
-                                <p className="text-gray-600">{p.customerId?.customerCode || p.supplierId?.supplierCode}</p>
+                                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{p.direction === 'received' ? 'From' : 'To'}</p>
+                                <p className="font-semibold text-gray-800">{p.partyName}</p>
+                                <p className="text-gray-500">{p.customerId?.customerCode || p.supplierId?.supplierCode}</p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 uppercase mb-1">Method</p>
-                                <p className="capitalize">{p.method.replace('_', ' ')}</p>
-                                {p.chequeNumber && <p className="text-gray-600">Cheque: {p.chequeNumber} ({fmtDate(p.chequeDate)})</p>}
-                                {p.bankName && <p className="text-gray-600">Bank: {p.bankName}</p>}
-                                {p.transactionReference && <p className="text-gray-600">Ref: {p.transactionReference}</p>}
+                                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Method</p>
+                                <p className="capitalize font-medium text-gray-700">{p.method?.replace(/_/g, ' ') || '—'}</p>
+                                {p.chequeNumber && <p className="text-gray-500 mt-1">Cheque: {p.chequeNumber} ({fmtDate(p.chequeDate)})</p>}
+                                {p.bankName && <p className="text-gray-500">Bank: {p.bankName}</p>}
+                                {p.transactionReference && <p className="text-gray-500">Ref: {p.transactionReference}</p>}
                             </div>
                         </div>
-                        {p.notes && <div className="mt-4 pt-4 border-t"><p className="text-sm whitespace-pre-wrap">{p.notes}</p></div>}
+                        {p.notes && <div className="mt-4 pt-4 border-t border-gray-100"><p className="text-sm whitespace-pre-wrap text-gray-700">{p.notes}</p></div>}
                     </Card>
 
                     {p.allocations?.length > 0 && (
                         <Card>
-                            <div className="px-6 py-4 border-b"><h3 className="text-sm font-semibold text-gray-700">Applied To</h3></div>
-                            <table className="w-full">
-                                <thead className="bg-gray-50 border-b">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Document</th>
-                                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Type</th>
-                                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {p.allocations.map((a) => (
-                                        <tr key={a._id}>
-                                            <td className="px-4 py-3 font-mono text-sm">
-                                                <button onClick={() => navigate(`/${a.documentType}s/${a.documentId}`)}
-                                                    className="text-primary-600 hover:underline">{a.documentNumber}</button>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm capitalize">{a.documentType}</td>
-                                            <td className="px-4 py-3 text-right text-sm font-medium">{fmt(a.amount)}</td>
+                            <div className="px-5 py-4 border-b border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-700">Applied To</h3>
+                            </div>
+                            {/* Desktop table */}
+                            <div className="hidden sm:block overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b border-gray-100">
+                                        <tr>
+                                            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Document</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                                            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Amount</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {p.allocations.map((a) => (
+                                            <tr key={a._id} className="hover:bg-gray-50">
+                                                <td className="px-5 py-3 font-mono text-sm">
+                                                    <button onClick={() => navigate(`/${a.documentType}s/${a.documentId}`)}
+                                                        className="text-primary-600 hover:underline">{a.documentNumber}</button>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm capitalize text-gray-600">{a.documentType}</td>
+                                                <td className="px-4 py-3 text-right text-sm font-semibold">{fmt(a.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {/* Mobile cards */}
+                            <div className="sm:hidden divide-y divide-gray-100">
+                                {p.allocations.map((a) => (
+                                    <div key={a._id} className="px-4 py-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <button onClick={() => navigate(`/${a.documentType}s/${a.documentId}`)}
+                                                className="text-primary-600 hover:underline font-mono text-sm font-medium">
+                                                {a.documentNumber}
+                                            </button>
+                                            <p className="text-xs text-gray-500 capitalize mt-0.5">{a.documentType}</p>
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-800 flex-shrink-0">{fmt(a.amount)}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </Card>
                     )}
                 </div>
 
-                <div>
-                    <Card className="p-6">
+                <div className="space-y-5">
+                    <Card className="p-5">
                         <h3 className="text-sm font-semibold text-gray-700 mb-4">Summary</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-gray-600">Amount</span><span className="font-bold text-lg">{fmt(p.amount)}</span></div>
-                            <div className="flex justify-between pt-2 border-t"><span className="text-gray-600">Allocated</span><span>{fmt(p.amount - p.unallocatedAmount)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Unallocated</span><span>{fmt(p.unallocatedAmount)}</span></div>
+                        <div className="space-y-2.5 text-sm">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-500">Amount</span>
+                                <span className="font-bold text-xl text-primary-600">{fmt(p.amount)}</span>
+                            </div>
+                            <div className="flex justify-between pt-2 border-t border-gray-100">
+                                <span className="text-gray-500">Allocated</span>
+                                <span className="font-medium">{fmt(p.amount - p.unallocatedAmount)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Unallocated</span>
+                                <span className="font-medium">{fmt(p.unallocatedAmount)}</span>
+                            </div>
                             {p.unallocatedAmount > 0 && (
-                                <p className="text-xs text-gray-500 pt-2">Available as credit for future applications.</p>
+                                <p className="text-xs text-gray-400 pt-1">Available as credit for future applications.</p>
                             )}
                         </div>
                     </Card>
 
-                    <Card className="p-6 mt-6">
+                    <Card className="p-5">
                         <h3 className="text-sm font-semibold text-gray-700 mb-2">Recorded By</h3>
-                        <p className="text-sm">{p.receivedBy?.firstName} {p.receivedBy?.lastName}</p>
-                        <p className="text-xs text-gray-500 mt-1">{new Date(p.createdAt).toLocaleString('en-LK')}</p>
+                        <p className="text-sm font-medium text-gray-800">{p.receivedBy?.firstName} {p.receivedBy?.lastName}</p>
+                        <p className="text-xs text-gray-400 mt-1">{new Date(p.createdAt).toLocaleString('en-LK')}</p>
                     </Card>
                 </div>
             </div>

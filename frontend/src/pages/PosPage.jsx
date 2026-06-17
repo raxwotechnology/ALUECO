@@ -1,15 +1,14 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     Search, Plus, Minus, Trash2, ShoppingCart, Save, X,
-    Package, AlertCircle, UserPlus, PackagePlus, CreditCard,
-    CheckCircle, ArrowLeft,
+    Package, UserPlus, CreditCard,
+    CheckCircle, ArrowLeft, ChevronUp, Tag,
+    Zap, SlidersHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-import PageHeader from '../components/ui/PageHeader';
-import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
@@ -28,13 +27,18 @@ export default function PosPage() {
     // Cart state
     const [customerId, setCustomerId] = useState('');
     const [sourceWarehouseId, setSourceWarehouseId] = useState('');
-    const [cart, setCart] = useState([]); // [{ productId, name, code, price, qty, available, taxRate, taxable }]
+    const [cart, setCart] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('all');
     const [orderDiscountPercent, setOrderDiscountPercent] = useState(0);
-
-    // Modals
+    const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [taxMode, setTaxMode] = useState('item');
+    const [overrideTaxRate, setOverrideTaxRate] = useState(18);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+
+    const cartDrawerRef = useRef(null);
+    const searchRef = useRef(null);
 
     // Data
     const { data: warehousesData } = useWarehouses({ isActive: true });
@@ -52,8 +56,6 @@ export default function PosPage() {
         queryFn: () => stockApi.list({ warehouseId: sourceWarehouseId, limit: 500 }),
         enabled: !!sourceWarehouseId,
     });
-    const [taxMode, setTaxMode] = useState('item'); // 'item' = use product's tax rate, 'override' = use override
-    const [overrideTaxRate, setOverrideTaxRate] = useState(18);
 
     const warehouses = warehousesData?.data || [];
     const customers = customersData?.data || [];
@@ -68,6 +70,18 @@ export default function PosPage() {
             if (def) setSourceWarehouseId(def._id);
         }
     }, [warehouses, sourceWarehouseId]);
+
+    // Close cart drawer on outside click
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (isCartOpen && cartDrawerRef.current && !cartDrawerRef.current.contains(e.target)) {
+                const fab = document.getElementById('pos-cart-fab');
+                if (!fab?.contains(e.target)) setIsCartOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [isCartOpen]);
 
     // Build stock map
     const stockMap = useMemo(() => {
@@ -96,7 +110,7 @@ export default function PosPage() {
                 || p.barcode?.toLowerCase().includes(q)
             );
         }
-        return result.slice(0, 60); // limit display
+        return result.slice(0, 80);
     }, [products, activeCategory, searchQuery]);
 
     const selectedCustomer = customers.find((c) => c._id === customerId);
@@ -111,7 +125,7 @@ export default function PosPage() {
         const available = stock ? Math.max(0, stock.onHand - stock.reserved) : 0;
 
         if (available <= 0) {
-            toast.error(`${product.name} is out of stock at this warehouse`);
+            toast.error(`${product.name} is out of stock`);
             return;
         }
 
@@ -235,275 +249,377 @@ export default function PosPage() {
             setCustomerId('');
             setOrderDiscountPercent(0);
             setTaxMode('item');
+            setIsCartOpen(false);
             navigate(`/sales-orders/${result.data._id}`);
         } catch { }
     };
 
     const selectedWarehouse = warehouses.find((w) => w._id === sourceWarehouseId);
+    const totalItems = totals.itemCount;
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50 -m-6">
-            {/* Top bar */}
-            <div className="bg-white border-b px-4 py-3 flex items-center gap-4">
-                <Button variant="outline" size="sm" onClick={() => navigate('/sales-orders')}>
-                    <ArrowLeft size={14} className="mr-1" /> Back
-                </Button>
+        <div className="h-screen flex flex-col bg-gray-100 -m-6 overflow-hidden">
 
-                <div className="flex-1 flex gap-3 items-center">
-                    <div className="w-72">
-                        <div className="flex gap-1 items-end">
-                            <div className="flex-1">
-                                <Select placeholder="Select customer..." options={customerOptions}
-                                    value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
-                            </div>
-                            <Button variant="outline" size="sm" onClick={() => setIsCustomerModalOpen(true)} title="Quick add">
-                                <UserPlus size={14} />
-                            </Button>
-                        </div>
-                    </div>
+            {/* ─── TOP BAR ─── */}
+            <div className="bg-white shadow-sm z-20 flex-shrink-0">
+                {/* Main top bar */}
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+                    <button
+                        onClick={() => navigate('/sales-orders')}
+                        className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600"
+                    >
+                        <ArrowLeft size={18} />
+                    </button>
 
-                    <div className="w-56">
-                        <Select placeholder="Warehouse"
-                            options={warehouses.map((w) => ({ value: w._id, label: w.name }))}
-                            value={sourceWarehouseId} onChange={(e) => { setSourceWarehouseId(e.target.value); setCart([]); }} />
-                    </div>
-
-                    {selectedCustomer && (
-                        <div className="text-xs text-gray-600">
-                            <p>Credit: <span className="font-semibold">{fmt(selectedCustomer.creditStatus?.availableCredit || 0)}</span></p>
-                            {selectedCustomer.creditStatus?.onCreditHold && (
-                                <Badge variant="danger">On Credit Hold</Badge>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <h1 className="font-bold text-lg flex items-center gap-2">
-                    <ShoppingCart size={20} />POS
-                </h1>
-            </div>
-
-            {/* Main 2-column layout */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left: Product catalog */}
-                <div className="flex-1 flex flex-col bg-gray-50 p-4 overflow-hidden">
-                    {/* Search */}
-                    <div className="flex gap-2 mb-3">
-                        <div className="relative flex-1">
-                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search by name, code, or barcode..."
-                                className="w-full pl-9 pr-3 py-2.5 border rounded-lg text-sm bg-white"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                autoFocus
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <div className="flex-1 min-w-0">
+                            <Select
+                                placeholder="Select customer..."
+                                options={customerOptions}
+                                value={customerId}
+                                onChange={(e) => setCustomerId(e.target.value)}
+                                className="text-sm"
                             />
                         </div>
-                    </div>
-
-                    {/* Category tabs */}
-                    <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
-                        <button onClick={() => setActiveCategory('all')}
-                            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${activeCategory === 'all' ? 'bg-primary-600 text-white' : 'bg-white border hover:bg-gray-100'
-                                }`}>
-                            All
+                        <button
+                            onClick={() => setIsCustomerModalOpen(true)}
+                            className="p-2 rounded-xl bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors flex-shrink-0"
+                            title="Quick add customer"
+                        >
+                            <UserPlus size={16} />
                         </button>
-                        {categories.map((c) => (
-                            <button key={c._id} onClick={() => setActiveCategory(c._id)}
-                                className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${activeCategory === c._id ? 'bg-primary-600 text-white' : 'bg-white border hover:bg-gray-100'
-                                    }`}>
-                                {c.name}
-                            </button>
-                        ))}
                     </div>
 
-                    {/* Product grid */}
-                    <div className="flex-1 overflow-y-auto">
-                        {filteredProducts.length === 0 ? (
-                            <div className="text-center py-16 text-gray-500">
-                                <Package size={32} className="mx-auto mb-2 text-gray-300" />
-                                <p>No products found</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-                                {filteredProducts.map((p) => {
-                                    const stock = stockMap.get(p._id);
-                                    const available = stock ? Math.max(0, stock.onHand - stock.reserved) : 0;
-                                    const inCart = cart.find((i) => i.productId === p._id)?.qty || 0;
-                                    const outOfStock = available <= 0;
-                                    const lowStock = available > 0 && available <= 5;
-
-                                    return (
-                                        <button
-                                            key={p._id}
-                                            onClick={() => addToCart(p)}
-                                            disabled={outOfStock}
-                                            className={`text-left bg-white border rounded-lg p-3 transition-all ${outOfStock
-                                                ? 'opacity-50 cursor-not-allowed'
-                                                : 'hover:shadow-md hover:-translate-y-0.5 hover:border-primary-300'
-                                                } ${inCart > 0 ? 'border-primary-500 bg-primary-50' : ''}`}>
-                                            <div className="aspect-square bg-gray-100 rounded mb-2 flex items-center justify-center">
-                                                <Package size={32} className="text-gray-400" />
-                                            </div>
-                                            <p className="text-sm font-medium line-clamp-2 mb-1">{p.name}</p>
-                                            <p className="text-xs text-gray-500 font-mono mb-1">{p.productCode}</p>
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-sm font-bold text-primary-600">{fmt(p.basePrice)}</p>
-                                                {outOfStock ? (
-                                                    <Badge variant="danger">Out</Badge>
-                                                ) : lowStock ? (
-                                                    <Badge variant="warning">{available}</Badge>
-                                                ) : (
-                                                    <Badge variant="success">{available}</Badge>
-                                                )}
-                                            </div>
-                                            {inCart > 0 && (
-                                                <div className="mt-1 text-xs text-primary-700 font-semibold">
-                                                    {inCart} in cart
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    <button
+                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                        className={`p-2 rounded-xl transition-colors flex-shrink-0 ${isSettingsOpen ? 'bg-primary-100 text-primary-600' : 'hover:bg-gray-100 text-gray-600'}`}
+                        title="Settings"
+                    >
+                        <SlidersHorizontal size={18} />
+                    </button>
                 </div>
 
-                {/* Right: Cart */}
-                <div className="w-96 bg-white border-l flex flex-col">
-                    <div className="p-4 border-b flex items-center justify-between">
-                        <h2 className="font-bold flex items-center gap-2">
-                            <ShoppingCart size={18} /> Cart
-                            {totals.itemCount > 0 && <Badge>{totals.itemCount}</Badge>}
-                        </h2>
-                        {cart.length > 0 && (
-                            <button onClick={clearCart} className="text-xs text-red-600 hover:underline">Clear all</button>
-                        )}
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                        {cart.length === 0 ? (
-                            <div className="text-center text-gray-500 py-12">
-                                <ShoppingCart size={32} className="mx-auto mb-2 text-gray-300" />
-                                <p className="text-sm">Cart is empty</p>
-                                <p className="text-xs mt-1">Click products to add</p>
+                {/* Collapsible settings panel */}
+                {isSettingsOpen && (
+                    <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-3 items-center text-sm">
+                        <div className="flex items-center gap-2 min-w-[180px] flex-1">
+                            <Package size={14} className="text-gray-400 flex-shrink-0" />
+                            <div className="flex-1">
+                                <Select
+                                    placeholder="Warehouse"
+                                    options={warehouses.map((w) => ({ value: w._id, label: w.name }))}
+                                    value={sourceWarehouseId}
+                                    onChange={(e) => { setSourceWarehouseId(e.target.value); setCart([]); }}
+                                />
                             </div>
-                        ) : (
-                            cart.map((item) => (
-                                <div key={item.productId} className="border rounded-lg p-2">
-                                    <div className="flex items-start justify-between mb-1">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">{item.name}</p>
-                                            <p className="text-xs text-gray-500 font-mono">{item.code}</p>
-                                        </div>
-                                        <button onClick={() => removeFromCart(item.productId)}
-                                            className="p-1 text-red-600 hover:bg-red-50 rounded ml-2">
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1 bg-gray-100 rounded">
-                                            <button onClick={() => updateQty(item.productId, -1)}
-                                                className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 rounded-l">
-                                                <Minus size={12} />
-                                            </button>
-                                            <input type="number" value={item.qty} min="1" max={item.available}
-                                                onChange={(e) => setQty(item.productId, e.target.value)}
-                                                className="w-12 text-center text-sm bg-transparent border-0 focus:ring-0" />
-                                            <button onClick={() => updateQty(item.productId, 1)}
-                                                className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 rounded-r">
-                                                <Plus size={12} />
-                                            </button>
-                                        </div>
-                                        <p className="text-sm font-semibold">{fmt(item.qty * item.price)}</p>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {fmt(item.price)} {item.unitOfMeasure ? `/ ${item.unitOfMeasure}` : ''}
-                                        · {item.available} available
-                                    </p>
-                                </div>
-                            ))
-                        )}
-                    </div>
-
-                    {/* Summary */}
-                    <div className="border-t p-4 space-y-2 bg-gray-50">
-                        <div className="flex justify-between text-sm">
-                            <span>Subtotal</span><span>{fmt(totals.subtotal)}</span>
                         </div>
 
-                        <div className="flex justify-between items-center text-sm">
-                            <span>Discount %</span>
-                            <input type="number" min="0" max="100" step="0.01"
+                        <div className="flex items-center gap-2">
+                            <Tag size={14} className="text-gray-400" />
+                            <span className="text-gray-600 text-xs">Discount:</span>
+                            <input
+                                type="number" min="0" max="100" step="0.5"
                                 value={orderDiscountPercent}
                                 onChange={(e) => setOrderDiscountPercent(e.target.value)}
-                                className="w-16 px-2 py-1 border rounded text-sm text-right" />
+                                className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                            />
+                            <span className="text-gray-500 text-xs">%</span>
                         </div>
-                        {totals.orderDiscount > 0 && (
-                            <div className="flex justify-between text-sm text-red-600">
-                                <span>Discount</span><span>-{fmt(totals.orderDiscount)}</span>
-                            </div>
-                        )}
 
-                        {/* Tax controls */}
-                        <div className="flex justify-between items-center text-sm">
-                            <span>
-                                Tax {taxMode === 'override' && <span className="text-xs text-amber-600">(overridden)</span>}
-                            </span>
-                            <div className="flex items-center gap-1">
-                                {taxMode === 'override' ? (
-                                    <>
-                                        <input type="number" min="0" max="100" step="0.01"
-                                            value={overrideTaxRate}
-                                            onChange={(e) => setOverrideTaxRate(e.target.value)}
-                                            className="w-14 px-2 py-1 border rounded text-sm text-right" />
-                                        <span className="text-xs">%</span>
-                                        <button onClick={() => setTaxMode('item')}
-                                            className="text-xs text-gray-500 hover:text-gray-800 ml-1" title="Use product tax">
-                                            ↺
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>{fmt(totals.totalTax)}</span>
-                                        <button onClick={() => {
-                                            setTaxMode('override');
-                                            setOverrideTaxRate(items.length > 0 ? cart[0]?.taxRate || 18 : 18);
-                                        }}
-                                            className="text-xs text-primary-600 hover:underline ml-2" title="Override tax rate">
-                                            Edit
-                                        </button>
-                                    </>
+                        <div className="flex items-center gap-2">
+                            <Zap size={14} className="text-gray-400" />
+                            <span className="text-gray-600 text-xs">Tax:</span>
+                            {taxMode === 'item' ? (
+                                <>
+                                    <span className="text-xs text-gray-500">Per-item rates</span>
+                                    <button
+                                        onClick={() => setTaxMode('override')}
+                                        className="text-xs text-primary-600 hover:underline"
+                                    >Override</button>
+                                </>
+                            ) : (
+                                <>
+                                    <input
+                                        type="number" min="0" max="100" step="0.5"
+                                        value={overrideTaxRate}
+                                        onChange={(e) => setOverrideTaxRate(e.target.value)}
+                                        className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                                    />
+                                    <span className="text-xs text-gray-500">%</span>
+                                    <button
+                                        onClick={() => setTaxMode('item')}
+                                        className="text-xs text-gray-500 hover:text-gray-800"
+                                    >Reset ↺</button>
+                                </>
+                            )}
+                        </div>
+
+                        {selectedCustomer && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                                <CheckCircle size={12} />
+                                <span>Credit: <strong>{fmt(selectedCustomer.creditStatus?.availableCredit || 0)}</strong></span>
+                                {selectedCustomer.creditStatus?.onCreditHold && (
+                                    <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 rounded font-medium">Hold</span>
                                 )}
                             </div>
-                        </div>
-                        {taxMode === 'override' && (
-                            <div className="flex justify-between text-sm pl-2">
-                                <span className="text-gray-500 text-xs">at {overrideTaxRate}%</span>
-                                <span>{fmt(totals.totalTax)}</span>
-                            </div>
                         )}
+                    </div>
+                )}
 
-                        <div className="flex justify-between pt-2 border-t font-bold">
-                            <span>Total</span>
-                            <span className="text-xl text-primary-600">{fmt(totals.grandTotal)}</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 pt-2">
-                            <Button variant="outline" onClick={() => handleCheckout(true)}
-                                disabled={cart.length === 0 || !customerId} loading={createOrder.isPending}>
-                                <Save size={14} className="mr-1" /> Draft
-                            </Button>
-                            <Button variant="primary" onClick={() => handleCheckout(false)}
-                                disabled={cart.length === 0 || !customerId} loading={createOrder.isPending}>
-                                <CreditCard size={14} className="mr-1" /> Checkout
-                            </Button>
-                        </div>
+                {/* Search bar */}
+                <div className="px-3 py-2">
+                    <div className="relative">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            ref={searchRef}
+                            type="text"
+                            placeholder="Search products by name, code or barcode..."
+                            className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 transition-all outline-none"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
+
+                {/* Category tabs */}
+                <div className="flex gap-1.5 px-3 pb-2.5 overflow-x-auto scrollbar-hide">
+                    <button
+                        onClick={() => setActiveCategory('all')}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${activeCategory === 'all'
+                            ? 'bg-primary-600 text-white shadow-sm shadow-primary-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                        All ({products.length})
+                    </button>
+                    {categories.map((c) => {
+                        const count = products.filter(p => (p.categoryId?._id || p.categoryId) === c._id).length;
+                        return (
+                            <button
+                                key={c._id}
+                                onClick={() => setActiveCategory(c._id)}
+                                className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${activeCategory === c._id
+                                    ? 'bg-primary-600 text-white shadow-sm shadow-primary-200'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                {c.name} {count > 0 && `(${count})`}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
+
+            {/* ─── MAIN AREA ─── */}
+            <div className="flex-1 flex overflow-hidden">
+
+                {/* ─── PRODUCT GRID ─── */}
+                <div className="flex-1 overflow-y-auto p-3">
+                    {filteredProducts.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                            <Package size={48} className="mb-3 text-gray-300" />
+                            <p className="font-medium text-gray-500">No products found</p>
+                            <p className="text-sm mt-1">Try a different search or category</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                            {filteredProducts.map((p) => {
+                                const stock = stockMap.get(p._id);
+                                const available = stock ? Math.max(0, stock.onHand - stock.reserved) : 0;
+                                const inCart = cart.find((i) => i.productId === p._id);
+                                const outOfStock = available <= 0;
+                                const lowStock = available > 0 && available <= 5;
+
+                                return (
+                                    <button
+                                        key={p._id}
+                                        onClick={() => addToCart(p)}
+                                        disabled={outOfStock}
+                                        className={`
+                                            relative text-left bg-white rounded-2xl p-3 transition-all duration-150 active:scale-95
+                                            ${outOfStock
+                                                ? 'opacity-50 cursor-not-allowed'
+                                                : 'hover:shadow-lg hover:-translate-y-0.5 cursor-pointer'
+                                            }
+                                            ${inCart
+                                                ? 'ring-2 ring-primary-500 shadow-md shadow-primary-100'
+                                                : 'shadow-sm'
+                                            }
+                                        `}
+                                    >
+                                        {/* Cart quantity badge */}
+                                        {inCart && (
+                                            <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-primary-600 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-md z-10">
+                                                {inCart.qty}
+                                            </div>
+                                        )}
+
+                                        {/* Product image placeholder */}
+                                        <div className={`aspect-square rounded-xl mb-2.5 flex items-center justify-center ${inCart ? 'bg-primary-50' : 'bg-gray-50'}`}>
+                                            <Package size={28} className={inCart ? 'text-primary-400' : 'text-gray-300'} />
+                                        </div>
+
+                                        <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1 leading-tight">{p.name}</p>
+                                        <p className="text-xs text-gray-400 font-mono mb-2">{p.productCode}</p>
+
+                                        <div className="flex items-center justify-between gap-1">
+                                            <p className="text-sm font-bold text-primary-600">
+                                                {fmt(p.basePrice)}
+                                            </p>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${outOfStock
+                                                    ? 'bg-red-100 text-red-600'
+                                                    : lowStock
+                                                        ? 'bg-amber-100 text-amber-600'
+                                                        : 'bg-green-100 text-green-600'
+                                                }`}>
+                                                {outOfStock ? 'Out' : available}
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {/* Bottom padding for FAB */}
+                    <div className="h-24 lg:hidden" />
+                </div>
+
+                {/* ─── DESKTOP CART (lg+) ─── */}
+                <div className="hidden lg:flex w-[360px] xl:w-[400px] bg-white border-l border-gray-200 flex-col shadow-xl">
+                    <CartPanel
+                        cart={cart}
+                        totals={totals}
+                        fmt={fmt}
+                        taxMode={taxMode}
+                        overrideTaxRate={overrideTaxRate}
+                        setTaxMode={setTaxMode}
+                        setOverrideTaxRate={setOverrideTaxRate}
+                        orderDiscountPercent={orderDiscountPercent}
+                        setOrderDiscountPercent={setOrderDiscountPercent}
+                        updateQty={updateQty}
+                        setQty={setQty}
+                        removeFromCart={removeFromCart}
+                        clearCart={clearCart}
+                        handleCheckout={handleCheckout}
+                        isPending={createOrder.isPending}
+                        customerId={customerId}
+                        embedded
+                    />
+                </div>
+            </div>
+
+            {/* ─── MOBILE FLOATING CART BUTTON ─── */}
+            <div className="lg:hidden fixed bottom-5 inset-x-0 flex justify-center z-30 pointer-events-none">
+                <button
+                    id="pos-cart-fab"
+                    onClick={() => setIsCartOpen(true)}
+                    disabled={cart.length === 0}
+                    className={`
+                        pointer-events-auto flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl transition-all duration-200
+                        ${cart.length === 0
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-primary-600 text-white hover:bg-primary-700 active:scale-95'
+                        }
+                    `}
+                >
+                    <div className="relative">
+                        <ShoppingCart size={22} />
+                        {totalItems > 0 && (
+                            <span className="absolute -top-2 -right-2 w-5 h-5 bg-white text-primary-700 text-xs font-bold rounded-full flex items-center justify-center">
+                                {totalItems}
+                            </span>
+                        )}
+                    </div>
+                    <div className="text-left">
+                        <div className="text-xs opacity-80 font-medium leading-none mb-0.5">
+                            {totalItems === 0 ? 'Cart is empty' : `${totalItems} item${totalItems !== 1 ? 's' : ''}`}
+                        </div>
+                        <div className="font-bold text-base leading-none">{fmt(totals.grandTotal)}</div>
+                    </div>
+                    <ChevronUp size={18} className="opacity-70" />
+                </button>
+            </div>
+
+            {/* ─── MOBILE CART DRAWER ─── */}
+            {isCartOpen && (
+                <div className="lg:hidden fixed inset-0 z-40 flex flex-col justify-end">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                        onClick={() => setIsCartOpen(false)}
+                    />
+
+                    {/* Drawer */}
+                    <div
+                        ref={cartDrawerRef}
+                        className="relative bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-slideUp"
+                        style={{
+                            animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        }}
+                    >
+                        {/* Handle bar */}
+                        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+                            <div className="w-10 h-1 bg-gray-200 rounded-full" />
+                        </div>
+
+                        {/* Drawer header */}
+                        <div className="flex items-center justify-between px-5 pb-3 pt-2 border-b border-gray-100 flex-shrink-0">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
+                                    <ShoppingCart size={16} className="text-primary-600" />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-gray-900">Your Cart</h2>
+                                    {totals.itemCount > 0 && (
+                                        <p className="text-xs text-gray-500">{totals.itemCount} item{totals.itemCount !== 1 ? 's' : ''}</p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsCartOpen(false)}
+                                className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-400"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <CartPanel
+                            cart={cart}
+                            totals={totals}
+                            fmt={fmt}
+                            taxMode={taxMode}
+                            overrideTaxRate={overrideTaxRate}
+                            setTaxMode={setTaxMode}
+                            setOverrideTaxRate={setOverrideTaxRate}
+                            orderDiscountPercent={orderDiscountPercent}
+                            setOrderDiscountPercent={setOrderDiscountPercent}
+                            updateQty={updateQty}
+                            setQty={setQty}
+                            removeFromCart={removeFromCart}
+                            clearCart={clearCart}
+                            handleCheckout={handleCheckout}
+                            isPending={createOrder.isPending}
+                            customerId={customerId}
+                            onCheckoutSuccess={() => setIsCartOpen(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes slideUp {
+                    from { transform: translateY(100%); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
 
             <QuickCreateCustomerModal
                 isOpen={isCustomerModalOpen}
@@ -511,5 +627,145 @@ export default function PosPage() {
                 onCreated={(c) => setCustomerId(c._id)}
             />
         </div>
+    );
+}
+
+// ─── REUSABLE CART PANEL (used in both desktop sidebar & mobile drawer) ───
+function CartPanel({
+    cart, totals, fmt, taxMode, overrideTaxRate, setTaxMode, setOverrideTaxRate,
+    orderDiscountPercent, setOrderDiscountPercent,
+    updateQty, setQty, removeFromCart, clearCart, handleCheckout,
+    isPending, customerId, embedded,
+}) {
+    return (
+        <>
+            {/* Cart items */}
+            <div className={`flex-1 overflow-y-auto ${embedded ? 'p-4' : 'px-4 pt-2 pb-3'} space-y-2`}>
+                {cart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                        <ShoppingCart size={40} className="mb-3 text-gray-200" />
+                        <p className="font-medium text-gray-400">Cart is empty</p>
+                        <p className="text-xs mt-1 text-gray-300">Tap products to add them</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Items</span>
+                            <button onClick={clearCart} className="text-xs text-red-500 hover:text-red-700 hover:underline">
+                                Clear all
+                            </button>
+                        </div>
+                        {cart.map((item) => (
+                            <div key={item.productId} className="bg-gray-50 rounded-2xl p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1 min-w-0 pr-2">
+                                        <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{item.name}</p>
+                                        <p className="text-xs text-gray-400 font-mono mt-0.5">{item.code}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => removeFromCart(item.productId)}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors flex-shrink-0"
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2">
+                                    {/* Qty stepper */}
+                                    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                        <button
+                                            onClick={() => updateQty(item.productId, -1)}
+                                            className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-600"
+                                        >
+                                            <Minus size={13} />
+                                        </button>
+                                        <input
+                                            type="number"
+                                            value={item.qty}
+                                            min="1"
+                                            max={item.available}
+                                            onChange={(e) => setQty(item.productId, e.target.value)}
+                                            className="w-10 text-center text-sm font-semibold bg-transparent border-0 focus:ring-0 p-0"
+                                        />
+                                        <button
+                                            onClick={() => updateQty(item.productId, 1)}
+                                            className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors text-gray-600"
+                                        >
+                                            <Plus size={13} />
+                                        </button>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <p className="text-sm font-bold text-gray-800">{fmt(item.qty * item.price)}</p>
+                                        <p className="text-xs text-gray-400">{fmt(item.price)} each</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                )}
+            </div>
+
+            {/* Order summary & checkout */}
+            {cart.length > 0 && (
+                <div className="border-t border-gray-100 bg-white flex-shrink-0 px-4 pt-3 pb-5 space-y-2.5">
+                    {/* Summary rows */}
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between text-sm text-gray-600">
+                            <span>Subtotal</span>
+                            <span className="font-medium">{fmt(totals.subtotal)}</span>
+                        </div>
+
+                        {totals.orderDiscount > 0 && (
+                            <div className="flex justify-between text-sm text-green-600">
+                                <span>Discount ({orderDiscountPercent}%)</span>
+                                <span className="font-medium">-{fmt(totals.orderDiscount)}</span>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between text-sm text-gray-600">
+                            <span>Tax</span>
+                            <span className="font-medium">{fmt(totals.totalTax)}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                        <span className="font-bold text-gray-900 text-base">Total</span>
+                        <span className="text-xl font-extrabold text-primary-600">{fmt(totals.grandTotal)}</span>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                            onClick={() => handleCheckout(true)}
+                            disabled={!customerId || isPending}
+                            className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Save size={15} />
+                            Draft
+                        </button>
+                        <button
+                            onClick={() => handleCheckout(false)}
+                            disabled={!customerId || isPending}
+                            className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl bg-primary-600 text-white font-semibold text-sm hover:bg-primary-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200"
+                        >
+                            {isPending ? (
+                                <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                </svg>
+                            ) : <CreditCard size={15} />}
+                            Checkout
+                        </button>
+                    </div>
+
+                    {!customerId && (
+                        <p className="text-xs text-amber-600 text-center flex items-center justify-center gap-1">
+                            <span>⚠</span> Select a customer to checkout
+                        </p>
+                    )}
+                </div>
+            )}
+        </>
     );
 }

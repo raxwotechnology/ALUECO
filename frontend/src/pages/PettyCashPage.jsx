@@ -16,8 +16,8 @@ const CATEGORIES = [
     { key: 'maintenance',  label: 'Maintenance',   color: 'bg-yellow-500' },
     { key: 'stationery',   label: 'Stationery',    color: 'bg-gray-400' },
     { key: 'miscWages',    label: 'Misc wages',    color: 'bg-purple-500' },
-    { key: 'wood',         label: 'Wood',          color: 'bg-amber-600' },
-    { key: 'packing',      label: 'Packing material', color: 'bg-teal-500' },
+    { key: 'wood',         label: 'Fire Wood',     color: 'bg-amber-600' },
+    { key: 'packing',      label: 'packing material', color: 'bg-teal-500' },
 ];
 
 const fmtRs = (n) => `Rs. ${(n || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
@@ -295,8 +295,8 @@ export default function PettyCashPage() {
                                                 else if (catVal === 'Maintenance') updated.maintenance = amt;
                                                 else if (catVal === 'Stationery') updated.stationary = amt;
                                                 else if (catVal === 'Misc wages') updated.miscWages = amt;
-                                                else if (catVal === 'Wood') updated.wood = amt;
-                                                else if (catVal === 'Packing material') updated.packingMaterials = amt;
+                                                else if (catVal === 'Fire Wood') updated.wood = amt;
+                                                else if (catVal === 'packing material') updated.packingMaterials = amt;
                                             }
                                             return updated;
                                         });
@@ -337,8 +337,8 @@ export default function PettyCashPage() {
                                             else if (catVal === 'Maintenance') updated.maintenance = amt;
                                             else if (catVal === 'Stationery') updated.stationary = amt;
                                             else if (catVal === 'Misc wages') updated.miscWages = amt;
-                                            else if (catVal === 'Wood') updated.wood = amt;
-                                            else if (catVal === 'Packing material') updated.packingMaterials = amt;
+                                            else if (catVal === 'Fire Wood') updated.wood = amt;
+                                            else if (catVal === 'packing material') updated.packingMaterials = amt;
                                             return updated;
                                         });
                                     }}

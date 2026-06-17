@@ -39,29 +39,29 @@ export const getFinancialSnapshot = asyncHandler(async (req, res) => {
             { $group: { _id: null, total: { $sum: '$amount' } } },
         ]),
         Invoice.aggregate([
-            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
             {
                 $group: {
                     _id: null,
-                    current: { $sum: '$agingBuckets.current' },
-                    b1_30: { $sum: '$agingBuckets.1_30' },
-                    b31_60: { $sum: '$agingBuckets.31_60' },
-                    b61_90: { $sum: '$agingBuckets.61_90' },
-                    b91_plus: { $sum: '$agingBuckets.91_plus' },
+                    current: { $sum: { $cond: [{ $eq: ['$agingBucket', 'current'] }, '$balanceDue', 0] } },
+                    b1_30: { $sum: { $cond: [{ $eq: ['$agingBucket', '1_30'] }, '$balanceDue', 0] } },
+                    b31_60: { $sum: { $cond: [{ $eq: ['$agingBucket', '31_60'] }, '$balanceDue', 0] } },
+                    b61_90: { $sum: { $cond: [{ $eq: ['$agingBucket', '61_90'] }, '$balanceDue', 0] } },
+                    b91_plus: { $sum: { $cond: [{ $eq: ['$agingBucket', '91_plus'] }, '$balanceDue', 0] } },
                     total: { $sum: '$balanceDue' },
                 },
             },
         ]),
         Bill.aggregate([
-            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] } } },
+            { $match: { deletedAt: null, paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] } } },
             {
                 $group: {
                     _id: null,
-                    current: { $sum: '$agingBuckets.current' },
-                    b1_30: { $sum: '$agingBuckets.1_30' },
-                    b31_60: { $sum: '$agingBuckets.31_60' },
-                    b61_90: { $sum: '$agingBuckets.61_90' },
-                    b91_plus: { $sum: '$agingBuckets.91_plus' },
+                    current: { $sum: { $cond: [{ $eq: ['$agingBucket', 'current'] }, '$balanceDue', 0] } },
+                    b1_30: { $sum: { $cond: [{ $eq: ['$agingBucket', '1_30'] }, '$balanceDue', 0] } },
+                    b31_60: { $sum: { $cond: [{ $eq: ['$agingBucket', '31_60'] }, '$balanceDue', 0] } },
+                    b61_90: { $sum: { $cond: [{ $eq: ['$agingBucket', '61_90'] }, '$balanceDue', 0] } },
+                    b91_plus: { $sum: { $cond: [{ $eq: ['$agingBucket', '91_plus'] }, '$balanceDue', 0] } },
                     total: { $sum: '$balanceDue' },
                 },
             },
@@ -104,7 +104,7 @@ export const getTargets = asyncHandler(async (req, res) => {
  * Create or update a monthly revenue target
  */
 export const setTarget = asyncHandler(async (req, res) => {
-    const { year, month, revenueTarget, notes } = req.body;
+    const { year, month, revenueTarget, productionTarget, expenditureTarget, notes } = req.body;
 
     if (!year || !month || revenueTarget === undefined) {
         res.status(400);
@@ -113,7 +113,13 @@ export const setTarget = asyncHandler(async (req, res) => {
 
     const target = await MonthlyTarget.findOneAndUpdate(
         { year, month },
-        { revenueTarget: Number(revenueTarget), notes, updatedBy: req.user._id },
+        {
+            revenueTarget: Number(revenueTarget),
+            productionTarget: Number(productionTarget) || 0,
+            expenditureTarget: Number(expenditureTarget) || 0,
+            notes,
+            updatedBy: req.user._id
+        },
         { new: true, upsert: true }
     );
 
@@ -136,6 +142,8 @@ export const getVarianceReport = asyncHandler(async (req, res) => {
     // 1. Fetch Target
     const target = await MonthlyTarget.findOne({ year: y, month: m });
     const targetRevenue = target?.revenueTarget || 0;
+    const targetProduction = target?.productionTarget || 0;
+    const targetExpenditure = target?.expenditureTarget || 0;
 
     // 2. Fetch Verified Commercial Invoices (non-proforma, approved/sent/paid, not cancelled)
     const invoices = await Invoice.find({
@@ -164,12 +172,33 @@ export const getVarianceReport = asyncHandler(async (req, res) => {
         other: dailyPnLs.reduce((s, p) => s + (p.other || 0), 0)
     };
 
-    // 4. Compute Variance Metrics
+    // 4. Fetch Actual Production Output from Production Batches (completed this month)
+    const batches = await mongoose.model('ProductionBatch').find({
+        status: 'completed',
+        date: { $gte: start, $lte: end },
+        deletedAt: null
+    });
+    const actualProduction = batches.reduce((sum, b) => sum + (b.outputWeight_total || 0), 0);
+    const productionVariance = actualProduction - targetProduction;
+    const productionPercentageAchieved = targetProduction > 0 ? (actualProduction / targetProduction) * 100 : 0;
+
+    // 5. Fetch Actual Petty Cash Expenditures (approved expenses this month)
+    const pettyExpenses = await mongoose.model('PettyCash').find({
+        transactionType: 'expense',
+        status: 'approved',
+        date: { $gte: start, $lte: end },
+        deletedAt: null
+    });
+    const actualExpenditure = pettyExpenses.reduce((sum, pe) => sum + (pe.amount || 0), 0);
+    const expenditureVariance = actualExpenditure - targetExpenditure;
+    const isExpenditureLimitExceeded = targetExpenditure > 0 && actualExpenditure > targetExpenditure;
+
+    // 6. Compute Variance Metrics
     const revenueVariance = actualRevenue - targetRevenue;
     const percentageAchieved = targetRevenue > 0 ? (actualRevenue / targetRevenue) * 100 : 0;
     const netProfitLoss = actualRevenue - actualExpenses;
 
-    // 5. Determine Compliance Milestones
+    // 7. Determine Compliance Milestones
     let milestoneStatus = 'Behind';
     const now = new Date();
     const isCurrentMonth = now.getFullYear() === y && (now.getMonth() + 1) === m;
@@ -199,6 +228,14 @@ export const getVarianceReport = asyncHandler(async (req, res) => {
             actualRevenue: +actualRevenue.toFixed(2),
             revenueVariance: +revenueVariance.toFixed(2),
             percentageAchieved: +percentageAchieved.toFixed(1),
+            targetProduction: +targetProduction.toFixed(2),
+            actualProduction: +actualProduction.toFixed(2),
+            productionVariance: +productionVariance.toFixed(2),
+            productionPercentageAchieved: +productionPercentageAchieved.toFixed(1),
+            targetExpenditure: +targetExpenditure.toFixed(2),
+            actualExpenditure: +actualExpenditure.toFixed(2),
+            expenditureVariance: +expenditureVariance.toFixed(2),
+            isExpenditureLimitExceeded,
             actualExpenses: +actualExpenses.toFixed(2),
             netProfitLoss: +netProfitLoss.toFixed(2),
             milestoneStatus,

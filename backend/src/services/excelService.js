@@ -59,6 +59,7 @@ class ExcelService {
      */
     async _resolvePath(type) {
         const fileName = this.masterFiles[type];
+        if (!fileName) return null; // No Excel file configured for this type — skip silently
         const candidates = [
             path.resolve(process.cwd(), fileName),
             path.resolve(process.cwd(), '..', fileName),

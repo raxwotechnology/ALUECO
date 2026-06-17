@@ -46,8 +46,13 @@ const grnLineSchema = z.object({
 });
 
 export const createGrnSchema = z.object({
-    purchaseOrderId: objectId,
+    purchaseOrderId: objectId.optional(),
     warehouseId: objectId,
+    sourceType: z.enum(['supplier', 'own_farm']).optional(),
+    supplierId: objectId.optional(),
+    farmId: objectId.optional(),
+    supplierName: z.string().optional(),
+    farmName: z.string().optional(),
     receiptDate: z.string().optional(),
     supplierDeliveryNoteNumber: z.string().optional(),
     supplierInvoiceNumber: z.string().optional(),

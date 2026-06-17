@@ -312,7 +312,7 @@ export const getInvoiceById = asyncHandler(async (req, res) => {
 export const getAgingSummary = asyncHandler(async (req, res) => {
     const { customerId } = req.query;
     const match = {
-        paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue'] },
+        paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] },
         deletedAt: null,
     };
     if (customerId) match.customerId = new mongoose.Types.ObjectId(customerId);

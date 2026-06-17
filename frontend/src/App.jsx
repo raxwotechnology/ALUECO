@@ -25,6 +25,11 @@ import SuppliersPage from './pages/SuppliersPage';
 import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import PurchaseOrderFormPage from './pages/PurchaseOrderFormPage';
 import PurchaseOrderDetailPage from './pages/PurchaseOrderDetailPage';
+import FarmsPage from './pages/FarmsPage';
+import FarmHarvestsPage from './pages/FarmHarvestsPage';
+import GrnsPage from './pages/GrnsPage';
+import RawMaterialsPage from './pages/RawMaterialsPage';
+import InventoryConverterPage from './pages/InventoryConverterPage';
 import InvoicesPage from './pages/InvoicesPage';
 import InvoiceFromSalesOrderPage from './pages/InvoiceFromSalesOrderPage';
 import InvoiceFormPage from './pages/InvoiceFormPage';
@@ -141,6 +146,11 @@ function App() {
         <Route path="/purchase-orders" element={<ProtectedRoute requiredPermission="purchasing.view"><PurchaseOrdersPage /></ProtectedRoute>} />
         <Route path="/purchase-orders/new" element={<ProtectedRoute requiredPermission="purchasing.view"><PurchaseOrderFormPage /></ProtectedRoute>} />
         <Route path="/purchase-orders/:id" element={<ProtectedRoute requiredPermission="purchasing.view"><PurchaseOrderDetailPage /></ProtectedRoute>} />
+        <Route path="/farms" element={<ProtectedRoute requiredPermission="grn.manage"><FarmsPage /></ProtectedRoute>} />
+        <Route path="/farms/harvests" element={<ProtectedRoute requiredPermission="grn.manage"><FarmHarvestsPage /></ProtectedRoute>} />
+        <Route path="/grns" element={<ProtectedRoute requiredPermission="grn.manage"><GrnsPage /></ProtectedRoute>} />
+        <Route path="/inventory/raw-materials" element={<ProtectedRoute requiredPermission="inventory.view"><RawMaterialsPage /></ProtectedRoute>} />
+        <Route path="/inventory/converter" element={<ProtectedRoute requiredPermission="inventory.adjust"><InventoryConverterPage /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute requiredPermission="invoices.view"><InvoicesPage /></ProtectedRoute>} />
         <Route path="/invoices/new" element={<ProtectedRoute requiredPermission="invoices.create"><InvoiceFormPage /></ProtectedRoute>} />
         <Route path="/invoices/from-sales-order" element={<ProtectedRoute requiredPermission="invoices.create"><InvoiceFromSalesOrderPage /></ProtectedRoute>} />

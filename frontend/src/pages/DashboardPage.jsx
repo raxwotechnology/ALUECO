@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     DollarSign, ShoppingCart, TrendingUp, AlertTriangle,
     Package, Factory, FileText, Users, CreditCard, ArrowRight,
     Camera, RefreshCw, Layers, ShieldCheck, Wallet, Landmark,
-    Calendar, CheckCircle, Clock
+    Calendar, CheckCircle, Clock, Home, Workflow
 } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -27,6 +28,7 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function DashboardPage() {
     const navigate = useNavigate();
+    const qc = useQueryClient();
     const { data: kpisData, isLoading: kpisLoading } = useDashboardKpis();
     const { data: revenueData } = useRevenueChart(6);
     const { socket } = useSocket();
@@ -60,11 +62,31 @@ export default function DashboardPage() {
                     return [alert, ...prev];
                 });
             });
+
+            const handleUpdate = () => {
+                fetchDeptMetrics();
+                qc.invalidateQueries({ queryKey: ['dashboardKpis'] });
+                qc.invalidateQueries({ queryKey: ['revenueChart'] });
+            };
+
+            socket.on('stock_update', handleUpdate);
+            socket.on('supplier_balance_update', handleUpdate);
+            socket.on('petty_cash_balance', handleUpdate);
+            socket.on('gate_pass_approved', handleUpdate);
+            socket.on('gate_pass_rejected', handleUpdate);
+            socket.on('gate_pass_exited', handleUpdate);
+
+            return () => {
+                socket.off('low_stock_alert');
+                socket.off('stock_update', handleUpdate);
+                socket.off('supplier_balance_update', handleUpdate);
+                socket.off('petty_cash_balance', handleUpdate);
+                socket.off('gate_pass_approved', handleUpdate);
+                socket.off('gate_pass_rejected', handleUpdate);
+                socket.off('gate_pass_exited', handleUpdate);
+            };
         }
-        return () => {
-            if (socket) socket.off('low_stock_alert');
-        };
-    }, [socket]);
+    }, [socket, qc]);
 
     const k = kpisData?.data;
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 0 }).format(n || 0);
@@ -97,6 +119,38 @@ export default function DashboardPage() {
                 <PageHeader title="Factory Operations & MD Command" description="Real-time Command Hub" />
                 <button onClick={() => { fetchDeptMetrics(); }} className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition bg-white shadow-sm">
                     <RefreshCw size={16} className="text-gray-500" />
+                </button>
+            </div>
+
+            {/* Quick Access Panel */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white border border-gray-150 p-3.5 rounded-2xl shadow-sm">
+                <button onClick={() => navigate('/finance/petty-cash')} className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 transition text-left">
+                    <span className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Wallet size={16} /></span>
+                    <div>
+                        <span className="text-[9px] text-gray-400 block font-semibold uppercase">Finance</span>
+                        <span className="text-xs font-bold text-gray-850">Petty Cash Ledger</span>
+                    </div>
+                </button>
+                <button onClick={() => navigate('/stock')} className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 transition text-left">
+                    <span className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Package size={16} /></span>
+                    <div>
+                        <span className="text-[9px] text-gray-400 block font-semibold uppercase">Inventory</span>
+                        <span className="text-xs font-bold text-gray-850">Stock Overview</span>
+                    </div>
+                </button>
+                <button onClick={() => navigate('/farms')} className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 transition text-left">
+                    <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Home size={16} /></span>
+                    <div>
+                        <span className="text-[9px] text-gray-400 block font-semibold uppercase">Agricultural</span>
+                        <span className="text-xs font-bold text-gray-850">Farms Registry</span>
+                    </div>
+                </button>
+                <button onClick={() => navigate('/inventory/converter')} className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 transition text-left">
+                    <span className="p-2 bg-violet-50 text-violet-600 rounded-lg"><Workflow size={16} /></span>
+                    <div>
+                        <span className="text-[9px] text-gray-400 block font-semibold uppercase">Production</span>
+                        <span className="text-xs font-bold text-gray-850">Direct Converter</span>
+                    </div>
                 </button>
             </div>
 
@@ -216,6 +270,8 @@ export default function DashboardPage() {
                                             <Button fullWidth variant="outline" onClick={() => navigate('/sales-orders/new')}>New Sales Order <ArrowRight size={14} className="ml-auto" /></Button>
                                             <Button fullWidth variant="outline" onClick={() => navigate('/payments/new')}>Record Payment <ArrowRight size={14} className="ml-auto" /></Button>
                                             <Button fullWidth variant="outline" onClick={() => navigate('/purchase-orders/new')}>New Purchase Order <ArrowRight size={14} className="ml-auto" /></Button>
+                                            <Button fullWidth variant="primary" onClick={() => navigate('/finance/petty-cash')}>Petty Cash Ledger <ArrowRight size={14} className="ml-auto" /></Button>
+                                            <Button fullWidth variant="primary" onClick={() => navigate('/stock')}>Stock Overview <ArrowRight size={14} className="ml-auto" /></Button>
                                             <Button fullWidth variant="outline" onClick={() => navigate('/reports')}>View All Reports <ArrowRight size={14} className="ml-auto" /></Button>
                                         </div>
                                     </Card>
@@ -272,6 +328,30 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
 
+                                    {/* Monthly Production Progress vs Target */}
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5 shadow-sm space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Monthly Production Target Progress</h4>
+                                                <p className="text-2xl font-black text-indigo-950 mt-1">{deptData?.operations?.actualProduction?.toLocaleString() || 0} Kg <span className="text-xs font-medium text-gray-500">actual / {deptData?.operations?.targetProduction?.toLocaleString() || 0} Kg target</span></p>
+                                            </div>
+                                            <Badge variant={deptData?.operations?.productionPercentage >= 105 ? 'success' : 'warning'}>
+                                                {deptData?.operations?.productionPercentage || 0}% Achieved
+                                            </Badge>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                            <div 
+                                                className="bg-indigo-600 h-full rounded-full transition-all duration-500" 
+                                                style={{ width: `${Math.min(deptData?.operations?.productionPercentage || 0, 100)}%` }}
+                                            />
+                                        </div>
+                                        {deptData?.operations?.productionPercentage >= 100 ? (
+                                            <p className="text-[10px] text-emerald-600 font-bold">🎉 Target Achieved! Monthly production goal successfully met.</p>
+                                        ) : (
+                                            <p className="text-[10px] text-gray-500">Currently tracing towards the monthly target. Progress: {deptData?.operations?.productionPercentage || 0}%</p>
+                                        )}
+                                    </div>
+
                                     {/* Recent batches */}
                                     <div className="space-y-3 pt-2">
                                         <h4 className="text-xs font-bold text-gray-400 uppercase">Recent Batches</h4>
@@ -318,15 +398,64 @@ export default function DashboardPage() {
                                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-1.5"><Landmark className="text-indigo-600" /> Cash Pool & Bank Balances</h3>
                                     
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-primary-600 text-white rounded-xl p-5 shadow relative overflow-hidden">
-                                            <Wallet className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/10" />
-                                            <p className="text-primary-100 text-[10px] font-bold uppercase tracking-wide">Factory Petty Cash Pool</p>
-                                            <p className="text-2xl font-black mt-1">{fmt(deptData?.finance?.pettyCashBalance)}</p>
+                                        <div className="bg-primary-600 text-white rounded-xl p-5 shadow relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+                                            <Wallet className="absolute right-[-10px] top-[-10px] w-20 h-20 text-white/10" />
+                                            <div>
+                                                <p className="text-primary-100 text-[10px] font-bold uppercase tracking-wide">Factory Petty Cash Pool</p>
+                                                <p className="text-2xl font-black mt-1">{fmt(deptData?.finance?.pettyCashBalance)}</p>
+                                            </div>
+                                            {deptData?.finance?.pettyCategories && deptData.finance.pettyCategories.length > 0 && (
+                                                <div className="mt-3 pt-2 border-t border-white/20 text-[9px] space-y-0.5 max-h-[60px] overflow-y-auto scrollbar-none">
+                                                    {deptData.finance.pettyCategories.slice(0, 3).map((item, idx) => (
+                                                        <div key={idx} className="flex justify-between text-white/95">
+                                                            <span className="truncate pr-2">{item.category}</span>
+                                                            <span className="font-bold">{fmt(item.amount)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="bg-emerald-600 text-white rounded-xl p-5 shadow relative overflow-hidden">
                                             <Landmark className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/10" />
                                             <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-wide">Total Bank Liquid Assets</p>
                                             <p className="text-2xl font-black mt-1">{fmt(deptData?.finance?.totalBankBalance)}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Monthly Expenditure Target vs Actual Comparison (Cards) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Monthly Expenditure Budget</p>
+                                            <div className="flex justify-between items-baseline mt-2">
+                                                <p className="text-xl font-black text-gray-800">{fmt(deptData?.finance?.actualExpenditure)}</p>
+                                                <p className="text-xs text-gray-400 font-medium">Limit: {fmt(deptData?.finance?.targetExpenditure)}</p>
+                                            </div>
+                                            <div className="w-full bg-gray-250/50 rounded-full h-2 mt-3 overflow-hidden">
+                                                <div 
+                                                    className={`h-full rounded-full transition-all ${deptData?.finance?.isLimitExceeded ? 'bg-red-500' : 'bg-primary-600'}`} 
+                                                    style={{ width: `${Math.min(((deptData?.finance?.actualExpenditure || 0) / (deptData?.finance?.targetExpenditure || 1)) * 105, 100)}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-[9px] text-gray-500 mt-2 font-medium">
+                                                Budget Utilized: {(((deptData?.finance?.actualExpenditure || 0) / (deptData?.finance?.targetExpenditure || 1)) * 100).toFixed(1)}%
+                                            </p>
+                                        </div>
+
+                                        <div className={`rounded-2xl p-5 border shadow-sm flex flex-col justify-between ${deptData?.finance?.isLimitExceeded ? 'bg-red-50 border-red-200 text-red-950 animate-pulse' : 'bg-emerald-50 border-emerald-200 text-emerald-950'}`}>
+                                            <div>
+                                                <p className={`text-[10px] font-bold uppercase tracking-wide ${deptData?.finance?.isLimitExceeded ? 'text-red-700' : 'text-emerald-700'}`}>Budget Limit Alert</p>
+                                                {deptData?.finance?.isLimitExceeded ? (
+                                                    <div className="mt-2">
+                                                        <span className="font-extrabold text-sm block">⚠️ BUDGET LIMIT EXCEEDED</span>
+                                                        <p className="text-[10px] text-red-700 mt-1">Expenses exceeded the set monthly limit of {fmt(deptData?.finance?.targetExpenditure)} by {fmt(deptData?.finance?.actualExpenditure - deptData?.finance?.targetExpenditure)}!</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-2">
+                                                        <span className="font-extrabold text-sm block">✅ BUDGET WITHIN LIMIT</span>
+                                                        <p className="text-[10px] text-emerald-700 mt-1">Expenses are safe. Remaining budget headroom: {fmt(Math.max(0, (deptData?.finance?.targetExpenditure || 0) - (deptData?.finance?.actualExpenditure || 0)))}.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -366,6 +495,22 @@ export default function DashboardPage() {
                                                 {fmt((deptData?.finance?.totalBankBalance || 0) + (deptData?.finance?.receivables || 0) - (deptData?.finance?.payables || 0))}
                                             </p>
                                         </div>
+                                    </div>
+                                </Card>
+
+                                <Card className="p-6 space-y-4">
+                                    <h3 className="text-sm font-bold text-gray-700 flex items-center gap-1.5"><Wallet className="text-emerald-600" /> Petty Cash Expenses by Category (Month)</h3>
+                                    <div className="space-y-2.5 pt-2">
+                                        {(!deptData?.finance?.pettyCategories || deptData.finance.pettyCategories.length === 0) ? (
+                                            <p className="text-gray-400 text-xs italic text-center py-4">No petty cash expenses recorded this month.</p>
+                                        ) : (
+                                            deptData.finance.pettyCategories.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-2.5 border border-gray-100 rounded-xl bg-gray-50/25 text-xs hover:bg-gray-50 transition">
+                                                    <span className="font-semibold text-gray-800">{item.category}</span>
+                                                    <span className="font-bold text-gray-900">{fmt(item.amount)}</span>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </Card>
                             </div>

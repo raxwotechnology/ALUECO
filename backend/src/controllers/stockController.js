@@ -6,6 +6,7 @@ import StockReservation from '../models/StockReservation.js';
 import {
     increaseStock, decreaseStock,
 } from '../services/stockService.js';
+import { generateJulianBatchCode } from '../utils/julianDate.js';
 
 /**
  * GET /api/stock
@@ -30,7 +31,7 @@ export const getStockItems = asyncHandler(async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     let items = await StockItem.find(filter)
-        .populate('productId', 'name productCode sku stockLevels')
+        .populate('productId', 'name productCode sku stockLevels type')
         .populate('warehouseId', 'name warehouseCode')
         .sort({ productName: 1 })
         .skip(skip)
@@ -323,4 +324,111 @@ export const getReservations = asyncHandler(async (req, res) => {
         .sort({ reservedAt: -1 });
 
     res.json({ success: true, count: reservations.length, data: reservations });
+});
+
+/**
+ * POST /api/stock/convert
+ * Stock conversion from Raw Materials to Finished Goods and logging Production Batch
+ */
+export const convertStock = asyncHandler(async (req, res) => {
+    const {
+        sourceProductId,
+        destinationProductId,
+        warehouseId,
+        inputQuantity,
+        outputQuantity,
+        notes,
+    } = req.body;
+
+    if (!sourceProductId || !destinationProductId || !warehouseId || !inputQuantity || !outputQuantity) {
+        res.status(400);
+        throw new Error('All fields (sourceProductId, destinationProductId, warehouseId, inputQuantity, outputQuantity) are required');
+    }
+
+    const Product = mongoose.model('Product');
+    const sourceProduct = await Product.findById(sourceProductId);
+    const destProduct = await Product.findById(destinationProductId);
+
+    if (!sourceProduct) {
+        res.status(404);
+        throw new Error('Source product not found');
+    }
+    if (!destProduct) {
+        res.status(404);
+        throw new Error('Destination product not found');
+    }
+
+    const session = await mongoose.startSession();
+    let productionBatch = null;
+
+    try {
+        await session.withTransaction(async () => {
+            // 1. Decrease source product stock
+            const decResult = await decreaseStock({
+                productId: sourceProductId,
+                warehouseId,
+                quantity: Number(inputQuantity),
+                movementType: 'production_issue',
+                sourceDocument: { type: 'stock_conversion', number: 'CONV' },
+                reason: `Converted to ${destProduct.name}`,
+                notes,
+                userId: req.user._id,
+                session,
+            });
+
+            // 2. Generate batch number & Increase destination product stock
+            const batchCode = generateJulianBatchCode('CONV');
+
+            await increaseStock({
+                productId: destinationProductId,
+                warehouseId,
+                quantity: Number(outputQuantity),
+                costPerUnit: decResult.unitCost * (Number(inputQuantity) / Number(outputQuantity)),
+                movementType: 'production_receipt',
+                batchNumber: batchCode,
+                sourceDocument: { type: 'stock_conversion', number: 'CONV' },
+                reason: `Converted from ${sourceProduct.name}`,
+                notes,
+                userId: req.user._id,
+                session,
+            });
+
+            // 3. Automatically log a completed ProductionBatch
+            const ProductionBatchModel = mongoose.model('ProductionBatch');
+            const batchResult = await ProductionBatchModel.create([{
+                date: new Date(),
+                supplierShortCode: 'CONV',
+                product: destProduct.name,
+                productId: destinationProductId,
+                warehouseId,
+                inputWeight_day: Number(inputQuantity),
+                outputWeight_day: Number(outputQuantity),
+                processingStage: 'completed',
+                qcStatus: 'approved',
+                status: 'completed',
+                remark: notes || `Direct stock conversion from ${sourceProduct.name} (${inputQuantity} ${sourceProduct.unitOfMeasure || 'kg'}) to ${destProduct.name} (${outputQuantity} ${destProduct.unitOfMeasure || 'kg'})`,
+                createdBy: req.user._id,
+                updatedBy: req.user._id,
+            }], { session });
+            productionBatch = batchResult[0];
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Stock converted successfully and production batch logged',
+            data: {
+                sourceProductId,
+                destinationProductId,
+                warehouseId,
+                inputQuantity,
+                outputQuantity,
+                productionBatch
+            }
+        });
+    } catch (error) {
+        res.status(400);
+        throw new Error(error.message || 'Stock conversion failed');
+    } finally {
+        session.endSession();
+    }
 });
