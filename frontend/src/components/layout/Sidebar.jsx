@@ -396,7 +396,7 @@ function MenuGroup({ group, searchQuery }) {
 // ── Main Sidebar component ────────────────────────────────────────────────────
 export default function Sidebar({ isOpen, onClose }) {
     const sidebarRef = useRef(null);
-    const { hasPermission, hasAnyPermission, isAdmin } = usePermission();
+    const { hasPermission, hasAnyPermission, isAdmin, user } = usePermission();
 
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -462,6 +462,10 @@ export default function Sidebar({ isOpen, onClose }) {
     // Filter regular groups by permission and search query
     const visibleGroups = menuGroups
         .map((g) => {
+            if (user?.role === 'employee' && g.label !== 'Overview') {
+                return null;
+            }
+
             const matchedItems = g.items.filter((item) => {
                 const isPermitted = isAdmin ||
                     (!item.permission && !item.anyPermission) ||
@@ -479,7 +483,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 items: matchedItems
             };
         })
-        .filter((g) => g.items.length > 0);
+        .filter((g) => g && g.items.length > 0);
 
     return (
         <>
@@ -610,32 +614,34 @@ export default function Sidebar({ isOpen, onClose }) {
                         ))}
 
                         {/* ── Approvals Section ── */}
-                        <div>
-                            {/* Section heading with badge */}
-                            <div className="flex items-center gap-2 px-3 mb-2">
-                                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
-                                    Approvals
-                                </p>
-                                <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
-                                    <BadgeCheck size={9} />
-                                    <span className="text-[9px] font-bold uppercase tracking-wide">Hub</span>
+                        {user?.role !== 'employee' && (
+                            <div>
+                                {/* Section heading with badge */}
+                                <div className="flex items-center gap-2 px-3 mb-2">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
+                                        Approvals
+                                    </p>
+                                    <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
+                                        <BadgeCheck size={9} />
+                                        <span className="text-[9px] font-bold uppercase tracking-wide">Hub</span>
+                                    </div>
+                                </div>
+
+                                {/* Accordion categories */}
+                                <div className="space-y-0.5">
+                                    {approvalCategories.map((category) => (
+                                        <ApprovalCategory
+                                            key={category.id}
+                                            category={category}
+                                            hasPermission={hasPermission}
+                                            hasAnyPermission={hasAnyPermission}
+                                            isAdmin={isAdmin}
+                                            searchQuery={searchQuery}
+                                        />
+                                    ))}
                                 </div>
                             </div>
-
-                            {/* Accordion categories */}
-                            <div className="space-y-0.5">
-                                {approvalCategories.map((category) => (
-                                    <ApprovalCategory
-                                        key={category.id}
-                                        category={category}
-                                        hasPermission={hasPermission}
-                                        hasAnyPermission={hasAnyPermission}
-                                        isAdmin={isAdmin}
-                                        searchQuery={searchQuery}
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                        )}
 
                     </nav>
 

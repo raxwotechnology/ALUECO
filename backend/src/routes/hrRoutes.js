@@ -11,7 +11,7 @@ import {
     createLeaveStructure, getLeaveStructures, updateLeaveStructure, deleteLeaveStructure, getMyEmployeeProfile,
 } from '../controllers/hrController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { requirePermission } from '../middleware/permissionMiddleware.js';
+import { requirePermission, requireAnyPermission } from '../middleware/permissionMiddleware.js';
 import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import ProductionBatch from '../models/ProductionBatch.js';
@@ -68,7 +68,7 @@ router.post('/attendance/bulk', requirePermission('hr.attendance.manage'), bulkM
 // ── Leave ──────────────────────────────────────────────────────────────────────
 router.route('/leaves')
     .get(requirePermission('hr.leaves.view'), getLeaveRequests)
-    .post(requirePermission('hr.leaves.manage', 'hr.employees.view'), createLeaveRequest);
+    .post(requireAnyPermission('hr.leaves.manage', 'hr.leaves.view'), createLeaveRequest);
 
 router.patch('/leaves/:id/approve', requirePermission('hr.leaves.manage'), approveLeaveRequest);
 router.patch('/leaves/:id/reject',  requirePermission('hr.leaves.manage'), rejectLeaveRequest);

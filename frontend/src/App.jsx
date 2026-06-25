@@ -204,21 +204,22 @@ function App() {
         <Route path="/repairs/:id" element={<ProtectedRoute requiredPermission="repairs.view"><RepairDetailPage /></ProtectedRoute>} />
 
         {/* HR Module */}
-        <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employees.view"><EmployeesPage /></ProtectedRoute>} />
-        <Route path="/employees/new" element={<ProtectedRoute requiredPermission="hr.employees.manage"><EmployeeFormPage /></ProtectedRoute>} />
-        <Route path="/employees/:id" element={<ProtectedRoute requiredPermission="hr.employees.view"><EmployeeDetailPage /></ProtectedRoute>} />
-        <Route path="/employees/:id/edit" element={<ProtectedRoute requiredPermission="hr.employees.manage"><EmployeeFormPage /></ProtectedRoute>} />
-        <Route path="/departments" element={<ProtectedRoute requiredPermission="hr.employees.view"><DepartmentsPage /></ProtectedRoute>} />
-        <Route path="/designations" element={<ProtectedRoute requiredPermission="hr.employees.view"><DesignationsPage /></ProtectedRoute>} />
-        <Route path="/shifts" element={<ProtectedRoute requiredPermission="hr.employees.view"><ShiftsPage /></ProtectedRoute>} />
-        <Route path="/attendance" element={<ProtectedRoute requiredPermission="hr.attendance.view"><AttendancePage /></ProtectedRoute>} />
-        <Route path="/employees/month" element={<ProtectedRoute requiredPermission="hr.employees.view"><EmployeeOfMonthPage /></ProtectedRoute>} />
-        <Route path="/leaves" element={<ProtectedRoute requiredPermission="hr.leaves.view"><LeaveRequestsPage /></ProtectedRoute>} />
-        <Route path="/holidays" element={<ProtectedRoute requiredPermission="hr.employees.view"><HolidaysPage /></ProtectedRoute>} />
-        <Route path="/salary-structures" element={<ProtectedRoute requiredPermission="hr.salary.view"><SalaryStructuresPage /></ProtectedRoute>} />
-        <Route path="/leave-structures" element={<ProtectedRoute requiredPermission="hr.leaves.view"><LeaveStructuresPage /></ProtectedRoute>} />
-        <Route path="/payroll" element={<ProtectedRoute requiredPermission="hr.payroll.view"><PayrollsPage /></ProtectedRoute>} />
-        <Route path="/payroll/:id" element={<ProtectedRoute requiredPermission="hr.payroll.view"><PayrollDetailPage /></ProtectedRoute>} />
+        {/* HR Module */}
+        <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><EmployeesPage /></ProtectedRoute>} />
+        <Route path="/employees/new" element={<ProtectedRoute requiredPermission="hr.employees.manage" excludeRoles={['employee']}><EmployeeFormPage /></ProtectedRoute>} />
+        <Route path="/employees/:id" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><EmployeeDetailPage /></ProtectedRoute>} />
+        <Route path="/employees/:id/edit" element={<ProtectedRoute requiredPermission="hr.employees.manage" excludeRoles={['employee']}><EmployeeFormPage /></ProtectedRoute>} />
+        <Route path="/departments" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><DepartmentsPage /></ProtectedRoute>} />
+        <Route path="/designations" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><DesignationsPage /></ProtectedRoute>} />
+        <Route path="/shifts" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><ShiftsPage /></ProtectedRoute>} />
+        <Route path="/attendance" element={<ProtectedRoute requiredPermission="hr.attendance.view" excludeRoles={['employee']}><AttendancePage /></ProtectedRoute>} />
+        <Route path="/employees/month" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><EmployeeOfMonthPage /></ProtectedRoute>} />
+        <Route path="/leaves" element={<ProtectedRoute requiredPermission="hr.leaves.view" excludeRoles={['employee']}><LeaveRequestsPage /></ProtectedRoute>} />
+        <Route path="/holidays" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><HolidaysPage /></ProtectedRoute>} />
+        <Route path="/salary-structures" element={<ProtectedRoute requiredPermission="hr.salary.view" excludeRoles={['employee']}><SalaryStructuresPage /></ProtectedRoute>} />
+        <Route path="/leave-structures" element={<ProtectedRoute requiredPermission="hr.leaves.view" excludeRoles={['employee']}><LeaveStructuresPage /></ProtectedRoute>} />
+        <Route path="/payroll" element={<ProtectedRoute requiredPermission="hr.payroll.view" excludeRoles={['employee']}><PayrollsPage /></ProtectedRoute>} />
+        <Route path="/payroll/:id" element={<ProtectedRoute requiredPermission="hr.payroll.view" excludeRoles={['employee']}><PayrollDetailPage /></ProtectedRoute>} />
         <Route path="/payroll/:payrollId/payslip/:employeeId" element={<ProtectedRoute requiredPermission="hr.payroll.view"><PayslipDetailPage /></ProtectedRoute>} />
 
         {/* Reports */}

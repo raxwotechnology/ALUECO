@@ -5,6 +5,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { usePayslip } from '../features/hr/useHr';
+import { useAuthStore } from '../store/authStore';
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
@@ -12,6 +13,7 @@ const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
 export default function PayslipDetailPage() {
     const { payrollId, employeeId } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuthStore();
     const { data } = usePayslip(payrollId, employeeId);
 
     const d = data?.data;
@@ -26,7 +28,13 @@ export default function PayslipDetailPage() {
             <PageHeader title="Payslip"
                 actions={
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => navigate(`/payroll/${payrollId}`)}>
+                        <Button variant="outline" onClick={() => {
+                            if (user?.role === 'employee') {
+                                navigate('/dashboard');
+                            } else {
+                                navigate(`/payroll/${payrollId}`);
+                            }
+                        }}>
                             <ArrowLeft size={16} className="mr-1.5" /> Back
                         </Button>
                         <Button variant="outline" onClick={() => window.print()}>

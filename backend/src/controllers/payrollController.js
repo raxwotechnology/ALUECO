@@ -193,6 +193,10 @@ export const processPayroll = asyncHandler(async (req, res) => {
 });
 
 export const getPayrolls = asyncHandler(async (req, res) => {
+    if (req.user.role === 'employee') {
+        res.status(403);
+        throw new Error('Access denied');
+    }
     const { year, status, page = 1, limit = 12 } = req.query;
     const filter = {};
     if (year) filter.periodYear = Number(year);
@@ -216,6 +220,10 @@ export const getPayrolls = asyncHandler(async (req, res) => {
 });
 
 export const getPayrollById = asyncHandler(async (req, res) => {
+    if (req.user.role === 'employee') {
+        res.status(403);
+        throw new Error('Access denied');
+    }
     const p = await Payroll.findById(req.params.id)
         .populate('processedBy', 'firstName lastName')
         .populate('approvedBy', 'firstName lastName');
@@ -254,6 +262,15 @@ export const markPayrollPaid = asyncHandler(async (req, res) => {
 
 export const getEmployeePayslip = asyncHandler(async (req, res) => {
     const { payrollId, employeeId } = req.params;
+
+    if (req.user.role === 'employee') {
+        const emp = await Employee.findOne({ userId: req.user._id });
+        if (!emp || emp._id.toString() !== employeeId) {
+            res.status(403);
+            throw new Error('Not authorized to view this payslip');
+        }
+    }
+
     const p = await Payroll.findById(payrollId);
     if (!p) { res.status(404); throw new Error('Payroll not found'); }
 

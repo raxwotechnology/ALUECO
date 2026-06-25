@@ -110,19 +110,28 @@ export const getEmployees = asyncHandler(async (req, res) => {
     } = req.query;
 
     const filter = {};
-    if (search) {
-        filter.$or = [
-            { firstName: { $regex: search, $options: 'i' } },
-            { lastName: { $regex: search, $options: 'i' } },
-            { employeeCode: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } },
-            { phone: { $regex: search, $options: 'i' } },
-        ];
+    if (req.user.role === 'employee') {
+        const emp = await Employee.findOne({ userId: req.user._id });
+        if (!emp) {
+            res.status(404);
+            throw new Error('Employee profile not found');
+        }
+        filter._id = emp._id;
+    } else {
+        if (search) {
+            filter.$or = [
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } },
+                { employeeCode: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } },
+            ];
+        }
+        if (departmentId) filter.departmentId = departmentId;
+        if (designationId) filter.designationId = designationId;
+        if (status) filter.status = status;
+        if (employmentType) filter.employmentType = employmentType;
     }
-    if (departmentId) filter.departmentId = departmentId;
-    if (designationId) filter.designationId = designationId;
-    if (status) filter.status = status;
-    if (employmentType) filter.employmentType = employmentType;
 
     const skip = (Number(page) - 1) * Number(limit);
     const sortObj = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
@@ -153,6 +162,12 @@ export const getEmployeeById = asyncHandler(async (req, res) => {
         .populate('salaryStructureId', 'name code components')
         .populate('leaveStructureId', 'name code leaveBalances');
     if (!emp) { res.status(404); throw new Error('Employee not found'); }
+
+    if (req.user.role === 'employee' && emp.userId?._id?.toString() !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error('Not authorized to view this employee profile');
+    }
+
     res.json({ success: true, data: emp });
 });
 
@@ -283,8 +298,17 @@ export const getAttendance = asyncHandler(async (req, res) => {
     } = req.query;
 
     const filter = {};
-    if (employeeId) filter.employeeId = employeeId;
-    if (status) filter.status = status;
+    if (req.user.role === 'employee') {
+        const emp = await Employee.findOne({ userId: req.user._id });
+        if (!emp) {
+            res.status(404);
+            throw new Error('Employee profile not found');
+        }
+        filter.employeeId = emp._id;
+    } else {
+        if (employeeId) filter.employeeId = employeeId;
+        if (status) filter.status = status;
+    }
     if (date) {
         const d = new Date(date); d.setHours(0, 0, 0, 0);
         const next = new Date(d); next.setDate(next.getDate() + 1);
@@ -296,7 +320,7 @@ export const getAttendance = asyncHandler(async (req, res) => {
     }
 
     // Department filter requires employee lookup
-    if (departmentId) {
+    if (departmentId && req.user.role !== 'employee') {
         const empIds = await Employee.find({ departmentId }).distinct('_id');
         filter.employeeId = { $in: empIds };
     }
@@ -377,7 +401,17 @@ export const bulkMarkAttendance = asyncHandler(async (req, res) => {
 export const createLeaveRequest = asyncHandler(async (req, res) => {
     const { employeeId, leaveType, fromDate, toDate, ...rest } = req.body;
 
-    const emp = await Employee.findById(employeeId);
+    let targetEmployeeId = employeeId;
+    if (req.user.role === 'employee') {
+        const empSelf = await Employee.findOne({ userId: req.user._id });
+        if (!empSelf) {
+            res.status(404);
+            throw new Error('Employee profile not found');
+        }
+        targetEmployeeId = empSelf._id;
+    }
+
+    const emp = await Employee.findById(targetEmployeeId);
     if (!emp) { res.status(404); throw new Error('Employee not found'); }
 
     const from = new Date(fromDate);
@@ -393,6 +427,7 @@ export const createLeaveRequest = asyncHandler(async (req, res) => {
         employeeName: emp.fullName,
         leaveType, fromDate: from, toDate: to, numberOfDays: days,
         ...rest,
+        status: req.user.role === 'employee' ? 'pending' : (rest.status || 'pending'),
         createdBy: req.user._id,
     });
     await leave.save();
@@ -411,7 +446,16 @@ export const getLeaveRequests = asyncHandler(async (req, res) => {
     } = req.query;
 
     const filter = {};
-    if (employeeId) filter.employeeId = employeeId;
+    if (req.user.role === 'employee') {
+        const emp = await Employee.findOne({ userId: req.user._id });
+        if (!emp) {
+            res.status(404);
+            throw new Error('Employee profile not found');
+        }
+        filter.employeeId = emp._id;
+    } else {
+        if (employeeId) filter.employeeId = employeeId;
+    }
     if (status) filter.status = status;
     if (leaveType) filter.leaveType = leaveType;
     if (startDate || endDate) {
