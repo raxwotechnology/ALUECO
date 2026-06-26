@@ -13,8 +13,13 @@ import { useVehicles, useTrips, useUpdateVehicle } from '../features/fleet/useFl
 import VehicleModal from '../features/fleet/VehicleModal';
 import TripLogModal from '../features/fleet/TripLogModal';
 
-const FleetPage = () => {
-    const [view, setView] = useState('vehicles'); // 'vehicles' or 'history'
+const FleetPage = ({ defaultView = 'vehicles' }) => {
+    const [view, setView] = useState(defaultView); // 'vehicles' or 'history'
+    
+    React.useEffect(() => {
+        setView(defaultView);
+    }, [defaultView]);
+
     const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
     const [isTripModalOpen, setIsTripModalOpen] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);

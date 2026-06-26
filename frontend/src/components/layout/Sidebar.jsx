@@ -108,7 +108,7 @@ const menuGroups = [
             { label: 'Gate Pass Management', icon: ShieldCheck, path: '/logistics/gate-passes', permission: 'inventory.view' },
             { label: 'Gate Screen', icon: ShieldCheck, path: '/gate-screen', permission: 'inventory.view' },
             { label: 'Vehicle Management', icon: Truck, path: '/fleet/vehicles', permission: 'inventory.view' },
-            { label: 'Trip Logs', icon: Navigation, path: '/fleet/vehicles', permission: 'inventory.view' },
+            { label: 'Trip Logs', icon: Navigation, path: '/fleet/trips', permission: 'inventory.view' },
             { label: 'Vehicle Maintenance', icon: Wrench, path: '/maintenance/requests', permission: 'admin.settings' },
         ],
     },

@@ -824,3 +824,36 @@ export const releaseStock = asyncHandler(async (req, res) => {
         }
     });
 });
+
+export const updateStockItem = asyncHandler(async (req, res) => {
+    const { batchNumber, manufactureDate, expiryDate, openStock, balanceStock, costPerUnit } = req.body;
+    const stockItem = await StockItem.findById(req.params.id);
+
+    if (!stockItem) {
+        res.status(404);
+        throw new Error('Stock item not found');
+    }
+
+    if (batchNumber !== undefined) stockItem.batchNumber = batchNumber;
+    if (manufactureDate !== undefined) stockItem.manufactureDate = manufactureDate;
+    if (expiryDate !== undefined) stockItem.expiryDate = expiryDate;
+    
+    if (openStock !== undefined) stockItem.quantities.openStock = Number(openStock);
+    if (balanceStock !== undefined) stockItem.quantities.balanceStock = Number(balanceStock);
+    if (costPerUnit !== undefined) stockItem.costPerUnit = Number(costPerUnit);
+
+    await stockItem.save();
+    res.json({ success: true, message: 'Stock item updated successfully', data: stockItem });
+});
+
+export const deleteStockItem = asyncHandler(async (req, res) => {
+    const stockItem = await StockItem.findById(req.params.id);
+
+    if (!stockItem) {
+        res.status(404);
+        throw new Error('Stock item not found');
+    }
+
+    await StockItem.deleteOne({ _id: req.params.id });
+    res.json({ success: true, message: 'Stock item deleted successfully' });
+});

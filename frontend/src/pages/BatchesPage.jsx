@@ -18,6 +18,14 @@ const BatchesPage = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [activeMenuId, setActiveMenuId] = useState(null);
+
+    useEffect(() => {
+        const closeMenu = () => setActiveMenuId(null);
+        window.addEventListener('click', closeMenu);
+        return () => window.removeEventListener('click', closeMenu);
+    }, []);
+
     const [formData, setFormData] = useState({
         templateId: '',
         batchNo: '',
@@ -268,9 +276,97 @@ const BatchesPage = () => {
                                 {batch.status === 'qc_pending' && (
                                     <span className="text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded">Awaiting QC Output</span>
                                 )}
-                                <button className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition">
-                                    <MoreHorizontal size={20} />
-                                </button>
+                                <div className="relative">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuId(activeMenuId === batch._id ? null : batch._id);
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                                        title="Batch Actions"
+                                    >
+                                        <MoreHorizontal size={20} />
+                                    </button>
+                                    
+                                    {activeMenuId === batch._id && (
+                                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-150 py-1 z-50">
+                                            {batch.status === 'planned' && (
+                                                <button
+                                                    onClick={() => {
+                                                        handleUpdateStatus(batch._id, 'in_progress');
+                                                        setActiveMenuId(null);
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                >
+                                                    Start Batch
+                                                </button>
+                                            )}
+                                            {batch.status === 'in_progress' && (
+                                                <button
+                                                    onClick={() => {
+                                                        handleUpdateStatus(batch._id, 'qc_pending');
+                                                        setActiveMenuId(null);
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                >
+                                                    Move to QC
+                                                </button>
+                                            )}
+                                            {batch.status === 'qc_pending' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleUpdateStatus(batch._id, 'qc_passed');
+                                                            setActiveMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                                    >
+                                                        Mark QC Passed
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleUpdateStatus(batch._id, 'qc_failed');
+                                                            setActiveMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                    >
+                                                        Mark QC Failed
+                                                    </button>
+                                                </>
+                                            )}
+                                            {batch.status === 'qc_passed' && (
+                                                <button
+                                                    onClick={() => {
+                                                        handleUpdateStatus(batch._id, 'completed');
+                                                        setActiveMenuId(null);
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
+                                                >
+                                                    Complete Batch
+                                                </button>
+                                            )}
+                                            {batch.status === 'planned' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (window.confirm('Are you sure you want to cancel this planned batch?')) {
+                                                            try {
+                                                                await api.delete(`/production-batches/${batch._id}`);
+                                                                toast.success('Batch cancelled successfully');
+                                                                fetchBatches();
+                                                            } catch (err) {
+                                                                toast.error('Failed to cancel batch');
+                                                            }
+                                                        }
+                                                        setActiveMenuId(null);
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                >
+                                                    Cancel Batch
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))

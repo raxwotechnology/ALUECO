@@ -12,4 +12,6 @@ export const stockApi = {
     convertBom: async (data) => (await api.post('/stock/convert-bom', data)).data,
     convertRecipe: async (data) => (await api.post('/stock/convert-recipe', data)).data,
     release: async (data) => (await api.post('/stock/release', data)).data,
+    update: async (id, data) => (await api.put(`/stock/${id}`, data)).data,
+    delete: async (id) => (await api.delete(`/stock/${id}`)).data,
 };

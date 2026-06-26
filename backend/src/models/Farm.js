@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Counter from './Counter.js';
 
 const farmSchema = new mongoose.Schema({
     farmCode: { type: String, unique: true, uppercase: true },

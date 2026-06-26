@@ -95,7 +95,10 @@ export const createFarmHarvest = asyncHandler(async (req, res) => {
                 await harvest.save({ session });
                 for (const item of harvest.items) {
                     const farmCode = farm.farmCode || 'FRM';
-                    const batchCode = generateJulianBatchCode(farmCode, harvest.harvestDate);
+                    const productObj = await Product.findById(item.productId);
+                    const prodShort = productObj?.productShortCode || 'PRD';
+                    const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+                    const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
                     item.batchNumber = item.batchNumber || batchCode;
 
                     const result = await increaseStock({
@@ -176,7 +179,10 @@ export const approveFarmHarvest = asyncHandler(async (req, res) => {
         await session.withTransaction(async () => {
             for (const item of harvest.items) {
                 const farmCode = farm.farmCode || 'FRM';
-                const batchCode = generateJulianBatchCode(farmCode, harvest.harvestDate);
+                const productObj = await Product.findById(item.productId);
+                const prodShort = productObj?.productShortCode || 'PRD';
+                const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+                const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
                 item.batchNumber = item.batchNumber || batchCode;
 
                 const result = await increaseStock({

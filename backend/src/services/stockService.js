@@ -75,6 +75,15 @@ export const increaseStock = async ({
 
     let openQtyToAdd = quantity;
     let balanceQtyToAdd = 0;
+
+    // Default incoming stock from GRNs (purchases), Farm Harvests, and Production Outputs to balanceStock (unreleased)
+    // so that warehouse staff can release it to POS (openStock) when needed.
+    const goesToBalanceByDefault = ['purchase_receipt', 'harvest_receipt', 'production_output', 'production_receipt'].includes(movementType);
+    if (goesToBalanceByDefault) {
+        openQtyToAdd = 0;
+        balanceQtyToAdd = quantity;
+    }
+
     if (openQuantity !== undefined && openQuantity !== null) {
         openQtyToAdd = Number(openQuantity);
         balanceQtyToAdd = Math.max(0, quantity - openQtyToAdd);

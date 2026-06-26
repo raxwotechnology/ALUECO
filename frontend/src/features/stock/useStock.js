@@ -133,7 +133,7 @@ export const useConvertStockRecipe = () => {
 export const useReleaseStock = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: stockApi.release,
+        mutationFn: (data) => stockApi.release(data),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['stock'], refetchType: 'all' });
             qc.invalidateQueries({ queryKey: ['stockMovements'], refetchType: 'all' });
@@ -142,5 +142,35 @@ export const useReleaseStock = () => {
             toast.success(data.message || 'Stock released successfully');
         },
         onError: (err) => toast.error(err.response?.data?.message || 'Stock release failed'),
+    });
+};
+
+export const useUpdateStockItem = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }) => stockApi.update(id, data),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: ['stock'], refetchType: 'all' });
+            qc.invalidateQueries({ queryKey: ['stockMovements'], refetchType: 'all' });
+            qc.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
+            invalidateReportsAndDashboard(qc);
+            toast.success('Stock item updated successfully');
+        },
+        onError: (err) => toast.error(err.response?.data?.message || 'Update failed'),
+    });
+};
+
+export const useDeleteStockItem = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id) => stockApi.delete(id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['stock'], refetchType: 'all' });
+            qc.invalidateQueries({ queryKey: ['stockMovements'], refetchType: 'all' });
+            qc.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
+            invalidateReportsAndDashboard(qc);
+            toast.success('Stock item deleted successfully');
+        },
+        onError: (err) => toast.error(err.response?.data?.message || 'Deletion failed'),
     });
 };

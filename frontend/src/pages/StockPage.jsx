@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Boxes, AlertTriangle, PackagePlus, ArrowRightLeft, Settings2, History } from 'lucide-react';
+import { Search, Boxes, AlertTriangle, PackagePlus, ArrowRightLeft, Settings2, History, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -13,15 +13,18 @@ import EmptyState from '../components/ui/EmptyState';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
-import { useStockItems, useReleaseStock } from '../features/stock/useStock';
+import { useStockItems, useReleaseStock, useUpdateStockItem, useDeleteStockItem } from '../features/stock/useStock';
 import { useWarehouses } from '../features/warehouses/useWarehouses';
 import { useAuthStore } from '../store/authStore';
+import { usePermission } from '../hooks/usePermission';
 
 export default function StockPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
-    const canAdjust = ['admin', 'manager', 'warehouse_staff'].includes(user?.role);
+    const { hasPermission } = usePermission();
+    const canAdjust = hasPermission('inventory.adjust') || ['super_admin', 'admin', 'manager', 'warehouse_manager', 'warehouse_staff'].includes(user?.role);
 
     const [filters, setFilters] = useState({
         search: '', warehouseId: '', lowStock: '',
@@ -34,9 +37,67 @@ export default function StockPage() {
     const [releaseQty, setReleaseQty] = useState('');
     const [releaseNotes, setReleaseNotes] = useState('');
 
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedItemForEdit, setSelectedItemForEdit] = useState(null);
+    const [editFormData, setEditFormData] = useState({
+        batchNumber: '',
+        openStock: '',
+        balanceStock: '',
+        costPerUnit: '',
+        expiryDate: '',
+    });
+
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [selectedItemForDelete, setSelectedItemForDelete] = useState(null);
+
     const { data, isLoading } = useStockItems(filters);
     const { data: warehousesData } = useWarehouses();
     const releaseMutation = useReleaseStock();
+    const updateMutation = useUpdateStockItem();
+    const deleteMutation = useDeleteStockItem();
+
+    const handleOpenEditModal = (item) => {
+        setSelectedItemForEdit(item);
+        setEditFormData({
+            batchNumber: item.batchNumber || '',
+            openStock: item.quantities.openStock || 0,
+            balanceStock: item.quantities.balanceStock || 0,
+            costPerUnit: item.costPerUnit || 0,
+            expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '',
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedItemForEdit) return;
+        try {
+            await updateMutation.mutateAsync({
+                id: selectedItemForEdit._id,
+                data: {
+                    batchNumber: editFormData.batchNumber,
+                    openStock: Number(editFormData.openStock),
+                    balanceStock: Number(editFormData.balanceStock),
+                    costPerUnit: Number(editFormData.costPerUnit),
+                    expiryDate: editFormData.expiryDate || null,
+                }
+            });
+            setIsEditModalOpen(false);
+        } catch (err) {}
+    };
+
+    const handleOpenDeleteConfirm = (item) => {
+        setSelectedItemForDelete(item);
+        setIsDeleteConfirmOpen(true);
+    };
+
+    const handleDeleteSubmit = async () => {
+        if (!selectedItemForDelete) return;
+        try {
+            await deleteMutation.mutateAsync(selectedItemForDelete._id);
+            setIsDeleteConfirmOpen(false);
+        } catch (err) {}
+    };
 
     const items = data?.data || [];
     const total = data?.total || 0;
@@ -274,17 +335,36 @@ export default function StockPage() {
                                                     <Badge variant={s.variant}>{s.label}</Badge>
                                                 </td>
                                                 <td className="px-4 py-3 text-center whitespace-nowrap">
-                                                    {canAdjust && (r.quantities.balanceStock || 0) > 0 ? (
-                                                        <Button
-                                                            variant="primary"
-                                                            size="sm"
-                                                            onClick={() => handleOpenReleaseModal(r)}
-                                                        >
-                                                            Release
-                                                        </Button>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">—</span>
-                                                    )}
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        {canAdjust && (r.quantities.balanceStock || 0) > 0 && (
+                                                            <Button
+                                                                variant="primary"
+                                                                size="sm"
+                                                                onClick={() => handleOpenReleaseModal(r)}
+                                                            >
+                                                                Release
+                                                            </Button>
+                                                        )}
+                                                        {canAdjust && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleOpenEditModal(r)}
+                                                                    className="p-1 text-gray-500 hover:text-primary-600 hover:bg-gray-50 rounded border border-gray-100 flex items-center gap-1 text-xs px-2 py-1"
+                                                                    title="Edit Stock Item"
+                                                                >
+                                                                    <Edit size={14} /> Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleOpenDeleteConfirm(r)}
+                                                                    className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded border border-red-100 flex items-center gap-1 text-xs px-2 py-1"
+                                                                    title="Delete Stock Item"
+                                                                >
+                                                                    <Trash2 size={14} /> Delete
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {!canAdjust && <span className="text-xs text-gray-400">—</span>}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -438,6 +518,88 @@ export default function StockPage() {
                                 )}
                             </form>
                         </Modal>
+
+                        {/* Edit Stock Modal */}
+                        <Modal
+                            isOpen={isEditModalOpen}
+                            onClose={() => setIsEditModalOpen(false)}
+                            title="Edit Stock Item"
+                            size="md"
+                        >
+                            <form onSubmit={handleEditSubmit} className="space-y-4">
+                                {selectedItemForEdit && (
+                                    <>
+                                        <div className="bg-gray-50 p-3 rounded-lg text-xs space-y-1">
+                                            <p><span className="text-gray-500">Product:</span> <span className="font-semibold text-gray-800">{selectedItemForEdit.productName}</span></p>
+                                            <p><span className="text-gray-500">Warehouse:</span> <span className="text-gray-700">{selectedItemForEdit.warehouseId?.name}</span></p>
+                                        </div>
+
+                                        <Input
+                                            label="Batch Code"
+                                            value={editFormData.batchNumber}
+                                            onChange={(e) => setEditFormData(p => ({ ...p, batchNumber: e.target.value }))}
+                                            placeholder="Standard/Batch code"
+                                        />
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Input
+                                                label={`Open Stock (${selectedItemForEdit.unitOfMeasure})`}
+                                                type="number"
+                                                step="any"
+                                                value={editFormData.openStock}
+                                                onChange={(e) => setEditFormData(p => ({ ...p, openStock: e.target.value }))}
+                                                required
+                                            />
+                                            <Input
+                                                label={`Balance Stock (${selectedItemForEdit.unitOfMeasure})`}
+                                                type="number"
+                                                step="any"
+                                                value={editFormData.balanceStock}
+                                                onChange={(e) => setEditFormData(p => ({ ...p, balanceStock: e.target.value }))}
+                                                required
+                                            />
+                                        </div>
+
+                                        <Input
+                                            label="Cost per Unit (LKR)"
+                                            type="number"
+                                            step="0.01"
+                                            value={editFormData.costPerUnit}
+                                            onChange={(e) => setEditFormData(p => ({ ...p, costPerUnit: e.target.value }))}
+                                            required
+                                        />
+
+                                        <Input
+                                            label="Expiry Date"
+                                            type="date"
+                                            value={editFormData.expiryDate}
+                                            onChange={(e) => setEditFormData(p => ({ ...p, expiryDate: e.target.value }))}
+                                        />
+
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button variant="outline" type="button" onClick={() => setIsEditModalOpen(false)}>
+                                                Cancel
+                                            </Button>
+                                            <Button variant="primary" type="submit" loading={updateMutation.isLoading}>
+                                                Save Changes
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
+                            </form>
+                        </Modal>
+
+                        {/* Delete Confirm Dialog */}
+                        <ConfirmDialog
+                            isOpen={isDeleteConfirmOpen}
+                            onClose={() => setIsDeleteConfirmOpen(false)}
+                            onConfirm={handleDeleteSubmit}
+                            title="Delete Stock Item"
+                            message={`Are you sure you want to delete this stock item record for "${selectedItemForDelete?.productName}"? This action cannot be undone.`}
+                            confirmText="Delete"
+                            variant="danger"
+                            loading={deleteMutation.isLoading}
+                        />
                     </>
                 )}
             </Card>

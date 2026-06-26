@@ -4,6 +4,9 @@ import PettyCash from '../models/PettyCash.js';
 import ProductionBatch from '../models/ProductionBatch.js';
 import DailyPnL from '../models/DailyPnL.js';
 import Invoice from '../models/Invoice.js';
+import Product from '../models/Product.js';
+import Customer from '../models/Customer.js';
+import { reportService } from '../services/reportService.js';
 
 export const exportPettyCash = asyncHandler(async (req, res) => {
     const data = await PettyCash.find().sort({ date: -1 });
@@ -290,4 +293,98 @@ export const exportMonthlyPerformance = asyncHandler(async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=Monthly-Performance-Report-${month}.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
+});
+
+export const exportModuleData = asyncHandler(async (req, res) => {
+    const { module, format } = req.params;
+    
+    let rows = [];
+    let columns = [];
+    let title = '';
+    let filename = '';
+
+    if (module === 'products') {
+        const data = await Product.find().populate('categoryId').populate('brandId');
+        rows = data.map(p => ({
+            productCode: p.productCode || '',
+            name: p.name || '',
+            sku: p.sku || '',
+            categoryName: p.categoryId?.name || '',
+            brandName: p.brandId?.name || '',
+            basePrice: p.basePrice || 0,
+            status: p.status || '',
+        }));
+        columns = [
+            { header: 'Code', key: 'productCode', width: 25 },
+            { header: 'Name', key: 'name', width: 30 },
+            { header: 'SKU', key: 'sku', width: 20 },
+            { header: 'Category', key: 'categoryName', width: 25 },
+            { header: 'Brand', key: 'brandName', width: 20 },
+            { header: 'Price (LKR)', key: 'basePrice', width: 15 },
+            { header: 'Status', key: 'status', width: 12 },
+        ];
+        title = 'Product Catalog Report';
+        filename = 'products_export';
+    } else if (module === 'customers') {
+        const data = await Customer.find().populate('customerGroupId');
+        rows = data.map(c => ({
+            customerCode: c.customerCode || '',
+            displayName: c.displayName || '',
+            groupName: c.customerGroupId?.name || '—',
+            phone: c.primaryContact?.phone || '—',
+            email: c.primaryContact?.email || '—',
+            balance: c.balance || 0,
+            status: c.status || '',
+        }));
+        columns = [
+            { header: 'Code', key: 'customerCode', width: 20 },
+            { header: 'Name', key: 'displayName', width: 30 },
+            { header: 'Group', key: 'groupName', width: 20 },
+            { header: 'Phone', key: 'phone', width: 18 },
+            { header: 'Email', key: 'email', width: 25 },
+            { header: 'Balance (LKR)', key: 'balance', width: 18 },
+            { header: 'Status', key: 'status', width: 12 },
+        ];
+        title = 'Customer Directory Report';
+        filename = 'customers_export';
+    } else {
+        res.status(400);
+        throw new Error(`Module ${module} export not supported`);
+    }
+
+    if (format === 'excel' || format === 'xlsx') {
+        const buffer = await reportService.generateExcel(title, columns, rows);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}.xlsx`);
+        return res.send(buffer);
+    } else if (format === 'csv') {
+        const csvHeaders = columns.map(c => c.header).join(',');
+        const csvRows = rows.map(row => 
+            columns.map(col => {
+                const val = row[col.key];
+                const escaped = String(val ?? '').replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(',')
+        );
+        const csvContent = [csvHeaders, ...csvRows].join('\n');
+        res.setHeader('Content-Type', 'text/csv;charset=utf-8;');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}.csv`);
+        return res.send(csvContent);
+    } else if (format === 'pdf') {
+        const buffer = await reportService.generatePDF({
+            title,
+            columns,
+            data: rows,
+            user: {
+                name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || 'Admin',
+                role: req.user?.role || 'User'
+            }
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}.pdf`);
+        return res.send(buffer);
+    } else {
+        res.status(400);
+        throw new Error(`Format ${format} export not supported`);
+    }
 });

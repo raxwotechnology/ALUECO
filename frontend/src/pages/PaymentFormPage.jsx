@@ -19,6 +19,8 @@ import { invoicesApi } from '../features/invoices/invoicesApi';
 import { billsApi } from '../features/bills/billsApi';
 import { useCreatePayment } from '../features/payments/usePayments';
 
+const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
+
 export default function PaymentFormPage() {
     const navigate = useNavigate();
     const [params] = useSearchParams();
@@ -101,8 +103,6 @@ export default function PaymentFormPage() {
     const supplierOptions = (suppliersData?.data || []).map((s) => ({ value: s._id, label: `${s.displayName} (${s.supplierCode})` }));
     const bankAccountOptions = (bankAccountsData || []).map((acc) => ({ value: acc._id, label: `${acc.bankName} - ${acc.accountNumber} (${fmt(acc.balance)})` }));
     const openDocs = direction === 'received' ? (invoicesData?.data || []) : (billsData?.data || []);
-
-    const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
 
     const totalAllocated = allocations.reduce((s, a) => s + (+a.amount || 0), 0);
     const unallocated = +(amount - totalAllocated).toFixed(2);

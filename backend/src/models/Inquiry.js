@@ -34,7 +34,7 @@ const inquirySchema = new mongoose.Schema({
     lostReason: String,
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
     followUpDate: Date,
-    notes: [{ text: String, by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, at: { type: Date, default: Date.now } }],
+    notes: { type: String },
     convertedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesOrder' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

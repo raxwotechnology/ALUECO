@@ -16,6 +16,7 @@ const ShipmentsPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedShipment, setSelectedShipment] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [expandedShipmentId, setExpandedShipmentId] = useState(null);
     const [formData, setFormData] = useState({
         bookingReference: '', destinationCountry: '', vesselName: '',
         containerNumber: '', sealNumber: '', estimatedArrivalDate: '',
@@ -193,21 +194,53 @@ const ShipmentsPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Action */}
-                                <div className="flex items-center gap-2 lg:ml-auto">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => openModal(shipment)}
-                                    >
-                                        Edit
-                                    </Button>
-                                    <button className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition">
-                                        <ChevronRight size={20} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                                 {/* Action */}
+                                 <div className="flex items-center gap-2 lg:ml-auto">
+                                     <Button
+                                         variant="outline"
+                                         size="sm"
+                                         onClick={() => openModal(shipment)}
+                                     >
+                                         Edit
+                                     </Button>
+                                     <button 
+                                         onClick={() => setExpandedShipmentId(expandedShipmentId === shipment._id ? null : shipment._id)}
+                                         className={`p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-transform duration-250 ${expandedShipmentId === shipment._id ? 'rotate-90 text-primary-600 bg-primary-50' : ''}`}
+                                         title="Toggle Details"
+                                     >
+                                         <ChevronRight size={20} />
+                                     </button>
+                                 </div>
+                             </div>
+
+                             {expandedShipmentId === shipment._id && (
+                                 <div className="mt-6 pt-6 border-t border-gray-150 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-700 bg-gray-50/50 p-4 rounded-xl">
+                                     <div>
+                                         <h5 className="font-bold text-gray-900 mb-2">Shipment Details</h5>
+                                         <p className="mb-1"><span className="text-gray-500">Seal Number:</span> <span className="font-mono font-semibold">{shipment.sealNumber || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Container Number:</span> <span className="font-mono font-semibold">{shipment.containerNumber || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Vessel Name:</span> <span className="font-semibold">{shipment.vesselName || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Destination:</span> <span className="font-semibold">{shipment.destinationCountry || 'N/A'}</span></p>
+                                     </div>
+                                     <div>
+                                         <h5 className="font-bold text-gray-900 mb-2">Transit Timeline</h5>
+                                         <div className="flex items-center gap-2 flex-wrap">
+                                             {['booked', 'loading', 'shipped', 'in_transit', 'arrived', 'cleared', 'delivered'].map((step, idx) => {
+                                                 const isPassed = ['booked', 'loading', 'shipped', 'in_transit', 'arrived', 'cleared', 'delivered'].indexOf(shipment.status) >= idx;
+                                                 return (
+                                                     <React.Fragment key={step}>
+                                                         {idx > 0 && <span className={`text-xs ${isPassed ? 'text-primary-500' : 'text-gray-300'}`}>→</span>}
+                                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${isPassed ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-gray-50 text-gray-400 border border-gray-100'}`}>
+                                                             {step.replace('_', ' ')}
+                                                         </span>
+                                                     </React.Fragment>
+                                                 );
+                                             })}
+                                         </div>
+                                     </div>
+                                 </div>
+                             )}
+                         </div>
                     ))
                 )}
             </div>

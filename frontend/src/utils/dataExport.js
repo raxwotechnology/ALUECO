@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 /**
@@ -86,7 +86,7 @@ export const exportToPDF = (title, columns, data, fileName = 'report', metadata 
     }
 
     // 3. Table Section
-    doc.autoTable({
+    autoTable(doc, {
         startY: 50,
         head: [columns.map(col => col.header)],
         body: data.map(item => columns.map(col => {

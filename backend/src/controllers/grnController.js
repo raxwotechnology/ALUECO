@@ -206,7 +206,11 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                 } else if (supplier) {
                     codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
                 }
-                const batchCode = generateJulianBatchCode(codePrefix, grn.receiptDate);
+                const ProductModel = mongoose.model('Product');
+                const productObj = await ProductModel.findById(grnItem.productId);
+                const prodShort = productObj?.productShortCode || 'PRD';
+                const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+                const batchCode = `${generateJulianBatchCode(`${codePrefix}-${prodShort}`, grn.receiptDate)}-${uniqueSuffix}`;
                 grnItem.batchNumber = approval.batchNumber || batchCode;
 
                 totalPayable += acceptedQty * grnItem.unitPrice;

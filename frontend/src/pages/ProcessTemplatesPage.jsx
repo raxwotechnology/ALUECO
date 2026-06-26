@@ -75,11 +75,18 @@ const ProcessTemplatesPage = () => {
         e.preventDefault();
         setSaving(true);
         try {
+            const payload = {
+                ...form,
+                stages: form.stages.map((s) => ({
+                    ...s,
+                    expectedDuration: s.expectedDuration ? Number(s.expectedDuration) : undefined
+                }))
+            };
             if (editingTemplate) {
-                await api.put(`/process-templates/${editingTemplate._id}`, form);
+                await api.put(`/process-templates/${editingTemplate._id}`, payload);
                 toast.success('Template updated');
             } else {
-                await api.post('/process-templates', form);
+                await api.post('/process-templates', payload);
                 toast.success('Template created');
             }
             setIsModalOpen(false);

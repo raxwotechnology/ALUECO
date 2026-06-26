@@ -188,7 +188,8 @@ function App() {
 
         <Route path="/finance/petty-cash" element={<ProtectedRoute requiredPermission="payments.view"><PettyCashPage /></ProtectedRoute>} />
         <Route path="/finance/fixed-assets" element={<ProtectedRoute requiredPermission="payments.view"><FixedAssetsPage /></ProtectedRoute>} />
-        <Route path="/fleet/vehicles" element={<ProtectedRoute requiredPermission="inventory.view"><FleetPage /></ProtectedRoute>} />
+        <Route path="/fleet/vehicles" element={<ProtectedRoute requiredPermission="inventory.view"><FleetPage defaultView="vehicles" /></ProtectedRoute>} />
+        <Route path="/fleet/trips" element={<ProtectedRoute requiredPermission="inventory.view"><FleetPage defaultView="history" /></ProtectedRoute>} />
         <Route path="/maintenance/requests" element={<ProtectedRoute requiredPermission="admin.settings"><MaintenancePage /></ProtectedRoute>} />
 
         <Route path="/returns" element={<ProtectedRoute requiredPermission="returns.view"><ReturnsPage /></ProtectedRoute>} />
