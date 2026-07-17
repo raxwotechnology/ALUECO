@@ -1,0 +1,20 @@
+{
+  "name": "alueco-monorepo",
+  "version": "1.0.0",
+  "description": "Root package.json for AluEco ERP",
+  "private": true,
+  "scripts": {
+    "install-backend": "npm install --prefix backend",
+    "install-frontend": "npm install --prefix frontend",
+    "install-all": "npm run install-backend && npm run install-frontend",
+    "build-frontend": "npm run build --prefix frontend",
+    "build": "npm run build-frontend",
+    "start": "npm start --prefix backend",
+    "dev-backend": "npm run dev --prefix backend",
+    "dev-frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently \"npm run dev-backend\" \"npm run dev-frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

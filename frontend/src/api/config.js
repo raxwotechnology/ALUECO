@@ -4,24 +4,36 @@ export const getBackendUrl = () => {
         return import.meta.env.VITE_BACKEND_URL;
     }
     
-    // Otherwise fallback if VITE_API_URL exists
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL.replace('/api', '');
-    }
-
-    // Auto-detect localhost vs production Render deployment
+    // Auto-detect if we are running locally or in production
     const isLocalhost = window.location.hostname === 'localhost' || 
                         window.location.hostname === '127.0.0.1' || 
                         window.location.hostname.startsWith('192.168.');
                         
+    // Fallback if VITE_API_URL exists (only if not pointing to localhost in production)
+    if (import.meta.env.VITE_API_URL) {
+        const apiVal = import.meta.env.VITE_API_URL;
+        const isApiLocalhost = apiVal.includes('localhost') || apiVal.includes('127.0.0.1');
+        if (isLocalhost || !isApiLocalhost) {
+            return apiVal.replace('/api', '');
+        }
+    }
+
     return isLocalhost 
         ? 'http://localhost:5000' 
-        : 'https://export-lanka-eglf.onrender.com';
+        : window.location.origin;
 };
 
 export const getApiUrl = () => {
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' || 
+                        window.location.hostname.startsWith('192.168.');
+
     if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
+        const apiVal = import.meta.env.VITE_API_URL;
+        const isApiLocalhost = apiVal.includes('localhost') || apiVal.includes('127.0.0.1');
+        if (isLocalhost || !isApiLocalhost) {
+            return apiVal;
+        }
     }
     return `${getBackendUrl()}/api`;
 };

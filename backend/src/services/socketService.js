@@ -7,6 +7,7 @@ export const initSocket = (httpServer) => {
         cors: {
             origin: function (origin, callback) {
                 const defaultOrigins = [
+                    'https://alueco.onrender.com',
                     'https://export-lanka.netlify.app',
                     'http://localhost:5173',
                     'http://localhost:3000',

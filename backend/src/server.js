@@ -5,6 +5,12 @@ import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import authRoutes from './routes/authRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
@@ -94,6 +100,7 @@ app.use(helmet());
 app.use(cors({
     origin: function (origin, callback) {
         const defaultOrigins = [
+            'https://alueco.onrender.com',
             'https://export-lanka.netlify.app',
             'http://localhost:5173',
             'http://localhost:3000',
@@ -188,6 +195,19 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+
+// Serve static files in production (React build)
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+if (fs.existsSync(frontendDistPath)) {
+    app.use(express.static(frontendDistPath));
+    app.get('/*splat', (req, res, next) => {
+        // Skip for API routes so they can reach notFound/errorHandler
+        if (req.originalUrl.startsWith('/api')) {
+            return next();
+        }
+        res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+}
 
 // Error handling (must be LAST)
 app.use(notFound);
