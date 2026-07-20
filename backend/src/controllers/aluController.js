@@ -179,7 +179,10 @@ export const updateJobCardStatus = asyncHandler(async (req, res) => {
 
 // === ALU ON-SITE SURVEYS ===
 export const getSurveys = asyncHandler(async (req, res) => {
-    const surveys = await AluSurvey.find({}).sort({ createdAt: -1 });
+    const surveys = await AluSurvey.find({})
+        .populate('customerId', 'displayName phone')
+        .populate('inquiryId', 'inquiryCode status')
+        .sort({ createdAt: -1 });
     res.json({ success: true, data: surveys });
 });
 
@@ -210,4 +213,63 @@ export const deleteSurvey = asyncHandler(async (req, res) => {
         throw new Error('Survey record not found');
     }
     res.json({ success: true, message: 'Survey record deleted successfully' });
+});
+
+// === ALU PROJECT STOCK CHECKS & RESERVATIONS ===
+export const checkProjectStockAndShortages = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { warehouseId } = req.query;
+    
+    if (!warehouseId) {
+        res.status(400);
+        throw new Error('warehouseId query parameter is required');
+    }
+    
+    const { checkStockAndShortages: checkS } = await import('../services/bomExplosionService.js');
+    const result = await checkS(id, warehouseId);
+    res.json({ success: true, data: result });
+});
+
+export const reserveProjectMaterials = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { warehouseId } = req.body;
+    
+    if (!warehouseId) {
+        res.status(400);
+        throw new Error('warehouseId is required');
+    }
+    
+    const { reserveStockForProject } = await import('../services/bomExplosionService.js');
+    const session = await mongoose.startSession();
+    let result;
+    try {
+        await session.withTransaction(async () => {
+            result = await reserveStockForProject(id, warehouseId, req.user._id, session);
+        });
+        res.json({ success: true, data: result });
+    } finally {
+        session.endSession();
+    }
+});
+
+export const issueProjectMaterials = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { warehouseId } = req.body;
+    
+    if (!warehouseId) {
+        res.status(400);
+        throw new Error('warehouseId is required');
+    }
+    
+    const { issueMaterialsToProduction } = await import('../services/bomExplosionService.js');
+    const session = await mongoose.startSession();
+    let result;
+    try {
+        await session.withTransaction(async () => {
+            result = await issueMaterialsToProduction(id, warehouseId, req.user._id, session);
+        });
+        res.json({ success: true, data: result });
+    } finally {
+        session.endSession();
+    }
 });

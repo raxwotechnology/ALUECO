@@ -73,7 +73,7 @@ const aluQuotationSchema = new mongoose.Schema({
     
     status: {
         type: String,
-        enum: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted'],
+        enum: ['draft', 'sent', 'follow_up', 'revised', 'accepted', 'rejected', 'expired', 'converted'],
         default: 'draft'
     },
     
@@ -85,6 +85,12 @@ const aluQuotationSchema = new mongoose.Schema({
     checklist: [{ type: String }],
     terms: [{ type: String }],
     
+    discountStatus: { 
+        type: String, 
+        enum: ['none', 'pending', 'approved', 'rejected'], 
+        default: 'none' 
+    },
+    discountApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 

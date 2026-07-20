@@ -1,7 +1,7 @@
 import express from 'express';
 import {
     createSupplier, getSuppliers, getSupplierById,
-    updateSupplier, deleteSupplier,
+    updateSupplier, deleteSupplier, getSupplierAgeingReport,
 } from '../controllers/supplierController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -10,6 +10,8 @@ import { createSupplierSchema, updateSupplierSchema } from '../validators/suppli
 
 const router = express.Router();
 router.use(protect);
+
+router.get('/reports/ageing', requirePermission('suppliers.view'), getSupplierAgeingReport);
 
 router
     .route('/')

@@ -41,13 +41,18 @@ const aluApplicationSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    brand: {
+        type: String,
+        default: 'Standard',
+        trim: true
+    },
     isActive: {
         type: Boolean,
         default: true
     }
 }, { timestamps: true });
 
-// Enforce unique combination of type and configuration
-aluApplicationSchema.index({ type: 1, configuration: 1 }, { unique: true });
+// Enforce unique combination of type, configuration and brand
+aluApplicationSchema.index({ type: 1, configuration: 1, brand: 1 }, { unique: true });
 
 export default mongoose.model('AluApplication', aluApplicationSchema);

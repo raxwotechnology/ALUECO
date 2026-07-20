@@ -5,7 +5,7 @@ import {
     Search, Plus, Minus, Trash2, ShoppingCart, Save, X,
     Package, UserPlus, CreditCard,
     CheckCircle, ArrowLeft, ChevronUp, Tag,
-    Zap, SlidersHorizontal,
+    Zap, SlidersHorizontal, Lock, Unlock, Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,11 +21,90 @@ import { useCategories } from '../features/products/useProducts';
 import { useCreateSalesOrder } from '../features/salesOrders/useSalesOrders';
 import QuickCreateCustomerModal from '../features/customers/QuickCreateCustomerModal';
 import api from '../api/axios';
+import Modal from '../components/ui/Modal';
 
 export default function PosPage() {
     const navigate = useNavigate();
     const createOrder = useCreateSalesOrder();
     const queryClient = useQueryClient();
+
+    // Cashier Shift state
+    const [activeShift, setActiveShift] = useState(null);
+    const [checkingShift, setCheckingShift] = useState(true);
+    const [openingFloatVal, setOpeningFloatVal] = useState('5000');
+    const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
+    const [closingActualCash, setClosingActualCash] = useState(0);
+    const [closingActualCard, setClosingActualCard] = useState(0);
+    const [closingActualOnline, setClosingActualOnline] = useState(0);
+    const [closingNotesVal, setClosingNotesVal] = useState('');
+
+    const fetchActiveShift = async () => {
+        try {
+            setCheckingShift(true);
+            const { data } = await api.get('/pos-shifts/active');
+            if (data.success && data.active) {
+                setActiveShift(data.data);
+                // Pre-fill actuals with expected to make it easier for user
+                setClosingActualCash(data.data.paymentsExpected?.cash || 0);
+                setClosingActualCard(data.data.paymentsExpected?.card || 0);
+                setClosingActualOnline(data.data.paymentsExpected?.online || 0);
+            } else {
+                setActiveShift(null);
+            }
+        } catch (err) {
+            console.error('Failed to load active shift:', err);
+        } finally {
+            setCheckingShift(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchActiveShift();
+    }, []);
+
+    const handleOpenShift = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await api.post('/pos-shifts/open', {
+                openingFloat: Number(openingFloatVal),
+                terminalId: 'TERM-01'
+            });
+            if (data.success) {
+                toast.success('POS Cashier Shift Opened Successfully!');
+                fetchActiveShift();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to open shift');
+        }
+    };
+
+    const handleCloseShift = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await api.post('/pos-shifts/close', {
+                paymentsActual: {
+                    cash: Number(closingActualCash),
+                    card: Number(closingActualCard),
+                    online: Number(closingActualOnline)
+                },
+                closingNotes: closingNotesVal
+            });
+            if (data.success) {
+                toast.success('POS Cashier Shift Closed Successfully!');
+                setIsCloseShiftModalOpen(false);
+                setActiveShift(null);
+                fetchActiveShift();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to close shift');
+        }
+    };
+
+    const handleOpenCloseShiftModal = () => {
+        fetchActiveShift().then(() => {
+            setIsCloseShiftModalOpen(true);
+        });
+    };
 
     // Cart state
     const [customerId, setCustomerId] = useState('');
@@ -362,6 +441,58 @@ export default function PosPage() {
     const selectedWarehouse = warehouses.find((w) => w._id === sourceWarehouseId);
     const totalItems = totals.itemCount;
 
+    if (checkingShift) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-slate-900 text-white flex-col space-y-4">
+                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm font-semibold tracking-wider uppercase font-mono text-slate-400">Loading Cashier Session...</p>
+            </div>
+        );
+    }
+
+    if (!activeShift) {
+        return (
+            <div className="h-screen w-screen bg-slate-950 flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 text-center">
+                    <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                        <Lock size={32} />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="text-2xl font-extrabold text-white tracking-tight">POS Cashier Shift Locked</h2>
+                        <p className="text-slate-400 text-sm">
+                            An active cashier shift session is required to process showroom POS sales. Please enter your initial cash float to open the shift.
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleOpenShift} className="space-y-4 text-left">
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Initial Cash Float (LKR)</label>
+                            <div className="relative">
+                                <span className="absolute left-3.5 top-2.5 text-slate-500 font-mono text-sm">Rs.</span>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={openingFloatVal}
+                                    onChange={(e) => setOpeningFloatVal(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-2.5 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 font-mono"
+                                    placeholder="e.g. 5000"
+                                />
+                            </div>
+                        </div>
+
+                        <Button
+                            type="submit"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl text-sm transition shadow-lg shadow-indigo-600/20"
+                        >
+                            Open Cashier Shift & Unlock POS
+                        </Button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-screen flex flex-col bg-gray-100 -m-6 overflow-hidden">
 
@@ -396,6 +527,14 @@ export default function PosPage() {
                             <UserPlus size={16} />
                         </button>
                     </div>
+
+                    <button
+                        onClick={handleOpenCloseShiftModal}
+                        className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5 flex-shrink-0 font-bold text-xs"
+                        title="Cashier Shift Controls"
+                    >
+                        <Clock size={14} /> {activeShift.shiftNumber} (Close)
+                    </button>
 
                     <button
                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
@@ -765,6 +904,109 @@ export default function PosPage() {
                 onClose={() => setIsCustomerModalOpen(false)}
                 onCreated={(c) => setCustomerId(c._id)}
             />
+
+            <Modal isOpen={isCloseShiftModalOpen} onClose={() => setIsCloseShiftModalOpen(false)} title="Close Cashier Shift">
+                <form onSubmit={handleCloseShift} className="space-y-4">
+                    <div className="bg-slate-50 border rounded-2xl p-4 space-y-2 text-xs">
+                        <span className="block font-bold text-slate-500 uppercase tracking-wider text-[10px]">Session Expected Totals</span>
+                        <div className="flex justify-between border-b pb-1.5">
+                            <span>Opening Float:</span>
+                            <span className="font-mono font-bold text-slate-700">Rs. {activeShift?.openingFloat?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1.5">
+                            <span>Expected Cash (incl. float):</span>
+                            <span className="font-mono font-bold text-slate-700">Rs. {activeShift?.paymentsExpected?.cash?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1.5">
+                            <span>Expected Card:</span>
+                            <span className="font-mono font-bold text-slate-700">Rs. {activeShift?.paymentsExpected?.card?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between pb-0.5">
+                            <span>Expected Online / Bank Transfer:</span>
+                            <span className="font-mono font-bold text-slate-700">Rs. {activeShift?.paymentsExpected?.online?.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <span className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Physical/Actual Counts</span>
+                        
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase">Actual Cash (Rs.)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={closingActualCash}
+                                    onChange={(e) => setClosingActualCash(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 border rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                <span className={`text-[10px] font-bold ${Number(closingActualCash) - (activeShift?.paymentsExpected?.cash || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    Var: Rs. {(Number(closingActualCash) - (activeShift?.paymentsExpected?.cash || 0)).toFixed(2)}
+                                </span>
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase">Actual Card (Rs.)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={closingActualCard}
+                                    onChange={(e) => setClosingActualCard(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 border rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                <span className={`text-[10px] font-bold ${Number(closingActualCard) - (activeShift?.paymentsExpected?.card || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    Var: Rs. {(Number(closingActualCard) - (activeShift?.paymentsExpected?.card || 0)).toFixed(2)}
+                                </span>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase">Actual Online (Rs.)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={closingActualOnline}
+                                    onChange={(e) => setClosingActualOnline(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 border rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                <span className={`text-[10px] font-bold ${Number(closingActualOnline) - (activeShift?.paymentsExpected?.online || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    Var: Rs. {(Number(closingActualOnline) - (activeShift?.paymentsExpected?.online || 0)).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-500 uppercase">Closing Notes / Discrepancy Reason</label>
+                        <textarea
+                            rows="2"
+                            placeholder="Explain any cash float variances..."
+                            value={closingNotesVal}
+                            onChange={(e) => setClosingNotesVal(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setIsCloseShiftModalOpen(false)}
+                            className="flex-1 py-2 text-xs"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 text-xs rounded-xl shadow transition"
+                        >
+                            Confirm & Close Shift
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

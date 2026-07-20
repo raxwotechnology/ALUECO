@@ -65,6 +65,7 @@ import './services/autoBackupService.js'; // Initialize automated backup listene
 import { initCertificationAlerts } from './services/certificationAlertService.js';
 import gatePassRoutes from './routes/gatePassRoutes.js';
 import aluRoutes from './routes/aluRoutes.js';
+import posShiftRoutes from './routes/posShiftRoutes.js';
 
 import { seedDefaults } from './utils/seedDefaults.js';
 
@@ -186,6 +187,7 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/production/machines', machineRoutes);
 app.use('/api/gate-passes', gatePassRoutes);
 app.use('/api/alu', aluRoutes);
+app.use('/api/pos-shifts', posShiftRoutes);
 
 
 // Health check endpoint
@@ -196,6 +198,9 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+
+// Static uploads folder
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Serve static files in production (React build)
 const frontendDistPath = path.join(__dirname, '../../frontend/dist');

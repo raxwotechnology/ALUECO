@@ -44,6 +44,15 @@ export const createPayment = asyncHandler(async (req, res) => {
                         throw new Error(`Cannot allocate ${alloc.amount} to bill ${bill.billNumber}, balance is ${bill.balanceDue}`);
                     }
                     alloc.documentNumber = bill.billNumber;
+                } else if (alloc.documentType === 'sales_order') {
+                    const SalesOrder = (await import('../models/SalesOrder.js')).default;
+                    const so = await SalesOrder.findById(alloc.documentId).session(session);
+                    if (!so) throw new Error(`Sales Order ${alloc.documentId} not found`);
+                    const balanceDue = so.grandTotal - so.totalPaid;
+                    if (alloc.amount > balanceDue + 0.01) { // allowance for small floats
+                        throw new Error(`Cannot allocate ${alloc.amount} to sales order ${so.orderNumber}, balance is ${balanceDue}`);
+                    }
+                    alloc.documentNumber = so.orderNumber;
                 }
             }
 
@@ -89,7 +98,7 @@ export const createPayment = asyncHandler(async (req, res) => {
 
             await payment.save({ session });
 
-            // Apply allocations to invoices/bills
+            // Apply allocations to invoices/bills/sales_orders
             for (const alloc of allocations) {
                 if (alloc.documentType === 'invoice') {
                     const inv = await Invoice.findById(alloc.documentId).session(session);
@@ -101,6 +110,30 @@ export const createPayment = asyncHandler(async (req, res) => {
                     bill.amountPaid = +(bill.amountPaid + alloc.amount).toFixed(2);
                     bill.lastPaymentDate = payment.paymentDate;
                     await bill.save({ session });
+                } else if (alloc.documentType === 'sales_order') {
+                    const SalesOrder = (await import('../models/SalesOrder.js')).default;
+                    const so = await SalesOrder.findById(alloc.documentId).session(session);
+                    so.totalPaid = +(so.totalPaid + alloc.amount).toFixed(2);
+                    
+                    let remainingAlloc = alloc.amount;
+                    for (const stage of so.paymentSchedule) {
+                        if (stage.status === 'pending' && remainingAlloc > 0) {
+                            if (remainingAlloc >= stage.amount) {
+                                stage.status = 'paid';
+                                stage.paidAt = payment.paymentDate;
+                                remainingAlloc -= stage.amount;
+                            } else {
+                                remainingAlloc = 0;
+                            }
+                        }
+                    }
+                    
+                    if (so.totalPaid >= so.advanceAmount && !so.advanceReceived) {
+                        so.advanceReceived = true;
+                        so.productionStatus = 'ready_for_production';
+                    }
+                    
+                    await so.save({ session });
                 }
             }
 

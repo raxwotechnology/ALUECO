@@ -644,6 +644,22 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
     
     const finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
     
+    let discountStatus = 'none';
+    let discountApprovedBy = undefined;
+    if (discount > 0) {
+        const discountPercent = (discount / calc.calculatedSellingPrice) * 100;
+        if (discountPercent > 10) {
+            if (req.user && req.user.role === 'admin') {
+                discountStatus = 'approved';
+                discountApprovedBy = req.user._id;
+            } else {
+                discountStatus = 'pending';
+            }
+        } else {
+            discountStatus = 'approved';
+        }
+    }
+
     const quotation = await AluQuotation.create({
         quoteNumber,
         version: 0,
@@ -664,6 +680,8 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         profitMarginPercent: Number(profitMarginPercent || 20),
         calculatedSellingPrice: calc.calculatedSellingPrice,
         discount: Number(discount || 0),
+        discountStatus,
+        discountApprovedBy,
         manualAdjustment: Number(manualAdjustment || 0),
         finalSellingPrice: parseFloat(finalPrice.toFixed(2)),
         status: 'draft',
@@ -726,6 +744,22 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     );
     
     const finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+
+    let discountStatus = 'none';
+    let discountApprovedBy = undefined;
+    if (discount > 0) {
+        const discountPercent = (discount / calc.calculatedSellingPrice) * 100;
+        if (discountPercent > 10) {
+            if (req.user && req.user.role === 'admin') {
+                discountStatus = 'approved';
+                discountApprovedBy = req.user._id;
+            } else {
+                discountStatus = 'pending';
+            }
+        } else {
+            discountStatus = 'approved';
+        }
+    }
     
     quotation.customerName = customerName;
     quotation.projectName = projectName;
@@ -741,6 +775,8 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     quotation.profitMarginPercent = Number(profitMarginPercent || 20);
     quotation.calculatedSellingPrice = calc.calculatedSellingPrice;
     quotation.discount = Number(discount || 0);
+    quotation.discountStatus = discountStatus;
+    if (discountApprovedBy) quotation.discountApprovedBy = discountApprovedBy;
     quotation.manualAdjustment = Number(manualAdjustment || 0);
     quotation.finalSellingPrice = parseFloat(finalPrice.toFixed(2));
     if (status) quotation.status = status;
@@ -1035,4 +1071,224 @@ export const exportAluQuotationToCNC = asyncHandler(async (req, res) => {
     }
 
     res.json({ success: true, gcode });
+});
+
+// Approve/Reject pending discount
+export const approveAluQuotationDiscount = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    if (req.user.role !== 'admin') {
+        res.status(403);
+        throw new Error('Only administrators can approve high discounts.');
+    }
+    
+    const { action } = req.body; // 'approve' or 'reject'
+    if (action === 'approve') {
+        quotation.discountStatus = 'approved';
+        quotation.discountApprovedBy = req.user._id;
+    } else {
+        quotation.discountStatus = 'rejected';
+        quotation.discount = 0; // reset discount
+        // Recalculate price
+        quotation.finalSellingPrice = quotation.calculatedSellingPrice + quotation.manualAdjustment;
+    }
+    
+    await quotation.save();
+    
+    await createAuditLog({
+        action: 'UPDATE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Discount ${action === 'approve' ? 'Approved' : 'Rejected'} for quotation ${quotation.quoteNumber}`,
+        req
+    });
+    
+    res.json({ success: true, data: quotation });
+});
+
+// Get Standard vs. Actual Wastage Variance Report
+export const getWastageVarianceReport = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+    
+    const filter = { status: 'converted' };
+    if (startDate || endDate) {
+        filter.updatedAt = {};
+        if (startDate) filter.updatedAt.$gte = new Date(startDate);
+        if (endDate) filter.updatedAt.$lte = new Date(endDate);
+    }
+    
+    const quotations = await AluQuotation.find(filter).lean();
+    const report = [];
+    
+    for (const q of quotations) {
+        if (!q.cuttingOptimizationResults) continue;
+        
+        let totalStdPurchasedLength = 0;
+        let totalStdUsedLength = 0;
+        let totalStdWasteLength = 0;
+        
+        for (const code in q.cuttingOptimizationResults) {
+            const opt = q.cuttingOptimizationResults[code];
+            totalStdPurchasedLength += opt.purchasedLengthMm || 0;
+            totalStdUsedLength += opt.usedLengthMm || 0;
+            totalStdWasteLength += opt.wasteLengthMm || 0;
+        }
+        
+        const stdWastePercent = totalStdPurchasedLength > 0 
+            ? (totalStdWasteLength / totalStdPurchasedLength) * 100 
+            : 0;
+            
+        const SalesOrder = mongoose.model('SalesOrder');
+        const salesOrder = await SalesOrder.findOne({ quotationId: q._id }).lean();
+        
+        let actualIssuedQty = 0;
+        if (salesOrder) {
+            const StockMovement = mongoose.model('StockMovement');
+            const movements = await StockMovement.find({
+                'sourceDocument.id': salesOrder._id,
+                movementType: 'production_issue'
+            }).lean();
+            
+            movements.forEach(m => {
+                if (m.unitOfMeasure === 'bar') {
+                    actualIssuedQty += m.quantity;
+                }
+            });
+        }
+        
+        const actualIssuedLength = actualIssuedQty * 6000;
+        const actualWasteLength = Math.max(0, actualIssuedLength - totalStdUsedLength);
+        const actualWastePercent = actualIssuedLength > 0 
+            ? (actualWasteLength / actualIssuedLength) * 100 
+            : 0;
+            
+        report.push({
+            quotationId: q._id,
+            quoteNumber: q.quoteNumber,
+            projectName: q.projectName,
+            customerName: q.customerName,
+            standardPurchasedLengthMm: totalStdPurchasedLength,
+            standardUsedLengthMm: totalStdUsedLength,
+            standardWasteLengthMm: totalStdWasteLength,
+            standardWastePercent: parseFloat(stdWastePercent.toFixed(2)),
+            actualIssuedLengthMm: actualIssuedLength,
+            actualWasteLengthMm: actualWasteLength,
+            actualWastePercent: parseFloat(actualWastePercent.toFixed(2)),
+            varianceLengthMm: parseFloat((actualWasteLength - totalStdWasteLength).toFixed(2)),
+            variancePercent: parseFloat((actualWastePercent - stdWastePercent).toFixed(2))
+        });
+    }
+    
+    res.json({ success: true, data: report });
+});
+
+// Get Project Costing Sheet (Budget vs Actual)
+export const getProjectCostingSheet = asyncHandler(async (req, res) => {
+    const { id } = req.params; // salesOrderId
+    
+    const SalesOrder = mongoose.model('SalesOrder');
+    const salesOrder = await SalesOrder.findById(id);
+    if (!salesOrder) {
+        res.status(404);
+        throw new Error('Sales Order not found');
+    }
+    
+    const quotation = await AluQuotation.findById(salesOrder.quotationId);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found for this project');
+    }
+    
+    // --- 1. Budget (Estimated) Costs ---
+    const budget = {
+        aluminium: quotation.totalAluminiumCost || 0,
+        glass: quotation.totalGlassCost || 0,
+        accessories: quotation.totalAccessoriesCost || 0,
+        labour: quotation.totalLabourCost || 0,
+        transport: quotation.transportCost || 0,
+        additional: (quotation.additionalCosts || []).reduce((s, a) => s + a.amount, 0),
+        total: 0
+    };
+    budget.total = budget.aluminium + budget.glass + budget.accessories + budget.labour + budget.transport + budget.additional;
+    
+    // --- 2. Actual Costs (issued materials from stock) ---
+    const StockMovement = mongoose.model('StockMovement');
+    const movements = await StockMovement.find({
+        'sourceDocument.id': salesOrder._id,
+        movementType: 'production_issue'
+    }).populate('productId').lean();
+    
+    let actualAluminium = 0;
+    let actualGlass = 0;
+    let actualAccessories = 0;
+    
+    movements.forEach(m => {
+        const cost = m.quantity * m.costPerUnit;
+        const code = m.productCode || '';
+        
+        if (m.unitOfMeasure === 'bar' || code.includes('ALU') || code.includes('PRF')) {
+            actualAluminium += cost;
+        } else if (m.unitOfMeasure === 'sqft' || code.includes('GLS') || code.includes('GLA')) {
+            actualGlass += cost;
+        } else {
+            actualAccessories += cost;
+        }
+    });
+    
+    const actual = {
+        aluminium: parseFloat(actualAluminium.toFixed(2)),
+        glass: parseFloat(actualGlass.toFixed(2)),
+        accessories: parseFloat(actualAccessories.toFixed(2)),
+        labour: budget.labour,
+        transport: budget.transport,
+        additional: 0,
+        total: 0
+    };
+    actual.total = actual.aluminium + actual.glass + actual.accessories + actual.labour + actual.transport + actual.additional;
+    
+    // --- 3. Variance ---
+    const variance = {
+        aluminium: parseFloat((actual.aluminium - budget.aluminium).toFixed(2)),
+        glass: parseFloat((actual.glass - budget.glass).toFixed(2)),
+        accessories: parseFloat((actual.accessories - budget.accessories).toFixed(2)),
+        labour: parseFloat((actual.labour - budget.labour).toFixed(2)),
+        transport: parseFloat((actual.transport - budget.transport).toFixed(2)),
+        additional: parseFloat((actual.additional - budget.additional).toFixed(2)),
+        total: parseFloat((actual.total - budget.total).toFixed(2))
+    };
+    
+    // --- 4. Profitability ---
+    const revenue = salesOrder.grandTotal;
+    const budgetedProfit = revenue - budget.total;
+    const actualProfit = revenue - actual.total;
+    
+    const profitability = {
+        revenue,
+        budgetedCost: budget.total,
+        budgetedProfit: parseFloat(budgetedProfit.toFixed(2)),
+        budgetedProfitPercent: revenue > 0 ? parseFloat(((budgetedProfit / revenue) * 100).toFixed(2)) : 0,
+        actualCost: actual.total,
+        actualProfit: parseFloat(actualProfit.toFixed(2)),
+        actualProfitPercent: revenue > 0 ? parseFloat(((actualProfit / revenue) * 100).toFixed(2)) : 0,
+        varianceProfit: parseFloat((actualProfit - budgetedProfit).toFixed(2))
+    };
+    
+    res.json({
+        success: true,
+        data: {
+            salesOrderId: salesOrder._id,
+            orderNumber: salesOrder.orderNumber,
+            projectName: salesOrder.projectName,
+            customerName: salesOrder.customerSnapshot?.name || salesOrder.customerName,
+            budget,
+            actual,
+            variance,
+            profitability
+        }
+    });
 });

@@ -15,6 +15,8 @@ const aluSurveySchema = new mongoose.Schema({
         unique: true
     },
     customerName: { type: String, required: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+    inquiryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Inquiry' },
     projectName: { type: String, required: true },
     status: {
         type: String,
@@ -22,6 +24,11 @@ const aluSurveySchema = new mongoose.Schema({
         default: 'pending'
     },
     measurements: [aluSurveyMeasurementSchema],
+    attachments: [{
+        fileName: { type: String, required: true },
+        fileUrl: { type: String, required: true },
+        uploadedAt: { type: Date, default: Date.now }
+    }],
     notes: { type: String, default: '' },
     surveyorName: { type: String, default: '' }
 }, { timestamps: true });

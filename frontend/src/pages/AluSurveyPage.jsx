@@ -12,6 +12,14 @@ const AluSurveyPage = () => {
     const [loading, setLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
     
+    // Linked Metadata
+    const [inquiries, setInquiries] = useState([]);
+    const [customers, setCustomers] = useState([]);
+    const [selectedInquiryId, setSelectedInquiryId] = useState('');
+    const [selectedCustomerId, setSelectedCustomerId] = useState('');
+    const [attachments, setAttachments] = useState([]); // Array of {fileName, fileUrl}
+    const [uploading, setUploading] = useState(false);
+
     // Form State
     const [customerName, setCustomerName] = useState('');
     const [projectName, setProjectName] = useState('');
@@ -35,7 +43,69 @@ const AluSurveyPage = () => {
 
     useEffect(() => {
         fetchSurveys();
+        const loadMetadata = async () => {
+            try {
+                const [inqRes, custRes] = await Promise.all([
+                    api.get('/crm/inquiries?limit=100'),
+                    api.get('/customers?limit=500')
+                ]);
+                setInquiries(inqRes.data.data || []);
+                setCustomers(custRes.data.data || []);
+            } catch (err) {
+                console.error("Failed to load metadata", err);
+            }
+        };
+        loadMetadata();
     }, []);
+
+    const handleInquiryChange = (inqId) => {
+        setSelectedInquiryId(inqId);
+        if (inqId) {
+            const inq = inquiries.find(i => i._id === inqId);
+            if (inq) {
+                setCustomerName(inq.companyName || inq.contactPerson || '');
+                setProjectName(inq.projectLocation ? `Project at ${inq.projectLocation}` : 'New Aluminium Project');
+                if (inq.customer) {
+                    setSelectedCustomerId(inq.customer._id || inq.customer);
+                }
+            }
+        }
+    };
+
+    const handleCustomerChange = (custId) => {
+        setSelectedCustomerId(custId);
+        if (custId) {
+            const cust = customers.find(c => c._id === custId);
+            if (cust) {
+                setCustomerName(cust.displayName || cust.companyName);
+            }
+        }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        setUploading(true);
+        try {
+            const res = await api.post('/alu/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setAttachments([...attachments, res.data.data]);
+            toast.success('Drawing uploaded successfully');
+        } catch (err) {
+            toast.error('Failed to upload drawing');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const removeAttachment = (idx) => {
+        setAttachments(attachments.filter((_, i) => i !== idx));
+    };
 
     const addMeasurementRow = () => {
         setMeasurements([...measurements, {
@@ -66,14 +136,26 @@ const AluSurveyPage = () => {
         try {
             await api.post('/alu/surveys', {
                 customerName,
+                customerId: selectedCustomerId || undefined,
+                inquiryId: selectedInquiryId || undefined,
                 projectName,
                 surveyorName,
                 notes,
-                measurements
+                measurements,
+                attachments
             });
             toast.success('Survey measurements saved successfully');
             setIsOpen(false);
             fetchSurveys();
+            // Reset state
+            setSelectedInquiryId('');
+            setSelectedCustomerId('');
+            setCustomerName('');
+            setProjectName('');
+            setSurveyorName('');
+            setNotes('');
+            setAttachments([]);
+            setMeasurements([{ label: 'GF-W1', width: 1200, height: 1200, applicationType: 'Casement Window', configuration: '1 Panel' }]);
         } catch (error) {
             toast.error('Failed to save survey record');
         }
@@ -143,11 +225,36 @@ const AluSurveyPage = () => {
                                         <User size={12} className="text-slate-400" />
                                         <span>Client: <strong className="text-slate-700">{survey.customerName}</strong></span>
                                     </div>
+                                    {survey.inquiryId && (
+                                        <div className="flex items-center gap-1.5">
+                                            <FileText size={12} className="text-slate-400" />
+                                            <span>Lead: <strong className="text-indigo-600">{survey.inquiryId.inquiryCode}</strong></span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-1.5">
                                         <Clipboard size={12} className="text-slate-400" />
                                         <span>Surveyor: <span className="text-slate-700">{survey.surveyorName || 'N/A'}</span></span>
                                     </div>
                                 </div>
+
+                                {survey.attachments && survey.attachments.length > 0 && (
+                                    <div className="space-y-1">
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">Drawings & Sketches</span>
+                                        <div className="flex flex-wrap gap-1">
+                                            {survey.attachments.map((att, aIdx) => (
+                                                <a 
+                                                    key={aIdx} 
+                                                    href={`${api.defaults.baseURL.replace('/api', '')}${att.fileUrl}`} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5"
+                                                >
+                                                    <FileText size={10} /> {att.fileName}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="bg-slate-50 border rounded-xl p-3 space-y-1.5 text-xs max-h-[140px] overflow-y-auto">
                                     <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">Openings Logged</span>
@@ -178,7 +285,40 @@ const AluSurveyPage = () => {
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Customer / Client *</label>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Link to Sales Lead (Inquiry)</label>
+                            <select
+                                value={selectedInquiryId}
+                                onChange={(e) => handleInquiryChange(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            >
+                                <option value="">-- Optional: Link CRM Lead --</option>
+                                {inquiries.map(inq => (
+                                    <option key={inq._id} value={inq._id}>
+                                        {inq.inquiryCode} - {inq.companyName || inq.contactPerson} ({inq.status})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Link to ERP Customer</label>
+                            <select
+                                value={selectedCustomerId}
+                                onChange={(e) => handleCustomerChange(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            >
+                                <option value="">-- Optional: Link Customer --</option>
+                                {customers.map(c => (
+                                    <option key={c._id} value={c._id}>
+                                        {c.displayName || c.companyName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Customer / Client Name *</label>
                             <input
                                 type="text"
                                 placeholder="e.g. Dilum Weerasinghe"
@@ -222,6 +362,29 @@ const AluSurveyPage = () => {
                                 className="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                             />
                         </div>
+                    </div>
+
+                    {/* Drawings Upload Section */}
+                    <div className="border rounded-xl p-3 bg-slate-50/50 space-y-2">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">Drawings & sketches</label>
+                        <div className="flex items-center gap-3">
+                            <input 
+                                type="file" 
+                                onChange={handleFileUpload} 
+                                className="text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" 
+                            />
+                            {uploading && <span className="text-[10px] text-slate-500">Uploading...</span>}
+                        </div>
+                        {attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1.5">
+                                {attachments.map((att, idx) => (
+                                    <div key={idx} className="inline-flex items-center gap-1.5 bg-white border rounded px-2.5 py-1 text-xs">
+                                        <span className="text-slate-700 max-w-[120px] truncate">{att.fileName}</span>
+                                        <button type="button" onClick={() => removeAttachment(idx)} className="text-red-500 hover:text-red-700 font-bold ml-1">×</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Measurements List Form */}

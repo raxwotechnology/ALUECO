@@ -12,7 +12,13 @@ const inquirySchema = new mongoose.Schema({
     prospectName: String,
     prospectEmail: String,
     prospectCountry: String,
-    source: { type: String, default: 'email' },
+    projectLocation: { type: String },
+    expectedTimeline: { type: String },
+    source: { 
+        type: String, 
+        enum: ['facebook', 'whatsapp', 'showroom', 'architect', 'contractor', 'referral', 'website', 'email', 'other'],
+        default: 'website' 
+    },
     products: [{
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
         requestedQty: Number,
@@ -29,6 +35,7 @@ const inquirySchema = new mongoose.Schema({
     quotations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Quotation' }],
     status: {
         type: String,
+        enum: ['new', 'site_visit', 'quotation_pending', 'quotation_sent', 'negotiation', 'won', 'lost'],
         default: 'new',
     },
     lostReason: String,

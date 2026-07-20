@@ -71,3 +71,63 @@ export const deleteSupplier = asyncHandler(async (req, res) => {
     await supplier.save();
     res.json({ success: true, message: 'Supplier deleted' });
 });
+
+export const getSupplierAgeingReport = asyncHandler(async (req, res) => {
+    const Bill = (await import('../models/Bill.js')).default;
+    const suppliers = await Supplier.find({ status: 'active' });
+    const bills = await Bill.find({ 
+        paymentStatus: { $in: ['unpaid', 'partially_paid'] },
+        status: 'approved' 
+    });
+
+    const report = suppliers.map(supplier => {
+        const supplierBills = bills.filter(b => b.supplierId && b.supplierId.toString() === supplier._id.toString());
+        
+        let current = 0;
+        let aged1to30 = 0;
+        let aged31to60 = 0;
+        let aged61to90 = 0;
+        let agedOver90 = 0;
+        let totalOutstanding = 0;
+
+        const now = new Date();
+
+        supplierBills.forEach(bill => {
+            const outstanding = bill.balanceDue;
+            totalOutstanding += outstanding;
+
+            const dueTime = new Date(bill.dueDate).getTime();
+            const nowTime = now.getTime();
+            const diffDays = Math.ceil((nowTime - dueTime) / (1000 * 60 * 60 * 24));
+
+            if (diffDays <= 0) {
+                current += outstanding;
+            } else if (diffDays <= 30) {
+                aged1to30 += outstanding;
+            } else if (diffDays <= 60) {
+                aged31to60 += outstanding;
+            } else if (diffDays <= 90) {
+                aged61to90 += outstanding;
+            } else {
+                agedOver90 += outstanding;
+            }
+        });
+
+        return {
+            supplierId: supplier._id,
+            supplierCode: supplier.supplierCode,
+            companyName: supplier.companyName,
+            displayName: supplier.displayName,
+            creditDays: supplier.paymentTerms?.creditDays || 30,
+            creditLimit: supplier.paymentTerms?.creditLimit || 0,
+            current: parseFloat(current.toFixed(2)),
+            aged1to30: parseFloat(aged1to30.toFixed(2)),
+            aged31to60: parseFloat(aged31to60.toFixed(2)),
+            aged61to90: parseFloat(aged61to90.toFixed(2)),
+            agedOver90: parseFloat(agedOver90.toFixed(2)),
+            totalOutstanding: parseFloat(totalOutstanding.toFixed(2))
+        };
+    }).filter(r => r.totalOutstanding > 0);
+
+    res.json({ success: true, data: report });
+});

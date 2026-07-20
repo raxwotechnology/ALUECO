@@ -8,28 +8,21 @@ import {
 import toast from 'react-hot-toast';
 
 const PIPELINE = [
-    { status: 'new',             label: 'New',              color: 'bg-blue-500',    light: 'bg-blue-50 text-blue-700 border-blue-100',   next: 'quoted' },
-    { status: 'quoted',          label: 'Quoted',           color: 'bg-violet-500',  light: 'bg-violet-50 text-violet-700 border-violet-100', next: 'sample_sent' },
-    { status: 'sample_sent',     label: 'Sample Sent',     color: 'bg-amber-500',   light: 'bg-amber-50 text-amber-700 border-amber-100', next: 'sample_approved' },
-    { status: 'sample_approved', label: 'Sample ✓',        color: 'bg-teal-500',    light: 'bg-teal-50 text-teal-700 border-teal-100',   next: 'order_confirmed' },
-    { status: 'order_confirmed', label: 'Order Confirmed', color: 'bg-emerald-500', light: 'bg-emerald-50 text-emerald-700 border-emerald-100', next: 'shipped' },
-    { status: 'shipped',         label: 'Shipped',          color: 'bg-sky-500',    light: 'bg-sky-50 text-sky-700 border-sky-100',      next: 'closed' },
-    { status: 'closed',          label: 'Closed ✓',        color: 'bg-gray-400',    light: 'bg-gray-50 text-gray-600 border-gray-200',   next: null },
-    { status: 'lost',            label: 'Lost ✗',          color: 'bg-red-400',     light: 'bg-red-50 text-red-600 border-red-100',      next: null },
+    { status: 'new',               label: 'New',               color: 'bg-blue-500',    light: 'bg-blue-50 text-blue-700 border-blue-100',   next: 'site_visit' },
+    { status: 'site_visit',        label: 'Site Visit',        color: 'bg-indigo-500',  light: 'bg-indigo-50 text-indigo-700 border-indigo-100', next: 'quotation_pending' },
+    { status: 'quotation_pending', label: 'Quotation Pending', color: 'bg-yellow-500',  light: 'bg-yellow-50 text-yellow-700 border-yellow-100', next: 'quotation_sent' },
+    { status: 'quotation_sent',    label: 'Quotation Sent',    color: 'bg-violet-500',  light: 'bg-violet-50 text-violet-700 border-violet-100', next: 'negotiation' },
+    { status: 'negotiation',       label: 'Negotiation',       color: 'bg-amber-500',   light: 'bg-amber-50 text-amber-700 border-amber-100', next: 'won' },
+    { status: 'won',               label: 'Won ✓',             color: 'bg-emerald-500', light: 'bg-emerald-50 text-emerald-700 border-emerald-100', next: null },
+    { status: 'lost',              label: 'Lost ✗',            color: 'bg-red-400',     light: 'bg-red-50 text-red-600 border-red-100',      next: null },
 ];
 
 const getPipeline = (s) => PIPELINE.find(p => p.status === s) || PIPELINE[0];
 
 const emptyForm = () => ({
     companyName: '', contactPerson: '', email: '', phone: '',
-    country: '', source: 'website', status: 'new', notes: '', productsInterested: '',
-    sampleRequested: false,
-    sampleDetails: {
-        sentDate: '',
-        trackingNumber: '',
-        feedback: '',
-        approved: false
-    }
+    projectLocation: '', expectedTimeline: '', source: 'website', status: 'new', notes: '',
+    followUpDate: ''
 });
 
 export default function InquiriesPage() {
@@ -65,16 +58,9 @@ export default function InquiriesPage() {
         setFormData(inquiry ? {
             companyName: inquiry.companyName || '', contactPerson: inquiry.contactPerson || '',
             email: inquiry.email || '', phone: inquiry.phone || '',
-            country: inquiry.country || '', source: inquiry.source || 'website',
-            status: inquiry.status || 'new', notes: inquiry.notes || '',
-            productsInterested: inquiry.productsInterested || '',
-            sampleRequested: inquiry.sampleRequested || false,
-            sampleDetails: {
-                sentDate: inquiry.sampleDetails?.sentDate ? new Date(inquiry.sampleDetails.sentDate).toISOString().split('T')[0] : '',
-                trackingNumber: inquiry.sampleDetails?.trackingNumber || '',
-                feedback: inquiry.sampleDetails?.feedback || '',
-                approved: inquiry.sampleDetails?.approved || false
-            }
+            projectLocation: inquiry.projectLocation || '', expectedTimeline: inquiry.expectedTimeline || '',
+            source: inquiry.source || 'website', status: inquiry.status || 'new', notes: inquiry.notes || '',
+            followUpDate: inquiry.followUpDate ? new Date(inquiry.followUpDate).toISOString().split('T')[0] : ''
         } : emptyForm());
         setIsFormOpen(true);
     };
@@ -202,32 +188,25 @@ export default function InquiriesPage() {
                                 <tr key={inq._id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-5 py-4">
                                         <p className="font-bold text-sm">{inq.companyName}</p>
-                                        <div className="flex flex-col gap-1 mt-0.5">
-                                            <p className="text-xs text-gray-400 flex items-center gap-1">
-                                                <Mail size={10} /> {inq.email}
+                                        <div className="flex flex-col gap-1 mt-0.5 text-xs text-gray-400">
+                                            <p className="flex items-center gap-1">
+                                                <Mail size={10} /> {inq.email || inq.phone || 'No Contact'}
                                             </p>
-                                            {inq.sampleRequested && (
-                                                <div>
-                                                    <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                                        inq.sampleDetails?.approved ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                                        inq.sampleDetails?.sentDate ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                        'bg-yellow-50 text-yellow-700 border-yellow-100'
-                                                    }`}>
-                                                        Sample: {
-                                                            inq.sampleDetails?.approved ? '✓ Approved' : 
-                                                            inq.sampleDetails?.sentDate ? `✈ Sent (${format(new Date(inq.sampleDetails.sentDate), 'yyyy-MM-dd')})` : 
-                                                            'Requested'
-                                                        }
-                                                    </span>
-                                                </div>
+                                            {inq.expectedTimeline && (
+                                                <p>Timeline: <span className="text-gray-600 font-semibold">{inq.expectedTimeline}</span></p>
                                             )}
                                         </div>
                                     </td>
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                                            <Globe size={13} className="text-gray-300" /> {inq.country || '—'}
+                                            <Globe size={13} className="text-gray-300" /> {inq.projectLocation || '—'}
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-0.5">{inq.source}</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">Source: <span className="capitalize">{inq.source}</span></p>
+                                        {inq.followUpDate && (
+                                            <p className="text-[10px] text-indigo-600 mt-0.5 font-semibold">
+                                                Follow-up: {format(new Date(inq.followUpDate), 'yyyy-MM-dd')}
+                                            </p>
+                                        )}
                                     </td>
                                     <td className="px-5 py-4">
                                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${stage.light}`}>
@@ -286,9 +265,9 @@ export default function InquiriesPage() {
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                {[['companyName','Company Name'],['contactPerson','Contact Person'],
-                                  ['email','Email'],['phone','Phone'],['country','Country']].map(([f,l]) => (
-                                    <div key={f} className={f === 'companyName' ? 'col-span-2' : ''}>
+                                {[['companyName','Client / Company Name'],['contactPerson','Contact Person'],
+                                  ['email','Email'],['phone','Phone'],['projectLocation','Project Location'],['expectedTimeline','Expected Timeline']].map(([f,l]) => (
+                                    <div key={f} className={f === 'companyName' || f === 'projectLocation' ? 'col-span-2' : ''}>
                                         <label className="text-xs font-bold text-gray-600 block mb-1">{l}</label>
                                         <input value={formData[f]} onChange={e => setFormData(p => ({...p, [f]: e.target.value}))}
                                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
@@ -298,84 +277,18 @@ export default function InquiriesPage() {
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Source</label>
                                     <select value={formData.source} onChange={e => setFormData(p => ({...p, source: e.target.value}))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none">
-                                        {['website','referral','trade_fair','social_media','cold_call','other'].map(s => (
+                                        {['website','whatsapp','facebook','showroom','architect','contractor','referral','other'].map(s => (
                                             <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
                                         ))}
                                     </select>
                                 </div>
-                                <div className="col-span-2">
-                                    <label className="text-xs font-bold text-gray-600 block mb-1">Products Interested</label>
-                                    <input value={formData.productsInterested} onChange={e => setFormData(p => ({...p, productsInterested: e.target.value}))}
-                                        placeholder="Moringa Powder, Tea Bags..."
+                                <div>
+                                    <label className="text-xs font-bold text-gray-600 block mb-1">Follow-up Date</label>
+                                    <input type="date" value={formData.followUpDate} onChange={e => setFormData(p => ({...p, followUpDate: e.target.value}))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
                                 </div>
-                                <div className="col-span-2 border-t pt-4 mt-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.sampleRequested}
-                                            onChange={(e) => setFormData(p => ({ ...p, sampleRequested: e.target.checked }))}
-                                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
-                                        />
-                                        Sample Requested?
-                                    </label>
-                                </div>
-                                {formData.sampleRequested && (
-                                    <>
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-600 block mb-1">Sample Sent Date</label>
-                                            <input
-                                                type="date"
-                                                value={formData.sampleDetails?.sentDate || ''}
-                                                onChange={(e) => setFormData(p => ({
-                                                    ...p,
-                                                    sampleDetails: { ...p.sampleDetails, sentDate: e.target.value }
-                                                }))}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-600 block mb-1">Tracking / Courier Number</label>
-                                            <input
-                                                value={formData.sampleDetails?.trackingNumber || ''}
-                                                onChange={(e) => setFormData(p => ({
-                                                    ...p,
-                                                    sampleDetails: { ...p.sampleDetails, trackingNumber: e.target.value }
-                                                }))}
-                                                placeholder="e.g. DHL 481285"
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-xs font-bold text-gray-600 block mb-1">Sample Feedback</label>
-                                            <input
-                                                value={formData.sampleDetails?.feedback || ''}
-                                                onChange={(e) => setFormData(p => ({
-                                                    ...p,
-                                                    sampleDetails: { ...p.sampleDetails, feedback: e.target.value }
-                                                }))}
-                                                placeholder="e.g. Customer liked quality, requesting volume quote"
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="flex items-center gap-2 text-xs font-bold text-gray-600 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.sampleDetails?.approved || false}
-                                                    onChange={(e) => setFormData(p => ({
-                                                        ...p,
-                                                        sampleDetails: { ...p.sampleDetails, approved: e.target.checked }
-                                                    }))}
-                                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                                                />
-                                                Sample Approved / QA Passed?
-                                            </label>
-                                        </div>
-                                    </>
-                                )}
                                 <div className="col-span-2">
-                                    <label className="text-xs font-bold text-gray-600 block mb-1">Notes</label>
+                                    <label className="text-xs font-bold text-gray-600 block mb-1">Notes / Requirements</label>
                                     <textarea value={formData.notes} onChange={e => setFormData(p => ({...p, notes: e.target.value}))}
                                         rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none" />
                                 </div>

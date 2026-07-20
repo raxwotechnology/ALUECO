@@ -4,14 +4,13 @@ import { createAuditLog } from '../utils/auditLogger.js';
 
 // ── Valid state machine transitions ───────────────────────────────────────────
 const VALID_TRANSITIONS = {
-    new:             ['quoted', 'lost'],
-    quoted:          ['sample_sent', 'order_confirmed', 'lost'],
-    sample_sent:     ['sample_approved', 'lost'],
-    sample_approved: ['order_confirmed', 'lost'],
-    order_confirmed: ['shipped', 'lost'],
-    shipped:         ['closed'],
-    closed:          [],
-    lost:            [],
+    new:               ['site_visit', 'lost'],
+    site_visit:        ['quotation_pending', 'lost'],
+    quotation_pending: ['quotation_sent', 'lost'],
+    quotation_sent:    ['negotiation', 'lost'],
+    negotiation:       ['won', 'lost', 'quotation_pending'],
+    won:               [],
+    lost:              ['new'],
 };
 
 /**
@@ -166,7 +165,7 @@ export const getConversionRate = asyncHandler(async (req, res) => {
             $group: {
                 _id: null,
                 total:     { $sum: 1 },
-                confirmed: { $sum: { $cond: [{ $in: ['$status', ['order_confirmed', 'shipped', 'closed']] }, 1, 0] } },
+                confirmed: { $sum: { $cond: [{ $eq: ['$status', 'won'] }, 1, 0] } },
                 lost:      { $sum: { $cond: [{ $eq: ['$status', 'lost'] }, 1, 0] } },
             }
         },

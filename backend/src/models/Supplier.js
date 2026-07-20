@@ -79,6 +79,7 @@ const supplierSchema = new mongoose.Schema(
             },
             creditDays: { type: Number, default: 30, min: 0 },
             creditLimit: { type: Number, default: 0, min: 0 },
+            openingBalance: { type: Number, default: 0 },
         },
 
         defaultCurrency: { type: String, default: 'LKR' },

@@ -178,6 +178,21 @@ const salesOrderSchema = new mongoose.Schema(
         cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         cancelledAt: Date,
 
+        advancePercentage: { type: Number, default: 50 },
+        advanceAmount: { type: Number, default: 0 },
+        advanceReceived: { type: Boolean, default: false },
+        productionStatus: {
+            type: String,
+            enum: ['waiting_payment', 'ready_for_production', 'in_production', 'completed', 'cancelled'],
+            default: 'waiting_payment',
+        },
+        paymentSchedule: [{
+            stageName: { type: String, required: true },
+            amount: { type: Number, required: true },
+            status: { type: String, enum: ['pending', 'paid'], default: 'pending' },
+            paidAt: Date
+        }],
+        totalPaid: { type: Number, default: 0 },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         deletedAt: { type: Date, default: null },
@@ -242,6 +257,26 @@ salesOrderSchema.pre('save', async function () {
         const due = new Date(this.orderDate);
         due.setDate(due.getDate() + this.paymentTerms.creditDays);
         this.paymentTerms.dueDate = due;
+    }
+
+    // Auto-fill advanceAmount if 0
+    if ((!this.advanceAmount || this.advanceAmount === 0) && this.advancePercentage > 0) {
+        this.advanceAmount = +(this.grandTotal * (this.advancePercentage / 100)).toFixed(2);
+    }
+    
+    // Generate default payment schedule if empty
+    if (this.paymentSchedule && this.paymentSchedule.length === 0) {
+        this.paymentSchedule.push({
+            stageName: 'Order Confirmation Advance',
+            amount: this.advanceAmount,
+            status: this.advanceReceived ? 'paid' : 'pending',
+            paidAt: this.advanceReceived ? new Date() : undefined
+        });
+        this.paymentSchedule.push({
+            stageName: 'Completion & Delivery Payment',
+            amount: +(this.grandTotal - this.advanceAmount).toFixed(2),
+            status: 'pending'
+        });
     }
 });
 
