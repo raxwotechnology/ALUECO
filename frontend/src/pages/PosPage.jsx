@@ -452,41 +452,56 @@ export default function PosPage() {
 
     if (!activeShift) {
         return (
-            <div className="h-screen w-screen bg-slate-950 flex items-center justify-center p-4">
-                <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 text-center">
-                    <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                        <Lock size={32} />
+            <div className="flex-1 flex flex-col bg-slate-950 items-center justify-center p-6 relative overflow-hidden -m-6 min-h-[calc(100vh-64px)] font-sans">
+                {/* Glowing mesh background blobs */}
+                <div className="absolute top-[-20%] left-[-15%] w-[60%] h-[60%] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
+                <div className="absolute bottom-[-20%] right-[-15%] w-[60%] h-[60%] rounded-full bg-indigo-600/10 blur-[130px] pointer-events-none" />
+                
+                <div className="max-w-md w-full bg-slate-900/60 border border-slate-800/80 rounded-[32px] p-8 shadow-2xl backdrop-blur-2xl space-y-7 text-center relative z-10">
+                    {/* Glowing lock header */}
+                    <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                        <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse" />
+                        <div className="w-16 h-16 bg-gradient-to-b from-indigo-500/20 to-indigo-500/5 border border-indigo-500/30 text-indigo-400 rounded-full flex items-center justify-center shadow-inner relative z-10">
+                            <Lock size={28} className="animate-pulse" />
+                        </div>
                     </div>
+
                     <div className="space-y-2">
-                        <h2 className="text-2xl font-extrabold text-white tracking-tight">POS Cashier Shift Locked</h2>
-                        <p className="text-slate-400 text-sm">
+                        <h2 className="text-2xl font-black text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+                            POS Cashier Shift Locked
+                        </h2>
+                        <p className="text-slate-400 text-sm leading-relaxed max-w-sm mx-auto">
                             An active cashier shift session is required to process showroom POS sales. Please enter your initial cash float to open the shift.
                         </p>
                     </div>
 
-                    <form onSubmit={handleOpenShift} className="space-y-4 text-left">
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Initial Cash Float (LKR)</label>
-                            <div className="relative">
-                                <span className="absolute left-3.5 top-2.5 text-slate-500 font-mono text-sm">Rs.</span>
+                    <form onSubmit={handleOpenShift} className="space-y-6 text-left">
+                        <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Initial Cash Float
+                            </label>
+                            <div className="relative group">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm group-focus-within:text-indigo-400 transition-colors">
+                                    LKR
+                                </span>
                                 <input
                                     type="number"
                                     required
                                     min="0"
                                     value={openingFloatVal}
                                     onChange={(e) => setOpeningFloatVal(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-2.5 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 font-mono"
-                                    placeholder="e.g. 5000"
+                                    className="w-full bg-slate-950/80 border border-slate-800/80 rounded-2xl py-3.5 pl-14 pr-4 text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-mono placeholder-slate-700"
+                                    placeholder="e.g., 5000"
                                 />
                             </div>
                         </div>
 
-                        <Button
+                        <button
                             type="submit"
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl text-sm transition shadow-lg shadow-indigo-600/20"
+                            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all duration-300 shadow-lg shadow-indigo-900/30 hover:shadow-indigo-500/20 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                         >
                             Open Cashier Shift & Unlock POS
-                        </Button>
+                        </button>
                     </form>
                 </div>
             </div>
