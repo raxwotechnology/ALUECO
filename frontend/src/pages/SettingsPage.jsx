@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
     Building2, DollarSign, Package, Save, Globe,
     Phone, Mail, MapPin, Hash, BadgeCheck, AlertTriangle,
-    ChevronRight, CheckCircle2
+    ChevronRight, CheckCircle2, Upload, Image as ImageIcon, X
 } from 'lucide-react';
 
 import { useSettings, useUpdateSettings } from '../features/settings/useSettings';
@@ -16,6 +16,7 @@ const settingsSchema = z.object({
     companyPhone: z.string().optional(),
     companyEmail: z.string().email('Invalid email').optional().or(z.literal('')),
     companyLogo: z.string().optional(),
+    secondaryLogo: z.string().optional(),
     taxId: z.string().optional(),
     currency: z.string().min(1, 'Currency required'),
     currencySymbol: z.string().min(1, 'Symbol required'),
@@ -82,10 +83,12 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('company');
     const [saved, setSaved] = useState(false);
 
-    const { register, handleSubmit, reset, formState: { errors } } = useForm({
+    const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
         resolver: zodResolver(settingsSchema),
         defaultValues: {
             companyName: 'ALUECO Aluminium Systems',
+            companyLogo: '',
+            secondaryLogo: '',
             currency: 'LKR',
             currencySymbol: 'Rs.',
             defaultTaxRate: 0,
@@ -93,9 +96,22 @@ export default function SettingsPage() {
         },
     });
 
+    const companyLogoValue = watch('companyLogo');
+    const secondaryLogoValue = watch('secondaryLogo');
+
     useEffect(() => {
         if (data?.data) reset(data.data);
     }, [data, reset]);
+
+    const handleFileUpload = (e, fieldName) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setValue(fieldName, reader.result, { shouldValidate: true, shouldDirty: true });
+        };
+        reader.readAsDataURL(file);
+    };
 
     const onSubmit = async (formData) => {
         await updateMutation.mutateAsync(formData);
@@ -217,7 +233,7 @@ export default function SettingsPage() {
                                     </div>
 
                                     <SectionBadge icon={Globe} label="Contact Details" accent="blue" />
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-4 mb-8">
                                         <StyledInput
                                             label="Email Address"
                                             icon={Mail}
@@ -245,15 +261,130 @@ export default function SettingsPage() {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="col-span-2">
-                                            <StyledInput
-                                                label="Company Logo URL"
-                                                icon={BadgeCheck}
-                                                placeholder="https://example.com/logo.png"
-                                                error={errors.companyLogo?.message}
-                                                registration={register('companyLogo')}
-                                            />
+                                    </div>
+
+                                    {/* ── DUAL LOGOS MANAGEMENT ───────────────────── */}
+                                    <SectionBadge icon={ImageIcon} label="System & Quotation Branding Logos" accent="blue" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                        {/* Logo 1: System Primary Logo */}
+                                        <div className="p-5 rounded-2xl border border-gray-200 bg-slate-50/50 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                                                        1
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-bold text-gray-900">System Primary Logo</h3>
+                                                        <p className="text-[11px] text-gray-500">Main branding logo (Sidebar, Header, Tab Favicon & Quotation Left Logo)</p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">System Logo</span>
+                                            </div>
+
+                                            {/* Preview Box */}
+                                            <div className="h-28 rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center relative overflow-hidden group">
+                                                {companyLogoValue ? (
+                                                    <>
+                                                        <img src={companyLogoValue} alt="System Primary Logo" className="max-h-24 max-w-full object-contain p-2" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setValue('companyLogo', '', { shouldDirty: true })}
+                                                            className="absolute top-2 right-2 p-1 rounded-full bg-rose-500 text-white opacity-0 group-hover:opacity-100 transition"
+                                                            title="Remove Logo"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center text-gray-400">
+                                                        <ImageIcon size={28} className="mx-auto mb-1 opacity-50" />
+                                                        <p className="text-xs font-medium">No Primary Logo Set</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* File Upload & URL Inputs */}
+                                            <div className="space-y-2">
+                                                <label className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:border-emerald-500 text-xs font-semibold text-gray-700 cursor-pointer shadow-sm transition">
+                                                    <Upload size={14} className="text-emerald-600" />
+                                                    <span>Upload Primary Logo Image</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => handleFileUpload(e, 'companyLogo')}
+                                                    />
+                                                </label>
+                                                <StyledInput
+                                                    label="Or enter Image URL"
+                                                    icon={BadgeCheck}
+                                                    placeholder="https://example.com/system-logo.png"
+                                                    error={errors.companyLogo?.message}
+                                                    registration={register('companyLogo')}
+                                                />
+                                            </div>
                                         </div>
+
+                                        {/* Logo 2: Secondary Logo */}
+                                        <div className="p-5 rounded-2xl border border-gray-200 bg-slate-50/50 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                                                        2
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-bold text-gray-900">Secondary / Co-Branding Logo</h3>
+                                                        <p className="text-[11px] text-gray-500">Second logo printed on the top-right side of Quotation documents</p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">Quotation Logo</span>
+                                            </div>
+
+                                            {/* Preview Box */}
+                                            <div className="h-28 rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center relative overflow-hidden group">
+                                                {secondaryLogoValue ? (
+                                                    <>
+                                                        <img src={secondaryLogoValue} alt="Secondary Logo" className="max-h-24 max-w-full object-contain p-2" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setValue('secondaryLogo', '', { shouldDirty: true })}
+                                                            className="absolute top-2 right-2 p-1 rounded-full bg-rose-500 text-white opacity-0 group-hover:opacity-100 transition"
+                                                            title="Remove Logo"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center text-gray-400">
+                                                        <ImageIcon size={28} className="mx-auto mb-1 opacity-50" />
+                                                        <p className="text-xs font-medium">No Secondary Logo Set</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* File Upload & URL Inputs */}
+                                            <div className="space-y-2">
+                                                <label className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:border-blue-500 text-xs font-semibold text-gray-700 cursor-pointer shadow-sm transition">
+                                                    <Upload size={14} className="text-blue-600" />
+                                                    <span>Upload Secondary Logo Image</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => handleFileUpload(e, 'secondaryLogo')}
+                                                    />
+                                                </label>
+                                                <StyledInput
+                                                    label="Or enter Image URL"
+                                                    icon={BadgeCheck}
+                                                    placeholder="https://example.com/quotation-logo.png"
+                                                    error={errors.secondaryLogo?.message}
+                                                    registration={register('secondaryLogo')}
+                                                />
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
                             )}

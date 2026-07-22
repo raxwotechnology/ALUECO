@@ -20,7 +20,6 @@ const menuGroups = [
         icon: LayoutDashboard,
         items: [
             { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', permission: 'dashboard.view' },
-            { label: 'My Profile', icon: UserCheck, path: '/profile' },
         ],
     },
     {
@@ -160,10 +159,10 @@ const menuGroups = [
         ]
     },
     {
-        label: 'SYSTEM ADMIN',
+        label: 'SYSTEM & SETTINGS',
         icon: Settings,
-        adminOnly: true,
         items: [
+            { label: 'My Profile', icon: UserCheck, path: '/profile' },
             { label: 'Users', icon: Users, path: '/users', permission: 'admin.users.view' },
             { label: 'Roles & Permissions', icon: ShieldCheck, path: '/roles', permission: 'admin.roles.view' },
             { label: 'Data Import', icon: Upload, path: '/import', permission: 'admin.settings' },
@@ -644,7 +643,7 @@ export default function Sidebar({ isOpen, onClose }) {
                                     </p>
                                     <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
                                         <BadgeCheck size={9} />
-                                        <span className="text-[9px] font-bold uppercase tracking-wide">Hub</span>
+                                        <span className="text-[9px] font-bold uppercase tracking-wide">Shortcut</span>
                                     </div>
                                 </div>
 

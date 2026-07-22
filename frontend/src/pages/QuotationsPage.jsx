@@ -242,29 +242,57 @@ const QuotationsPage = () => {
         doc.setFillColor(79, 70, 229); // Indigo 600
         doc.rect(0, 0, pageWidth, 40, 'F');
 
+        let textLeftX = 14;
+        // Primary Logo (Top-Left)
+        if (settings?.companyLogo) {
+            try {
+                doc.addImage(settings.companyLogo, 'PNG', 14, 6, 26, 26);
+                textLeftX = 44;
+            } catch (e) {
+                try {
+                    doc.addImage(settings.companyLogo, 'JPEG', 14, 6, 26, 26);
+                    textLeftX = 44;
+                } catch (err) {}
+            }
+        }
+
+        let textRightX = pageWidth - 14;
+        // Secondary Logo (Top-Right)
+        if (settings?.secondaryLogo) {
+            try {
+                doc.addImage(settings.secondaryLogo, 'PNG', pageWidth - 38, 6, 24, 24);
+                textRightX = pageWidth - 42;
+            } catch (e) {
+                try {
+                    doc.addImage(settings.secondaryLogo, 'JPEG', pageWidth - 38, 6, 24, 24);
+                    textRightX = pageWidth - 42;
+                } catch (err) {}
+            }
+        }
+
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text((settings?.companyName || 'EXPORT LANKA').toUpperCase(), 14, 18);
+        doc.text((settings?.companyName || 'EXPORT LANKA').toUpperCase(), textLeftX, 17);
         
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(settings?.companyAddress || 'Colombo, Sri Lanka', 14, 25);
+        doc.text(settings?.companyAddress || 'Colombo, Sri Lanka', textLeftX, 23);
         
         const contactInfo = [
             settings?.companyPhone ? `Tel: ${settings.companyPhone}` : '',
             settings?.companyEmail ? `Email: ${settings.companyEmail}` : ''
         ].filter(Boolean).join(' | ') || 'info@exportlanka.com';
-        doc.text(contactInfo, 14, 30);
+        doc.text(contactInfo, textLeftX, 28);
 
-        doc.setFontSize(22);
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text('QUOTATION', pageWidth - 14, 20, { align: 'right' });
+        doc.text('QUOTATION', textRightX, 17, { align: 'right' });
         
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Quote Ref: ${quote.quoteNumber}`, pageWidth - 14, 28, { align: 'right' });
-        doc.text(`Status: ${(quote.status || 'draft').toUpperCase()}`, pageWidth - 14, 33, { align: 'right' });
+        doc.text(`Quote Ref: ${quote.quoteNumber}`, textRightX, 24, { align: 'right' });
+        doc.text(`Status: ${(quote.status || 'draft').toUpperCase()}`, textRightX, 29, { align: 'right' });
 
         // 2. Client Details & Date details
         doc.setTextColor(50, 50, 50);
@@ -834,7 +862,14 @@ const QuotationsPage = () => {
                                         </p>
                                     </div>
                                 </div>
-                                <div className="text-left sm:text-right">
+                                <div className="text-left sm:text-right flex flex-col items-start sm:items-end">
+                                    {settings?.secondaryLogo && (
+                                        <img
+                                            src={settings.secondaryLogo}
+                                            className="w-14 h-14 object-contain rounded-lg border border-gray-100 p-0.5 mb-1.5"
+                                            alt="Secondary Logo"
+                                        />
+                                    )}
                                     <h2 className="text-3xl font-black text-slate-700 tracking-tight">QUOTATION</h2>
                                     <p className="text-xs font-bold text-gray-400 font-mono mt-1">Ref: {previewQuote.quoteNumber}</p>
                                     <span className="inline-block mt-2 px-2 py-0.5 text-[9px] font-black uppercase rounded bg-slate-100 text-slate-500 border">{previewQuote.status}</span>

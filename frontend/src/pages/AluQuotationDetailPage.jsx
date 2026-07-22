@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings, Users, Truck, DollarSign, Edit } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings as SettingsIcon, Users, Truck, DollarSign, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import Button from '../components/ui/Button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useSettings } from '../features/settings/useSettings';
 
 const AluQuotationDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data;
     
     const [quotation, setQuotation] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -58,25 +61,58 @@ const AluQuotationDetailPage = () => {
         doc.setFillColor(15, 118, 110); // Teal 700
         doc.rect(0, 0, pageWidth, 40, 'F');
 
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ALUECO ALUMINIUM SYSTEMS', 14, 18);
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text('No. 123, Negoda Road, Weliweriya, Sri Lanka', 14, 25);
-        doc.text('Tel: 0777 140 680 | Email: info@alueco.lk | Web: www.alueco.lk', 14, 30);
+        let textLeftX = 14;
+        // Primary System Logo (Left)
+        if (settings?.companyLogo) {
+            try {
+                doc.addImage(settings.companyLogo, 'PNG', 14, 6, 26, 26);
+                textLeftX = 44;
+            } catch (e) {
+                try {
+                    doc.addImage(settings.companyLogo, 'JPEG', 14, 6, 26, 26);
+                    textLeftX = 44;
+                } catch (err) {}
+            }
+        }
 
-        doc.setFontSize(20);
+        let textRightX = pageWidth - 14;
+        // Secondary Logo (Right)
+        if (settings?.secondaryLogo) {
+            try {
+                doc.addImage(settings.secondaryLogo, 'PNG', pageWidth - 38, 6, 24, 24);
+                textRightX = pageWidth - 42;
+            } catch (e) {
+                try {
+                    doc.addImage(settings.secondaryLogo, 'JPEG', pageWidth - 38, 6, 24, 24);
+                    textRightX = pageWidth - 42;
+                } catch (err) {}
+            }
+        }
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text('QUOTATION', pageWidth - 14, 20, { align: 'right' });
+        doc.text((settings?.companyName || 'ALUECO ALUMINIUM SYSTEMS').toUpperCase(), textLeftX, 17);
         
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Quote No: ${quotation.quoteNumber}-Rev${String(quotation.version).padStart(2, '0')}`, pageWidth - 14, 27, { align: 'right' });
-        doc.text(`Date: ${format(new Date(quotation.date), 'dd MMM yyyy')}`, pageWidth - 14, 32, { align: 'right' });
-        doc.text(`Valid Till: ${format(new Date(quotation.validTill), 'dd MMM yyyy')}`, pageWidth - 14, 37, { align: 'right' });
+        doc.text(settings?.companyAddress || 'No. 123, Negoda Road, Weliweriya, Sri Lanka', textLeftX, 23);
+        
+        const contactLine = [
+            settings?.companyPhone ? `Tel: ${settings.companyPhone}` : '',
+            settings?.companyEmail ? `Email: ${settings.companyEmail}` : ''
+        ].filter(Boolean).join(' | ') || 'Tel: 0777 140 680 | Email: info@alueco.lk';
+        doc.text(contactLine, textLeftX, 28);
+
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('QUOTATION', textRightX, 17, { align: 'right' });
+        
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Quote No: ${quotation.quoteNumber}-Rev${String(quotation.version).padStart(2, '0')}`, textRightX, 23, { align: 'right' });
+        doc.text(`Date: ${format(new Date(quotation.date), 'dd MMM yyyy')}`, textRightX, 28, { align: 'right' });
+        doc.text(`Valid Till: ${format(new Date(quotation.validTill), 'dd MMM yyyy')}`, textRightX, 33, { align: 'right' });
 
         // Metadata grid
         doc.setTextColor(50, 50, 50);

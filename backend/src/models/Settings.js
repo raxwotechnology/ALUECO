@@ -10,6 +10,7 @@ const settingsSchema = new mongoose.Schema({
     companyPhone: String,
     companyEmail: String,
     companyLogo: String,
+    secondaryLogo: String,
     taxId: String,
     currency: {
         type: String,
