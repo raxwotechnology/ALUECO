@@ -105,6 +105,9 @@ import PayrollDetailPage from './pages/PayrollDetailPage';
 import PayslipDetailPage from './pages/PayslipDetailPage';
 
 import ReportsPage from './pages/ReportsPage';
+import SocialMediaAnalysisPage from './pages/analytics/SocialMediaAnalysisPage';
+import AiAnalysisPage from './pages/analytics/AiAnalysisPage';
+import BusinessAnalysisPage from './pages/analytics/BusinessAnalysisPage';
 import SalesSummaryReportPage from './pages/reports/SalesSummaryReportPage';
 import SalesByProductReportPage from './pages/reports/SalesByProductReportPage';
 import SalesByCustomerReportPage from './pages/reports/SalesByCustomerReportPage';
@@ -266,6 +269,11 @@ function App() {
         <Route path="/reports/hr" element={<ProtectedRoute requiredPermission="reports.hr"><HrReportsPage /></ProtectedRoute>} />
         <Route path="/reports/shift-wise" element={<ProtectedRoute requiredPermission="reports.hr"><ShiftReportingPage /></ProtectedRoute>} />
         <Route path="/reports/predictions" element={<ProtectedRoute requiredPermission="reports.sales"><FuturePredictionsPage /></ProtectedRoute>} />
+
+        {/* Advanced Analytics & AI */}
+        <Route path="/analytics/social" element={<ProtectedRoute requiredPermission="reports.sales"><SocialMediaAnalysisPage /></ProtectedRoute>} />
+        <Route path="/analytics/ai" element={<ProtectedRoute requiredPermission="reports.sales"><AiAnalysisPage /></ProtectedRoute>} />
+        <Route path="/analytics/business" element={<ProtectedRoute requiredPermission="reports.sales"><BusinessAnalysisPage /></ProtectedRoute>} />
 
         {/* Admin only */}
         <Route path="/users" element={<ProtectedRoute requiredPermission="admin.users.view"><UsersPage /></ProtectedRoute>} />

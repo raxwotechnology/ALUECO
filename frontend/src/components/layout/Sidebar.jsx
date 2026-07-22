@@ -8,7 +8,7 @@ import {
     ClipboardList, UserPlus, Ship, Layers, History, FileSpreadsheet,
     ChevronDown, ChevronRight, CheckSquare, ClipboardCheck, BadgeCheck,
     PackageCheck, CreditCard, Tag, Mail, Sparkles, Home, Search, Scale,
-    Plus, ArrowLeftRight, Sliders, LineChart, PieChart, TrendingUp, UserCheck
+    Plus, ArrowLeftRight, Sliders, LineChart, PieChart, TrendingUp, UserCheck, Share2, Cpu
 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import { useSettings } from '../../features/settings/useSettings';
@@ -149,6 +149,15 @@ const menuGroups = [
             { label: 'Shift Operations Logs', icon: Clock, path: '/reports/shift-wise', permission: 'reports.hr' },
             { label: 'Forecasting', icon: Sparkles, path: '/reports/predictions', anyPermission: ['reports.sales', 'reports.financial', 'reports.inventory', 'reports.production'] },
         ],
+    },
+    {
+        label: 'ADVANCED ANALYTICS',
+        icon: Sparkles,
+        items: [
+            { label: 'AI Business Advisor', icon: Cpu, path: '/analytics/ai', anyPermission: ['reports.sales', 'reports.financial', 'reports.inventory'] },
+            { label: 'Social Media Analytics', icon: Share2, path: '/analytics/social', anyPermission: ['reports.sales', 'reports.financial'] },
+            { label: 'Business Intelligence', icon: LineChart, path: '/analytics/business', anyPermission: ['reports.sales', 'reports.financial', 'reports.inventory'] },
+        ]
     },
     {
         label: 'SYSTEM ADMIN',

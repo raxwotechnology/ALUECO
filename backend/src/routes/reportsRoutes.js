@@ -32,6 +32,16 @@ import {
     getHeadcountReport, getAttendanceReport, getLeavePatternsReport, getPayrollSummaryReport,
 } from '../controllers/reports/hrReportsController.js';
 import { getPredictionsDashboard } from '../controllers/reports/predictionsController.js';
+import {
+    getSocialMediaMetrics,
+    getAiBusinessInsights,
+    handleAiBusinessChat,
+    getBusinessIntelligenceMetrics,
+    scrapeSocialProfile,
+    saveSocialCredential,
+    getSocialCredentials,
+    deleteSocialCredential
+} from '../controllers/reports/analyticsController.js';
 
 const router = express.Router();
 router.use(protect);
@@ -78,6 +88,16 @@ router.get('/sales/by-product', requirePermission('reports.sales'), getSalesByPr
 router.get('/sales/by-customer', requirePermission('reports.sales'), getSalesByCustomer);
 router.get('/sales/trend', requirePermission('reports.sales'), getSalesTrend);
 router.get('/predictions/dashboard', requirePermission('reports.sales'), getPredictionsDashboard);
+
+// Advanced Analytics & AI routes
+router.get('/analytics/social', requirePermission('reports.sales'), getSocialMediaMetrics);
+router.get('/analytics/ai-insights', requirePermission('reports.sales'), getAiBusinessInsights);
+router.post('/analytics/ai-chat', requirePermission('reports.sales'), handleAiBusinessChat);
+router.get('/analytics/business', requirePermission('reports.sales'), getBusinessIntelligenceMetrics);
+router.post('/analytics/social/scrape', requirePermission('reports.sales'), scrapeSocialProfile);
+router.post('/analytics/social/credentials', requirePermission('reports.sales'), saveSocialCredential);
+router.get('/analytics/social/credentials', requirePermission('reports.sales'), getSocialCredentials);
+router.delete('/analytics/social/credentials/:id', requirePermission('reports.sales'), deleteSocialCredential);
 
 // Inventory reports
 router.get('/inventory/valuation', requirePermission('reports.inventory'), getStockValuation);
