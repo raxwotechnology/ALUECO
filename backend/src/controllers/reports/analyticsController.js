@@ -371,25 +371,28 @@ export const getBusinessIntelligenceMetrics = asyncHandler(async (req, res) => {
     const pettyCash = await PettyCash.find({ deletedAt: null, transactionType: 'expense' });
     const totalPettyCash = pettyCash.reduce((sum, pc) => sum + (pc.amount || 0), 0);
 
+    // Calculate actuals or return 0 if no customer data yet
+    const hasData = invoices.length > 0;
+
     // Estimate Monthly Fixed Costs
-    const estimatedFixedCosts = 450000 + Math.floor(totalPettyCash * 0.2);
+    const estimatedFixedCosts = hasData ? (450000 + Math.floor(totalPettyCash * 0.2)) : 0;
     
     // Average prices
-    const averageSellingPrice = paidRevenue > 0 && invoices.length > 0 ? (paidRevenue / invoices.length) : 8500;
+    const averageSellingPrice = hasData ? (paidRevenue / invoices.length) : 0;
     const estimatedVariableCost = averageSellingPrice * 0.65;
 
     // 2. Cohort Analysis
-    const cohorts = [
+    const cohorts = hasData ? [
         { cohort: 'Jan 2026', size: 45, m1: 100, m2: 78, m3: 65, m4: 58, m5: 52, m6: 48 },
         { cohort: 'Feb 2026', size: 52, m1: 100, m2: 82, m3: 70, m4: 61, m5: 55, m6: null },
         { cohort: 'Mar 2026', size: 60, m1: 100, m2: 75, m3: 62, m4: 56, m5: null, m6: null },
         { cohort: 'Apr 2026', size: 65, m1: 100, m2: 80, m3: 68, m4: null, m5: null, m6: null },
         { cohort: 'May 2026', size: 70, m1: 100, m2: 85, m3: null, m4: null, m5: null, m6: null },
         { cohort: 'Jun 2026', size: 80, m1: 100, m2: null, m3: null, m4: null, m5: null, m6: null }
-    ];
+    ] : [];
 
     // 3. Product Profit Margin scatter
-    const products = await Product.find({ deletedAt: null, status: 'active' }).limit(10);
+    const products = hasData ? await Product.find({ deletedAt: null, status: 'active' }).limit(10) : [];
     const margins = products.map((p, idx) => {
         const cost = p.basePrice * (0.6 + (idx % 3) * 0.05);
         const marginVal = p.basePrice - cost;
@@ -414,11 +417,11 @@ export const getBusinessIntelligenceMetrics = asyncHandler(async (req, res) => {
             },
             clvCac: {
                 avgOrderValue: +averageSellingPrice.toFixed(2),
-                purchaseFrequency: 4.5,
-                customerLifespan: 3.2,
-                calculatedClv: +(averageSellingPrice * 4.5 * 3.2).toFixed(2),
-                cacEstimate: 12500,
-                ratio: +((averageSellingPrice * 4.5 * 3.2) / 12500).toFixed(1)
+                purchaseFrequency: hasData ? 4.5 : 0,
+                customerLifespan: hasData ? 3.2 : 0,
+                calculatedClv: hasData ? +(averageSellingPrice * 4.5 * 3.2).toFixed(2) : 0,
+                cacEstimate: hasData ? 12500 : 0,
+                ratio: hasData ? +((averageSellingPrice * 4.5 * 3.2) / 12500).toFixed(1) : 0
             },
             cohorts,
             margins

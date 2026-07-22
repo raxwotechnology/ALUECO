@@ -49,10 +49,10 @@ export default function BusinessAnalysisPage() {
                 if (response.data?.success) {
                     const data = response.data.data;
                     setBizData(data);
-                    setFixedCosts(data.breakEvenDefaults.fixedCosts);
-                    setPricePerUnit(data.breakEvenDefaults.pricePerUnit || 8500);
-                    setVarCostPerUnit(data.breakEvenDefaults.variableCostPerUnit || 5500);
-                    setCacInput(data.clvCac.cacEstimate || 12500);
+                    setFixedCosts(data.breakEvenDefaults.fixedCosts !== undefined ? data.breakEvenDefaults.fixedCosts : 0);
+                    setPricePerUnit(data.breakEvenDefaults.pricePerUnit !== undefined ? data.breakEvenDefaults.pricePerUnit : 0);
+                    setVarCostPerUnit(data.breakEvenDefaults.variableCostPerUnit !== undefined ? data.breakEvenDefaults.variableCostPerUnit : 0);
+                    setCacInput(data.clvCac.cacEstimate !== undefined ? data.clvCac.cacEstimate : 0);
                 }
             } catch (err) {
                 console.error('Failed to load business intelligence metrics', err);
@@ -94,8 +94,8 @@ export default function BusinessAnalysisPage() {
     }
 
     // CLV CAC recalculations
-    const clv = bizData.clvCac.avgOrderValue * bizData.clvCac.purchaseFrequency * bizData.clvCac.customerLifespan;
-    const clvCacRatio = cacInput > 0 ? +(clv / cacInput).toFixed(1) : 0;
+    const clv = bizData?.clvCac ? (bizData.clvCac.avgOrderValue * bizData.clvCac.purchaseFrequency * bizData.clvCac.customerLifespan) : 0;
+    const clvCacRatio = (cacInput > 0 && clv > 0) ? +(clv / cacInput).toFixed(1) : 0;
 
     const getRatioColor = (ratio) => {
         if (ratio >= 3.0) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
@@ -245,17 +245,17 @@ export default function BusinessAnalysisPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div className="p-4 bg-gray-50 rounded-2xl">
                                 <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Avg Order Value</span>
-                                <h4 className="text-xl font-black text-gray-900 mt-1">LKR {bizData.clvCac.avgOrderValue.toLocaleString()}</h4>
+                                <h4 className="text-xl font-black text-gray-900 mt-1">LKR {bizData?.clvCac?.avgOrderValue !== undefined ? bizData.clvCac.avgOrderValue.toLocaleString() : '0'}</h4>
                                 <span className="text-[9px] text-gray-400 block mt-0.5">per commercial invoice</span>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-2xl">
                                 <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Purchase Frequency</span>
-                                <h4 className="text-xl font-black text-gray-900 mt-1">{bizData.clvCac.purchaseFrequency}x / year</h4>
+                                <h4 className="text-xl font-black text-gray-900 mt-1">{bizData?.clvCac?.purchaseFrequency || 0}x / year</h4>
                                 <span className="text-[9px] text-gray-400 block mt-0.5">average order returns</span>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-2xl">
                                 <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Customer Lifespan</span>
-                                <h4 className="text-xl font-black text-gray-900 mt-1">{bizData.clvCac.customerLifespan} Years</h4>
+                                <h4 className="text-xl font-black text-gray-900 mt-1">{bizData?.clvCac?.customerLifespan || 0} Years</h4>
                                 <span className="text-[9px] text-gray-400 block mt-0.5">average business retention</span>
                             </div>
                         </div>
