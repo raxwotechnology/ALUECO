@@ -428,18 +428,17 @@ export default function SocialMediaAnalysisPage() {
                     <div className="space-y-4">
                         <div>
                             <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Target Platform</label>
-                            <Select
+                            <select
                                 value={simPlatform}
                                 onChange={(e) => setSimPlatform(e.target.value)}
-                                className="bg-gray-800 border-gray-700 text-white text-xs w-full"
-                                options={[
-                                    { value: 'Facebook', label: 'Facebook Ads' },
-                                    { value: 'Instagram', label: 'Instagram Ads' },
-                                    { value: 'LinkedIn', label: 'LinkedIn Ads' },
-                                    { value: 'TikTok', label: 'TikTok Video Ads' },
-                                    { value: 'YouTube', label: 'YouTube Video Ads' }
-                                ]}
-                            />
+                                className="bg-gray-800 border border-gray-700 text-white text-xs rounded-xl p-2.5 w-full outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                                <option value="Facebook">Facebook Ads</option>
+                                <option value="Instagram">Instagram Ads</option>
+                                <option value="LinkedIn">LinkedIn Ads</option>
+                                <option value="TikTok">TikTok Video Ads</option>
+                                <option value="YouTube">YouTube Video Ads</option>
+                            </select>
                         </div>
 
                         <div>
@@ -460,16 +459,15 @@ export default function SocialMediaAnalysisPage() {
 
                         <div>
                             <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Target Audience Profile</label>
-                            <Select
+                            <select
                                 value={simAudience}
                                 onChange={(e) => setSimAudience(e.target.value)}
-                                className="bg-gray-800 border-gray-700 text-white text-xs w-full"
-                                options={[
-                                    { value: 'Architects & Builders', label: 'Architects, Builders & Contractors (High Margin)' },
-                                    { value: 'Individual Home Owners', label: 'Individual Home Owners (Low Margin)' },
-                                    { value: 'Fabricators & Contractors', label: 'Aluminium Fabricators & Dealers (High Volume)' }
-                                ]}
-                            />
+                                className="bg-gray-800 border border-gray-700 text-white text-xs rounded-xl p-2.5 w-full outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                                <option value="Architects & Builders">Architects, Builders & Contractors (High Margin)</option>
+                                <option value="Individual Home Owners">Individual Home Owners (Low Margin)</option>
+                                <option value="Fabricators & Contractors">Aluminium Fabricators & Dealers (High Volume)</option>
+                            </select>
                         </div>
                     </div>
                 </Card>
@@ -576,19 +574,18 @@ export default function SocialMediaAnalysisPage() {
                     <form onSubmit={handleSaveCredential} className="space-y-4">
                         <div>
                             <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Select Integration</label>
-                            <Select
+                            <select
                                 value={credPlatform}
                                 onChange={(e) => setCredPlatform(e.target.value)}
-                                className="text-xs w-full"
-                                options={[
-                                    { value: 'Instagram', label: 'Instagram Graph API' },
-                                    { value: 'Facebook', label: 'Facebook Page Graph API' },
-                                    { value: 'LinkedIn', label: 'LinkedIn Marketing API' },
-                                    { value: 'TikTok', label: 'TikTok Developer API' },
-                                    { value: 'YouTube', label: 'YouTube Data API' },
-                                    { value: 'RapidAPI', label: 'RapidAPI Scraper Secret Key' }
-                                ]}
-                            />
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                            >
+                                <option value="Instagram">Instagram Graph API</option>
+                                <option value="Facebook">Facebook Page Graph API</option>
+                                <option value="LinkedIn">LinkedIn Marketing API</option>
+                                <option value="TikTok">TikTok Developer API</option>
+                                <option value="YouTube">YouTube Data API</option>
+                                <option value="RapidAPI">RapidAPI Scraper Secret Key</option>
+                            </select>
                         </div>
 
                         <div>

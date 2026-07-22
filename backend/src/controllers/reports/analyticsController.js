@@ -12,59 +12,100 @@ import SocialCredential from '../../models/SocialCredential.js';
  * Returns simulated and interactive social media analysis metrics for AluEco.
  */
 export const getSocialMediaMetrics = asyncHandler(async (req, res) => {
-    // Generate dates for the past 6 months
+    // 1. Fetch all active integrations / crawls from database
+    const dbCredentials = await SocialCredential.find({ isActive: true });
+
+    // Group stats by platform name
+    const platformStats = {};
+    dbCredentials.forEach(c => {
+        if (!c.platform) return;
+        if (!platformStats[c.platform]) {
+            platformStats[c.platform] = { followers: 0, growthSum: 0, engagementSum: 0, ctrSum: 0, count: 0 };
+        }
+        platformStats[c.platform].followers += c.followers || 0;
+        platformStats[c.platform].growthSum += c.growth || 0;
+        platformStats[c.platform].engagementSum += c.engagement || 0;
+        platformStats[c.platform].ctrSum += c.ctr || 0;
+        platformStats[c.platform].count += 1;
+    });
+
     const today = new Date();
     const timeline = [];
     
+    // Aggregated Metrics
+    const totalFollowers = dbCredentials.reduce((sum, c) => sum + (c.followers || 0), 0);
+    const averageEngagementRate = dbCredentials.length > 0 
+        ? +(dbCredentials.reduce((sum, c) => sum + (c.engagement || 0), 0) / dbCredentials.length).toFixed(1) 
+        : 0;
+    const socialCtr = dbCredentials.length > 0
+        ? +(dbCredentials.reduce((sum, c) => sum + (c.ctr || 0), 0) / dbCredentials.length).toFixed(1)
+        : 0;
+    const totalMentions = dbCredentials.length > 0 ? Math.round(totalFollowers * 0.018) : 0;
+    const mentionsGrowthPct = dbCredentials.length > 0 ? 12.5 : 0;
+    const followerGrowthPct = dbCredentials.length > 0 ? 8.4 : 0;
+
+    // Generate timeline
     for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
         const monthName = d.toLocaleString('en-US', { month: 'short' });
         
-        // Base numbers showing a growing trend
-        const baseReach = 15000 + (5 - i) * 3500 + Math.floor(Math.random() * 2000);
-        const baseEngagement = 800 + (5 - i) * 200 + Math.floor(Math.random() * 150);
-        const baseClicks = 400 + (5 - i) * 90 + Math.floor(Math.random() * 80);
-        
+        let reach = 0;
+        let engagement = 0;
+        let clicks = 0;
+
+        if (totalFollowers > 0) {
+            const factor = (6 - i) / 6;
+            reach = Math.round(totalFollowers * 2.5 * factor);
+            engagement = Math.round(reach * (averageEngagementRate / 100));
+            clicks = Math.round(reach * (socialCtr / 100));
+        }
+
         timeline.push({
             month: monthName,
-            reach: baseReach,
-            engagement: baseEngagement,
-            clicks: baseClicks,
-            leads: Math.floor(baseClicks * 0.12)
+            reach,
+            engagement,
+            clicks,
+            leads: Math.round(clicks * 0.12)
         });
     }
 
-    const platformBreakdown = [
-        { name: 'Facebook', followers: 24500, growth: 12.5, engagementRate: 4.2, color: '#1877F2' },
-        { name: 'Instagram', followers: 18200, growth: 18.3, engagementRate: 5.6, color: '#E4405F' },
-        { name: 'LinkedIn', followers: 6400, growth: 8.9, engagementRate: 3.1, color: '#0A66C2' },
-        { name: 'YouTube', followers: 5100, growth: 15.0, engagementRate: 6.8, color: '#FF0000' },
-        { name: 'TikTok', followers: 12000, growth: 34.2, engagementRate: 8.9, color: '#000000' }
+    const defaultPlatforms = [
+        { name: 'Facebook', color: '#1877F2' },
+        { name: 'Instagram', color: '#E4405F' },
+        { name: 'LinkedIn', color: '#0A66C2' },
+        { name: 'YouTube', color: '#FF0000' },
+        { name: 'TikTok', color: '#000000' }
     ];
 
-    const campaigns = [
-        { name: 'Eco-Frame Series Launch', platform: 'Facebook/Instagram', budget: 150000, spent: 150000, ctr: 2.8, conversions: 450, status: 'Completed', roi: 4.2 },
-        { name: 'B2B Industrial Aluminium Expo', platform: 'LinkedIn', budget: 80000, spent: 80000, ctr: 1.9, conversions: 98, status: 'Completed', roi: 3.1 },
-        { name: 'Architectural Window Solutions', platform: 'Instagram/Google Ads', budget: 200000, spent: 145000, ctr: 3.2, conversions: 310, status: 'Active', roi: 3.8 },
-        { name: 'DIY Sliding Doors Tutorial', platform: 'YouTube/TikTok', budget: 50000, spent: 48000, ctr: 4.5, conversions: 120, status: 'Completed', roi: 5.0 }
-    ];
+    const platformBreakdown = defaultPlatforms.map(p => {
+        const stats = platformStats[p.name] || { followers: 0, growthSum: 0, engagementSum: 0, count: 0 };
+        return {
+            name: p.name,
+            followers: stats.followers,
+            growth: stats.count > 0 ? +(stats.growthSum / stats.count).toFixed(1) : 0,
+            engagementRate: stats.count > 0 ? +(stats.engagementSum / stats.count).toFixed(1) : 0,
+            color: p.color
+        };
+    });
+
+    const campaigns = []; // Start empty until campaign manager is loaded
 
     const sentiments = [
-        { name: 'Positive Comments', value: 68, color: '#10B981' },
-        { name: 'Neutral Comments', value: 24, color: '#F59E0B' },
-        { name: 'Negative Comments', value: 8, color: '#EF4444' }
+        { name: 'Positive Comments', value: totalFollowers > 0 ? 68 : 0, color: '#10B981' },
+        { name: 'Neutral Comments', value: totalFollowers > 0 ? 24 : 0, color: '#F59E0B' },
+        { name: 'Negative Comments', value: totalFollowers > 0 ? 8 : 0, color: '#EF4444' }
     ];
 
     res.json({
         success: true,
         data: {
             summary: {
-                totalFollowers: 66200,
-                followerGrowthPct: 14.8,
-                averageEngagementRate: 5.7,
-                totalMentions: 1240,
-                mentionsGrowthPct: 22.5,
-                socialCtr: 3.1
+                totalFollowers,
+                followerGrowthPct,
+                averageEngagementRate,
+                totalMentions,
+                mentionsGrowthPct,
+                socialCtr
             },
             timeline,
             platformBreakdown,
@@ -529,6 +570,47 @@ export const scrapeSocialProfile = asyncHandler(async (req, res) => {
         finalMsg = scrapeSuccessful 
             ? `🚀 Real-time sync complete for ${platform} profile @${handle}! Actual live followers found: ${followers.toLocaleString()}`
             : `⚠️ Sync completed using local profile analysis for @${handle} (Could not parse live tags). Followers: ${followers.toLocaleString()}`;
+    }
+
+    // Save or update public crawls or connected APIs stats in database to persist across page loads!
+    if (syncMode === 'official-api') {
+        if (credential) {
+            credential.followers = followers;
+            credential.growth = growth;
+            credential.engagement = engagement;
+            credential.ctr = ctr;
+            await credential.save();
+        }
+    } else if (syncMode === 'rapid-api') {
+        if (rapidApiCred) {
+            rapidApiCred.followers = followers;
+            rapidApiCred.growth = growth;
+            rapidApiCred.engagement = engagement;
+            rapidApiCred.ctr = ctr;
+            await rapidApiCred.save();
+        }
+    } else {
+        // Save/update public anonymous scrape profile
+        let profileCred = await SocialCredential.findOne({ platform, accountId: handle, apiKey: 'PUBLIC_SCRAPER' });
+        if (profileCred) {
+            profileCred.followers = followers;
+            profileCred.growth = growth;
+            profileCred.engagement = engagement;
+            profileCred.ctr = ctr;
+            profileCred.url = url;
+            await profileCred.save();
+        } else {
+            await SocialCredential.create({
+                platform,
+                apiKey: 'PUBLIC_SCRAPER',
+                accountId: handle,
+                url,
+                followers,
+                growth,
+                engagement,
+                ctr
+            });
+        }
     }
 
     res.json({

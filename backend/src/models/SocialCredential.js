@@ -8,11 +8,31 @@ const socialCredentialSchema = new mongoose.Schema({
     },
     apiKey: {
         type: String,
-        required: true
+        required: true // 'PUBLIC_SCRAPER' for anonymous scrapes
     },
     accountId: {
         type: String,
         required: false
+    },
+    url: {
+        type: String,
+        required: false
+    },
+    followers: {
+        type: Number,
+        default: 0
+    },
+    growth: {
+        type: Number,
+        default: 0
+    },
+    engagement: {
+        type: Number,
+        default: 0
+    },
+    ctr: {
+        type: Number,
+        default: 0
     },
     isActive: {
         type: Boolean,
