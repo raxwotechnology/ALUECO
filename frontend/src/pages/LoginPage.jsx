@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,14 +9,31 @@ import { Eye, EyeOff, Package } from 'lucide-react';
 import { authApi } from '../features/auth/authApi';
 import { loginSchema } from '../features/auth/authSchemas';
 import { useAuthStore } from '../store/authStore';
+import { useSettings } from '../features/settings/useSettings';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import Card from '../components/ui/Card';
 
 export default function LoginPage() {
     const navigate = useNavigate();
     const { login, isAuthenticated } = useAuthStore();
     const [showPassword, setShowPassword] = useState(false);
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data;
+
+    // Dynamically update document title & favicon on login page
+    useEffect(() => {
+        if (settings?.companyName) {
+            document.title = settings.companyName;
+        }
+        if (settings?.companyLogo) {
+            let favicon = document.querySelector("link[rel*='icon']");
+            if (!favicon) {
+                favicon = document.createElement('link');
+                favicon.rel = 'icon';
+                document.getElementsByTagName('head')[0].appendChild(favicon);
+            }
+            favicon.href = settings.companyLogo;
+        }
+    }, [settings]);
 
     const {
         register,
@@ -49,6 +66,8 @@ export default function LoginPage() {
         loginMutation.mutate(data);
     };
 
+    const companyDisplayName = settings?.companyName || 'ALUECO Aluminium Systems';
+
     return (
         <div className="min-h-screen bg-slate-50 flex relative overflow-hidden">
             {/* Soft decorative blur background blobs for mobile / general elegance */}
@@ -69,9 +88,13 @@ export default function LoginPage() {
                 </div>
 
                 <div className="z-10">
-                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10">
-                        <Package className="w-5 h-5 text-emerald-400" />
-                        <span className="text-sm font-bold tracking-wider">ALUECO</span>
+                    <div className="inline-flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10">
+                        {settings?.companyLogo ? (
+                            <img src={settings.companyLogo} className="w-6 h-6 object-contain rounded" alt="Logo" />
+                        ) : (
+                            <Package className="w-5 h-5 text-emerald-400" />
+                        )}
+                        <span className="text-sm font-bold tracking-wider uppercase">{companyDisplayName}</span>
                     </div>
                 </div>
 
@@ -100,7 +123,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="z-10 text-xs text-slate-500 font-medium">
-                    © 2026 ALUECO Aluminium Systems. All rights reserved.
+                    © {new Date().getFullYear()} {companyDisplayName}. All rights reserved.
                 </div>
             </div>
 
@@ -109,10 +132,14 @@ export default function LoginPage() {
                 <div className="w-full max-w-md space-y-8">
                     {/* Brand header for mobile */}
                     <div className="text-center lg:hidden space-y-2">
-                        <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-xl mb-2">
-                            <Package className="w-6 h-6 text-white" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-800">ALUECO Aluminium Systems</h2>
+                        {settings?.companyLogo ? (
+                            <img src={settings.companyLogo} className="w-14 h-14 object-contain rounded-xl mx-auto mb-2" alt="Logo" />
+                        ) : (
+                            <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-xl mb-2">
+                                <Package className="w-6 h-6 text-white" />
+                            </div>
+                        )}
+                        <h2 className="text-2xl font-bold text-slate-800">{companyDisplayName}</h2>
                         <p className="text-sm text-slate-500">Automated Quotation & Calculation</p>
                     </div>
 
