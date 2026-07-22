@@ -5,6 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ALUECO Aluminium Systems</title>
+    <script>
+      (function() {
+        try {
+          var s = localStorage.getItem('cached_system_settings');
+          if (s) {
+            var data = JSON.parse(s);
+            if (data.companyName) {
+              document.title = data.companyName;
+            }
+            if (data.companyLogo) {
+              var icon = document.querySelector("link[rel*='icon']");
+              if (icon) {
+                icon.href = data.companyLogo;
+              }
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
