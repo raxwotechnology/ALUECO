@@ -7,8 +7,13 @@ import Button from '../components/ui/Button';
 
 const AluConfiguratorPage = () => {
     const navigate = useNavigate();
-    const [appType, setAppType] = useState('Sliding Door');
-    const [config, setConfig] = useState('3 Panel - 2 Track');
+    const [templates, setTemplates] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [configurations, setConfigurations] = useState([]);
+    const [isTemplatesLoading, setIsTemplatesLoading] = useState(true);
+    
+    const [appType, setAppType] = useState('');
+    const [config, setConfig] = useState('');
     const [width, setWidth] = useState(1800);
     const [height, setHeight] = useState(2100);
     const [quantity, setQuantity] = useState(1);
@@ -17,7 +22,57 @@ const AluConfiguratorPage = () => {
     const [estimations, setEstimations] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // Fetch active templates on mount
+    useEffect(() => {
+        const fetchTemplates = async () => {
+            setIsTemplatesLoading(true);
+            try {
+                const res = await api.get('/alu/applications');
+                if (res.data?.success) {
+                    const allTemplates = res.data.data || [];
+                    setTemplates(allTemplates);
+                    
+                    const uniqueCats = [...new Set(allTemplates.map(t => t.type))];
+                    setCategories(uniqueCats);
+                    
+                    if (uniqueCats.length > 0) {
+                        const defaultCat = uniqueCats[0];
+                        setAppType(defaultCat);
+                        
+                        const catConfigs = allTemplates.filter(t => t.type === defaultCat);
+                        setConfigurations(catConfigs);
+                        
+                        if (catConfigs.length > 0) {
+                            setConfig(catConfigs[0].configuration);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load BOM templates', err);
+                toast.error('Failed to load BOM templates');
+            } finally {
+                setIsTemplatesLoading(false);
+            }
+        };
+        fetchTemplates();
+    }, []);
+
+    const handleCategoryChange = (newCat) => {
+        setAppType(newCat);
+        const catConfigs = templates.filter(t => t.type === newCat);
+        setConfigurations(catConfigs);
+        if (catConfigs.length > 0) {
+            setConfig(catConfigs[0].configuration);
+        } else {
+            setConfig('');
+        }
+    };
+
     const handleAddToQuotation = () => {
+        if (!appType || !config) {
+            toast.error('Please select a valid BOM template first.');
+            return;
+        }
         toast.success('Configured item added to new quotation!');
         navigate('/alu/quotations/new', {
             state: {
@@ -35,6 +90,7 @@ const AluConfiguratorPage = () => {
 
     // Fetch live estimations based on formula preview
     const fetchEstimations = async () => {
+        if (!appType || !config) return;
         setLoading(true);
         try {
             // We simulate a draft calculation by sending this single item to the calc endpoint
@@ -71,10 +127,11 @@ const AluConfiguratorPage = () => {
     }, [appType, config, width, height, quantity]);
 
     // Parse panels count
-    let panelCount = 1;
-    if (config.includes('3 Panel')) {
+    const panelMatch = config.match(/^(\d+)\s*Panel/i);
+    let panelCount = panelMatch ? parseInt(panelMatch[1]) : 1;
+    if (panelCount === 1 && config.includes('3 Panel')) {
         panelCount = 3;
-    } else if (config.includes('2 Panel')) {
+    } else if (panelCount === 1 && config.includes('2 Panel')) {
         panelCount = 2;
     }
 
@@ -99,20 +156,23 @@ const AluConfiguratorPage = () => {
                         {/* Product Type Selection */}
                         <div className="space-y-1">
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Category</label>
-                            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                                {['Sliding Door', 'Casement Window', 'Fixed Glass'].map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => {
-                                            setAppType(type);
-                                            setConfig(type === 'Sliding Door' ? '3 Panel - 2 Track' : type === 'Casement Window' ? '2 Panel' : '1 Panel');
-                                        }}
-                                        className={`py-2 px-1 rounded-lg transition-all ${appType === type ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                                    >
-                                        {type.split(' ')[0]}
-                                    </button>
-                                ))}
-                            </div>
+                            {isTemplatesLoading ? (
+                                <div className="text-slate-400 text-xs py-2 italic animate-pulse">Loading templates...</div>
+                            ) : categories.length === 0 ? (
+                                <div className="text-rose-500 text-xs py-2 italic font-bold">No active templates found!</div>
+                            ) : (
+                                <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                                    {categories.map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => handleCategoryChange(type)}
+                                            className={`py-2 px-3 rounded-lg transition-all ${appType === type ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* Config Panel count Selection */}
@@ -122,15 +182,16 @@ const AluConfiguratorPage = () => {
                                 value={config}
                                 onChange={(e) => setConfig(e.target.value)}
                                 className="w-full px-3 py-2 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                                disabled={isTemplatesLoading || configurations.length === 0}
                             >
-                                {appType === 'Sliding Door' && (
-                                    <option value="3 Panel - 2 Track">3 Panel - 2 Track (OXX Sliding)</option>
-                                )}
-                                {appType === 'Casement Window' && (
-                                    <option value="2 Panel">2 Panel Casement</option>
-                                )}
-                                {appType === 'Fixed Glass' && (
-                                    <option value="1 Panel">Single Pane Fixed</option>
+                                {configurations.length === 0 ? (
+                                    <option value="">No configurations available</option>
+                                ) : (
+                                    configurations.map(c => (
+                                        <option key={c._id} value={c.configuration}>
+                                            {c.configuration} {c.brand ? `(${c.brand})` : ''}
+                                        </option>
+                                    ))
                                 )}
                             </select>
                         </div>
