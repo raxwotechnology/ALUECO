@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, Layers, Settings, Eye, Info, Plus, ChevronRight, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
 
 const AluConfiguratorPage = () => {
+    const navigate = useNavigate();
     const [appType, setAppType] = useState('Sliding Door');
-    const [config, setConfig] = useState('2 Panel');
+    const [config, setConfig] = useState('3 Panel - 2 Track');
     const [width, setWidth] = useState(1800);
     const [height, setHeight] = useState(2100);
     const [quantity, setQuantity] = useState(1);
@@ -14,6 +16,22 @@ const AluConfiguratorPage = () => {
     // Calculated estimation preview
     const [estimations, setEstimations] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    const handleAddToQuotation = () => {
+        toast.success('Configured item added to new quotation!');
+        navigate('/alu/quotations/new', {
+            state: {
+                projectName: `${appType} (${config}) - Configured Item`,
+                items: [{
+                    applicationType: appType,
+                    configuration: config,
+                    width: Number(width),
+                    height: Number(height),
+                    quantity: Number(quantity)
+                }]
+            }
+        });
+    };
 
     // Fetch live estimations based on formula preview
     const fetchEstimations = async () => {
@@ -151,7 +169,10 @@ const AluConfiguratorPage = () => {
                     </div>
 
                     <div className="pt-4 border-t space-y-2">
-                        <Button className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm">
+                        <Button
+                            onClick={handleAddToQuotation}
+                            className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm"
+                        >
                             <Plus size={14} /> Add to New Quotation
                         </Button>
                     </div>
