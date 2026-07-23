@@ -20,6 +20,11 @@ const AluDatabasePage = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentEdit, setCurrentEdit] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
+
+    // Autocomplete active indexes
+    const [activeProfileSuggestionIdx, setActiveProfileSuggestionIdx] = useState(null);
+    const [activeGlassSuggestionIdx, setActiveGlassSuggestionIdx] = useState(null);
+    const [activeAccessorySuggestionIdx, setActiveAccessorySuggestionIdx] = useState(null);
     
     // Form States
     const [profileForm, setProfileForm] = useState({ profileCode: '', description: '', supplier: '', standardLengths: [{ lengthMm: 2134, price: 0 }] });
@@ -459,11 +464,48 @@ const AluDatabasePage = () => {
                                 {appForm.profileBOM.map((pb, idx) => (
                                     <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
                                         <div className="grid grid-cols-2 gap-2 flex-1">
-                                            <input type="text" placeholder="Code (e.g., SD1001)" value={pb.profileCode} onChange={e => {
-                                                const newBOM = [...appForm.profileBOM];
-                                                newBOM[idx].profileCode = e.target.value;
-                                                setAppForm({ ...appForm, profileBOM: newBOM });
-                                            }} required className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs" />
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Code (e.g., SD1001)" 
+                                                    value={pb.profileCode} 
+                                                    onChange={e => {
+                                                        const newBOM = [...appForm.profileBOM];
+                                                        newBOM[idx].profileCode = e.target.value;
+                                                        setAppForm({ ...appForm, profileBOM: newBOM });
+                                                    }} 
+                                                    onFocus={() => setActiveProfileSuggestionIdx(idx)}
+                                                    onBlur={() => setTimeout(() => setActiveProfileSuggestionIdx(null), 200)}
+                                                    required 
+                                                    className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs w-full" 
+                                                />
+                                                {activeProfileSuggestionIdx === idx && (
+                                                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                                                        {profiles
+                                                            .filter(p => 
+                                                                (p.profileCode || '').toLowerCase().includes((pb.profileCode || '').toLowerCase()) ||
+                                                                (p.description || '').toLowerCase().includes((pb.profileCode || '').toLowerCase())
+                                                            )
+                                                            .slice(0, 10)
+                                                            .map(p => (
+                                                                <div
+                                                                    key={p._id || p.profileCode}
+                                                                    onMouseDown={() => {
+                                                                        const newBOM = [...appForm.profileBOM];
+                                                                        newBOM[idx].profileCode = p.profileCode;
+                                                                        newBOM[idx].description = p.description || '';
+                                                                        setAppForm({ ...appForm, profileBOM: newBOM });
+                                                                    }}
+                                                                    className="px-3 py-1.5 text-xs hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer flex flex-col items-start border-b border-slate-100 last:border-0"
+                                                                >
+                                                                    <span className="font-bold text-slate-800">{p.profileCode}</span>
+                                                                    {p.description && <span className="text-slate-500 text-[10px] truncate w-full">{p.description}</span>}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
+                                            </div>
                                             <input type="text" placeholder="Description (e.g., Vertical Sash)" value={pb.description} onChange={e => {
                                                 const newBOM = [...appForm.profileBOM];
                                                 newBOM[idx].description = e.target.value;
@@ -494,11 +536,47 @@ const AluDatabasePage = () => {
                                 {appForm.glassBOM.map((gb, idx) => (
                                     <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
                                         <div className="grid grid-cols-2 gap-2 flex-1">
-                                            <input type="text" placeholder="Glass Type (e.g., 5mm Tempered)" value={gb.glassType} onChange={e => {
-                                                const newBOM = [...appForm.glassBOM];
-                                                newBOM[idx].glassType = e.target.value;
-                                                setAppForm({ ...appForm, glassBOM: newBOM });
-                                            }} required className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs" />
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Glass Type (e.g., 5mm Tempered)" 
+                                                    value={gb.glassType} 
+                                                    onChange={e => {
+                                                        const newBOM = [...appForm.glassBOM];
+                                                        newBOM[idx].glassType = e.target.value;
+                                                        setAppForm({ ...appForm, glassBOM: newBOM });
+                                                    }} 
+                                                    onFocus={() => setActiveGlassSuggestionIdx(idx)}
+                                                    onBlur={() => setTimeout(() => setActiveGlassSuggestionIdx(null), 200)}
+                                                    required 
+                                                    className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs w-full" 
+                                                />
+                                                {activeGlassSuggestionIdx === idx && (
+                                                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                                                        {glass
+                                                            .filter(g => 
+                                                                (g.typeName || '').toLowerCase().includes((gb.glassType || '').toLowerCase()) ||
+                                                                (g.thickness || '').toLowerCase().includes((gb.glassType || '').toLowerCase())
+                                                            )
+                                                            .slice(0, 10)
+                                                            .map(g => (
+                                                                <div
+                                                                    key={g._id || g.typeName}
+                                                                    onMouseDown={() => {
+                                                                        const newBOM = [...appForm.glassBOM];
+                                                                        newBOM[idx].glassType = g.typeName;
+                                                                        setAppForm({ ...appForm, glassBOM: newBOM });
+                                                                    }}
+                                                                    className="px-3 py-1.5 text-xs hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer flex flex-col items-start border-b border-slate-100 last:border-0"
+                                                                >
+                                                                    <span className="font-bold text-slate-800">{g.typeName}</span>
+                                                                    {g.thickness && <span className="text-slate-500 text-[10px]">{g.thickness}</span>}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
+                                            </div>
                                             <input type="text" placeholder="Qty Formula (e.g. P)" value={gb.quantityFormula} onChange={e => {
                                                 const newBOM = [...appForm.glassBOM];
                                                 newBOM[idx].quantityFormula = e.target.value;
@@ -529,11 +607,47 @@ const AluDatabasePage = () => {
                                 {appForm.accessoryBOM.map((ab, idx) => (
                                     <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
                                         <div className="grid grid-cols-2 gap-2 flex-1">
-                                            <input type="text" placeholder="Accessory Code (e.g. ACC001)" value={ab.accessoryCode} onChange={e => {
-                                                const newBOM = [...appForm.accessoryBOM];
-                                                newBOM[idx].accessoryCode = e.target.value;
-                                                setAppForm({ ...appForm, accessoryBOM: newBOM });
-                                            }} required className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs" />
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Accessory Code (e.g. ACC001)" 
+                                                    value={ab.accessoryCode} 
+                                                    onChange={e => {
+                                                        const newBOM = [...appForm.accessoryBOM];
+                                                        newBOM[idx].accessoryCode = e.target.value;
+                                                        setAppForm({ ...appForm, accessoryBOM: newBOM });
+                                                    }} 
+                                                    onFocus={() => setActiveAccessorySuggestionIdx(idx)}
+                                                    onBlur={() => setTimeout(() => setActiveAccessorySuggestionIdx(null), 200)}
+                                                    required 
+                                                    className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs w-full" 
+                                                />
+                                                {activeAccessorySuggestionIdx === idx && (
+                                                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                                                        {accessories
+                                                            .filter(a => 
+                                                                (a.code || '').toLowerCase().includes((ab.accessoryCode || '').toLowerCase()) ||
+                                                                (a.name || '').toLowerCase().includes((ab.accessoryCode || '').toLowerCase())
+                                                            )
+                                                            .slice(0, 10)
+                                                            .map(a => (
+                                                                <div
+                                                                    key={a._id || a.code}
+                                                                    onMouseDown={() => {
+                                                                        const newBOM = [...appForm.accessoryBOM];
+                                                                        newBOM[idx].accessoryCode = a.code;
+                                                                        setAppForm({ ...appForm, accessoryBOM: newBOM });
+                                                                    }}
+                                                                    className="px-3 py-1.5 text-xs hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer flex flex-col items-start border-b border-slate-100 last:border-0"
+                                                                >
+                                                                    <span className="font-bold text-slate-800">{a.code}</span>
+                                                                    {a.name && <span className="text-slate-500 text-[10px] truncate w-full">{a.name}</span>}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
+                                            </div>
                                             <input type="text" placeholder="Quantity Formula (e.g. 2 * P)" value={ab.quantityFormula} onChange={e => {
                                                 const newBOM = [...appForm.accessoryBOM];
                                                 newBOM[idx].quantityFormula = e.target.value;
