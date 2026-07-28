@@ -1,31 +1,11 @@
 import { Server } from 'socket.io';
+import { corsOptions } from '../config/corsConfig.js';
 
 let io;
 
 export const initSocket = (httpServer) => {
     io = new Server(httpServer, {
-        cors: {
-            origin: function (origin, callback) {
-                const defaultOrigins = [
-                    'https://alueco.netlify.app',
-                    'https://alueco.onrender.com',
-                    'https://export-lanka.netlify.app',
-                    'http://localhost:5173',
-                    'http://localhost:3000',
-                    'http://localhost:5000'
-                ];
-                const allowedOrigins = process.env.FRONTEND_URL 
-                    ? process.env.FRONTEND_URL.split(',').map(o => o.trim()) 
-                    : [];
-                const allAllowed = [...new Set([...allowedOrigins, ...defaultOrigins])];
-                if (!origin || allAllowed.includes(origin) || allAllowed.includes(origin.replace(/\/$/, ''))) {
-                    callback(null, true);
-                } else {
-                    callback(new Error('Not allowed by CORS'));
-                }
-            },
-            credentials: true,
-        }
+        cors: corsOptions
     });
 
     io.on('connection', (socket) => {

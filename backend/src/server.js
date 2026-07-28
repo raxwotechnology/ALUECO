@@ -70,6 +70,7 @@ import posShiftRoutes from './routes/posShiftRoutes.js';
 import { seedDefaults } from './utils/seedDefaults.js';
 
 import connectDB from './config/db.js';
+import { corsOptions } from './config/corsConfig.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
@@ -97,29 +98,10 @@ connectDB().then(async () => {
 const app = express();
 
 // Security & parsing middleware
-app.use(helmet());
-app.use(cors({
-    origin: function (origin, callback) {
-        const defaultOrigins = [
-            'https://alueco.netlify.app',
-            'https://alueco.onrender.com',
-            'https://export-lanka.netlify.app',
-            'http://localhost:5173',
-            'http://localhost:3000',
-            'http://localhost:5000'
-        ];
-        const allowedOrigins = process.env.FRONTEND_URL 
-            ? process.env.FRONTEND_URL.split(',').map(o => o.trim()) 
-            : [];
-        const allAllowed = [...new Set([...allowedOrigins, ...defaultOrigins])];
-        if (!origin || allAllowed.includes(origin) || allAllowed.includes(origin.replace(/\/$/, ''))) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -135,6 +117,7 @@ const authLimiter = rateLimit({
     message: 'Too many login attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
 });
 
 // API Routes
