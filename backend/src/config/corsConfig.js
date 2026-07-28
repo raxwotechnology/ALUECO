@@ -1,6 +1,7 @@
 const defaultOrigins = [
     'https://alueco.netlify.app',
     'https://alueco.onrender.com',
+    'https://alueco-4dyz.onrender.com',
     'https://export-lanka.netlify.app',
     'http://localhost:5173',
     'http://localhost:3000',
