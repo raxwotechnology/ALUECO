@@ -27,6 +27,7 @@ const menuGroups = [
         icon: Layers,
         items: [
             { label: 'Alu Quotations', icon: FileText, path: '/alu/quotations', permission: 'sales.view' },
+            { label: 'Project Agreements', icon: FileText, path: '/alu/agreements', permission: 'sales.view' },
             { label: 'Alu Scrap Inventory', icon: History, path: '/alu/scrap', permission: 'sales.view' },
             { label: 'Production Kanban', icon: ClipboardList, path: '/alu/kanban', permission: 'sales.view' },
             { label: '2D Visual Configurator', icon: Sparkles, path: '/alu/configurator', permission: 'sales.view' },

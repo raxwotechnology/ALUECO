@@ -122,6 +122,10 @@ const salesOrderSchema = new mongoose.Schema(
         roundingAdjustment: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
 
+        // Advance payment & balance tracking
+        advancePaidAmount: { type: Number, default: 0 },
+        pendingBalance: { type: Number, default: 0 },
+
         // Order-level discount
         orderDiscount: {
             type: { type: String },
@@ -252,6 +256,8 @@ salesOrderSchema.pre('save', async function () {
         + (this.otherCharges || 0)
         + (this.roundingAdjustment || 0)
     ).toFixed(2);
+
+    this.pendingBalance = Math.max(0, +(this.grandTotal - (this.advancePaidAmount || 0)).toFixed(2));
 
     if (this.paymentTerms?.type === 'credit' && this.paymentTerms.creditDays && !this.paymentTerms.dueDate) {
         const due = new Date(this.orderDate);

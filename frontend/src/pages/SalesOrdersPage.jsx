@@ -68,16 +68,24 @@ export default function SalesOrdersPage() {
             render: (r) => <span className="text-sm">{r.items?.length || 0}</span>,
         },
         {
-            key: 'grandTotal', label: 'Total',
-            render: (r) => <span className="font-medium">{fmt(r.grandTotal)}</span>,
+            key: 'grandTotal', label: 'Order Total',
+            render: (r) => <span className="font-semibold">{fmt(r.grandTotal)}</span>,
         },
         {
-            key: 'salesRep', label: 'Sales Rep',
-            render: (r) => r.salesRepId ? `${r.salesRepId.firstName} ${r.salesRepId.lastName}` : '—',
+            key: 'advancePaidAmount', label: 'Advance Paid',
+            render: (r) => <span className="font-mono text-emerald-600 font-medium">{fmt(r.advancePaidAmount || r.advanceAmount || 0)}</span>,
+        },
+        {
+            key: 'pendingBalance', label: 'Pending Balance',
+            render: (r) => {
+                const adv = r.advancePaidAmount || r.advanceAmount || 0;
+                const pend = Math.max(0, (r.grandTotal || 0) - adv);
+                return <span className="font-mono text-rose-600 font-bold">{fmt(pend)}</span>;
+            },
         },
         {
             key: 'status', label: 'Status',
-            render: (r) => <Badge variant={statusVariant[r.status]}>{r.status.replace('_', ' ')}</Badge>,
+            render: (r) => <Badge variant={statusVariant[r.status]}>{r.status.replace(/_/g, ' ')}</Badge>,
         },
         {
             key: 'actions', label: '', width: '60px',

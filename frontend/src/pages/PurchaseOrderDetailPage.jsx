@@ -155,34 +155,39 @@ export default function PurchaseOrderDetailPage() {
                                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Product</th>
                                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Ordered</th>
                                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Received</th>
+                                    <th className="px-4 py-2 text-right text-xs font-semibold text-amber-600">Pending</th>
                                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Price</th>
                                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
                                     <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
-                                {po.items.map((item) => (
-                                    <tr key={item._id || item.lineNumber}>
-                                        <td className="px-4 py-3">
-                                            <p className="font-medium text-sm">{item.productName}</p>
-                                            <p className="text-xs font-mono text-gray-500">{item.productCode}</p>
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-sm">{item.orderedQuantity} {item.unitOfMeasure}</td>
-                                        <td className="px-4 py-3 text-right text-sm">
-                                            <span className={item.receivedQuantity >= item.orderedQuantity ? 'text-green-600 font-medium' : ''}>
+                                {po.items.map((item) => {
+                                    const pendingQty = Math.max(0, item.orderedQuantity - (item.receivedQuantity || 0));
+                                    return (
+                                        <tr key={item._id || item.lineNumber}>
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-sm">{item.productName}</p>
+                                                <p className="text-xs font-mono text-gray-500">{item.productCode}</p>
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm font-semibold">{item.orderedQuantity} {item.unitOfMeasure}</td>
+                                            <td className="px-4 py-3 text-right text-sm text-emerald-600 font-bold">
                                                 {item.receivedQuantity || 0}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-sm">{fmt(item.unitPrice)}</td>
-                                        <td className="px-4 py-3 text-right text-sm font-medium">{fmt(item.lineTotal)}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <Badge variant={
-                                                item.lineStatus === 'fully_received' ? 'success' :
-                                                    item.lineStatus === 'partially_received' ? 'warning' : 'default'
-                                            }>{item.lineStatus?.replace('_', ' ')}</Badge>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm font-bold text-rose-600 font-mono">
+                                                {pendingQty}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm">{fmt(item.unitPrice)}</td>
+                                            <td className="px-4 py-3 text-right text-sm font-medium">{fmt(item.lineTotal)}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <Badge variant={
+                                                    item.lineStatus === 'fully_received' ? 'success' :
+                                                        item.lineStatus === 'partially_received' ? 'warning' : 'default'
+                                                }>{item.lineStatus?.replace('_', ' ')}</Badge>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </Card>

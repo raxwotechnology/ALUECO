@@ -248,9 +248,17 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
         
         const variables = { W: width, H: height, P, Q: quantity };
         
-        // Find application configuration details
+        // Find application configuration details with graceful fallback for custom configurations
         const appKey = `${applicationType}_${configuration}`;
-        const appData = rates.applications[appKey];
+        let appData = rates.applications[appKey];
+        if (!appData) {
+            const fallbackKeys = Object.keys(rates.applications).filter(k => k.startsWith(applicationType));
+            if (fallbackKeys.length > 0) {
+                appData = rates.applications[fallbackKeys[0]];
+            } else {
+                appData = rates.applications[Object.keys(rates.applications)[0]];
+            }
+        }
         if (!appData) {
             throw new Error(`Application configuration "${applicationType} - ${configuration}" is not defined in system templates.`);
         }
@@ -379,6 +387,9 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             width,
             height,
             quantity,
+            trackSystem: item.trackSystem,
+            topSection: item.topSection,
+            panelArrangement: item.panelArrangement,
             profileCuts,
             glassItems,
             accessories,
@@ -693,6 +704,22 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         createdBy: req.user._id
     });
     
+    // Auto-create/integrate Lead into Sales Pipeline
+    try {
+        const { default: Inquiry } = await import('../models/Inquiry.js');
+        await Inquiry.create({
+            companyName: customerName,
+            contactPerson: customerName,
+            projectLocation: location || projectName,
+            source: 'Quotation System',
+            status: 'Quotation Pending',
+            notes: `Auto-generated lead from Aluminium Quotation #${quotation.quoteNumber}`,
+            createdBy: req.user._id
+        });
+    } catch (inqErr) {
+        console.warn('Failed to auto-create lead in pipeline:', inqErr.message);
+    }
+
     await createAuditLog({
         action: 'CREATE',
         module: 'CRM',
@@ -779,7 +806,20 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     if (discountApprovedBy) quotation.discountApprovedBy = discountApprovedBy;
     quotation.manualAdjustment = Number(manualAdjustment || 0);
     quotation.finalSellingPrice = parseFloat(finalPrice.toFixed(2));
-    if (status) quotation.status = status;
+    if (status) {
+        quotation.status = status;
+        if (status === 'sent') {
+            try {
+                const { default: Inquiry } = await import('../models/Inquiry.js');
+                await Inquiry.updateMany(
+                    { companyName: quotation.customerName, status: 'Quotation Pending' },
+                    { status: 'Quotation Sent' }
+                );
+            } catch (inqErr) {
+                console.warn('Failed to update lead status to Quotation Sent:', inqErr.message);
+            }
+        }
+    }
     quotation.cuttingOptimizationResults = calc.cuttingOptimizationResults;
     quotation.glassOptimizationResults = calc.glassOptimizationResults;
     if (terms) quotation.terms = terms;
@@ -912,6 +952,62 @@ export const reviseAluQuotation = asyncHandler(async (req, res) => {
     res.status(201).json({ success: true, data: newRevision });
 });
 
+// Duplicate quotation (creates an exact independent clone as a new quote number)
+export const duplicateAluQuotation = asyncHandler(async (req, res) => {
+    const sourceQuote = await AluQuotation.findById(req.params.id);
+    if (!sourceQuote) {
+        res.status(404);
+        throw new Error('Source quotation not found');
+    }
+
+    const date = new Date();
+    const prefix = `QUO-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await AluQuotation.countDocuments({ quoteNumber: { $regex: `^${prefix}` } });
+    const newQuoteNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+
+    const duplicate = await AluQuotation.create({
+        quoteNumber: newQuoteNumber,
+        version: 0,
+        revisionGroupCode: newQuoteNumber,
+        isLatestRevision: true,
+        customerName: sourceQuote.customerName,
+        projectName: `${sourceQuote.projectName} (Copy)`,
+        location: sourceQuote.location,
+        date: new Date(),
+        validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        items: sourceQuote.items,
+        totalAluminiumCost: sourceQuote.totalAluminiumCost,
+        totalGlassCost: sourceQuote.totalGlassCost,
+        totalAccessoriesCost: sourceQuote.totalAccessoriesCost,
+        totalLabourCost: sourceQuote.totalLabourCost,
+        transportCost: sourceQuote.transportCost,
+        additionalCosts: sourceQuote.additionalCosts,
+        profitMarginPercent: sourceQuote.profitMarginPercent,
+        calculatedSellingPrice: sourceQuote.calculatedSellingPrice,
+        discount: sourceQuote.discount,
+        manualAdjustment: sourceQuote.manualAdjustment,
+        finalSellingPrice: sourceQuote.finalSellingPrice,
+        status: 'draft',
+        rateSnapshot: sourceQuote.rateSnapshot,
+        cuttingOptimizationResults: sourceQuote.cuttingOptimizationResults,
+        glassOptimizationResults: sourceQuote.glassOptimizationResults,
+        terms: sourceQuote.terms,
+        checklist: sourceQuote.checklist,
+        createdBy: req.user._id
+    });
+
+    await createAuditLog({
+        action: 'CREATE',
+        module: 'CRM',
+        documentId: duplicate._id,
+        documentCode: duplicate.quoteNumber,
+        description: `Duplicated aluminium quotation from ${sourceQuote.quoteNumber} to ${duplicate.quoteNumber}`,
+        req
+    });
+
+    res.status(201).json({ success: true, data: duplicate });
+});
+
 // Convert quotation to Sales Order
 export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     const quotation = await AluQuotation.findById(req.params.id);
@@ -930,12 +1026,15 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     // or map items directly as custom line items.
     // Let's create a Sales Order document
     
-    const items = quotation.items.map(item => ({
+    const items = quotation.items.map((item, idx) => ({
+        lineNumber: idx + 1,
         productName: `${item.applicationType} (${item.configuration})`,
         description: `Size: ${item.width} x ${item.height} mm`,
-        quantity: item.quantity,
+        orderedQuantity: item.quantity,
+        unitOfMeasure: 'Pcs',
         unitPrice: item.unitPrice,
-        subtotal: item.totalPrice
+        lineSubtotal: item.totalPrice,
+        lineTotal: item.totalPrice
     }));
     
     // Find or create a default wholesale client
@@ -970,6 +1069,53 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         notes: `Converted from Aluminium Quotation: ${quotation.quoteNumber} (Rev ${quotation.version}). Project: ${quotation.projectName}`,
         createdBy: req.user._id
     });
+
+    // Automatically create Invoice for this Sales Order
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const invoiceItems = items.map((item, idx) => ({
+        lineNumber: idx + 1,
+        productName: item.productName,
+        description: item.description,
+        quantity: item.orderedQuantity,
+        unitOfMeasure: item.unitOfMeasure || 'Pcs',
+        unitPrice: item.unitPrice,
+        discountPercent: 0,
+        taxRate: 0,
+        taxable: false,
+        lineSubtotal: item.lineSubtotal,
+        lineTotal: item.lineTotal
+    }));
+
+    const invoice = await Invoice.create({
+        customerId: customer._id,
+        customerSnapshot: {
+            name: customer.displayName || quotation.customerName,
+            code: customer.customerCode,
+            taxRegistrationNumber: customer.taxRegistrationNumber,
+            contactName: customer.primaryContact?.name,
+        },
+        billingAddress: customer.billingAddress,
+        salesOrderIds: [salesOrder._id],
+        salesOrderNumbers: [salesOrder.orderNumber],
+        invoiceType: 'standard',
+        invoiceDate: date,
+        items: invoiceItems,
+        subtotal: quotation.calculatedSellingPrice - quotation.discount,
+        totalDiscount: quotation.discount,
+        totalTax: 0,
+        grandTotal: quotation.finalSellingPrice,
+        amountPaid: 0,
+        balanceDue: quotation.finalSellingPrice,
+        paymentStatus: 'unpaid',
+        status: 'approved',
+        notes: `Auto-generated Invoice for Sales Order ${salesOrder.orderNumber} (Quotation ${quotation.quoteNumber})`,
+        createdBy: req.user._id
+    });
+
+    // Link Invoice to Sales Order & update status
+    salesOrder.invoiceId = invoice._id;
+    salesOrder.status = 'invoiced';
+    await salesOrder.save();
     
     // Update Scrap Database (Reserve used scraps, save new scraps)
     if (quotation.cuttingOptimizationResults) {

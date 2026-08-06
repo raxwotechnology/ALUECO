@@ -6,6 +6,7 @@ import ProductsPage from './pages/ProductsPage';
 import CategoriesPage from './pages/CategoriesPage';
 import BrandsPage from './pages/BrandsPage';
 import CustomersPage from './pages/CustomersPage';
+import CustomerDetailPage from './pages/CustomerDetailPage';
 import CustomerGroupsPage from './pages/CustomerGroupsPage';
 import SalesOrdersPage from './pages/SalesOrdersPage';
 import SalesOrderFormPage from './pages/SalesOrderFormPage';
@@ -63,6 +64,8 @@ import AluScrapPage from './pages/AluScrapPage';
 import AluKanbanPage from './pages/AluKanbanPage';
 import AluConfiguratorPage from './pages/AluConfiguratorPage';
 import AluSurveyPage from './pages/AluSurveyPage';
+import AluAgreementsPage from './pages/AluAgreementsPage';
+import AluAgreementFormPage from './pages/AluAgreementFormPage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import PettyCashPage from './pages/PettyCashPage';
 import FixedAssetsPage from './pages/FixedAssetsPage';
@@ -148,6 +151,7 @@ function App() {
         <Route path="/categories" element={<ProtectedRoute requiredPermission="products.view"><CategoriesPage /></ProtectedRoute>} />
         <Route path="/brands" element={<ProtectedRoute requiredPermission="products.view"><BrandsPage /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute requiredPermission="customers.view"><CustomersPage /></ProtectedRoute>} />
+        <Route path="/customers/:id" element={<ProtectedRoute requiredPermission="customers.view"><CustomerDetailPage /></ProtectedRoute>} />
         <Route path="/customer-groups" element={<ProtectedRoute requiredPermission="customers.view"><CustomerGroupsPage /></ProtectedRoute>} />
         <Route path="/sales-orders" element={<ProtectedRoute requiredPermission="sales.view"><SalesOrdersPage /></ProtectedRoute>} />
         <Route path="/sales-orders/new" element={<ProtectedRoute requiredPermission="sales.create"><SalesOrderFormPage /></ProtectedRoute>} />
@@ -207,6 +211,9 @@ function App() {
         <Route path="/alu/kanban" element={<ProtectedRoute requiredPermission="sales.view"><AluKanbanPage /></ProtectedRoute>} />
         <Route path="/alu/configurator" element={<ProtectedRoute requiredPermission="sales.view"><AluConfiguratorPage /></ProtectedRoute>} />
         <Route path="/alu/surveys" element={<ProtectedRoute requiredPermission="sales.view"><AluSurveyPage /></ProtectedRoute>} />
+        <Route path="/alu/agreements" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementsPage /></ProtectedRoute>} />
+        <Route path="/alu/agreements/new" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
+        <Route path="/alu/agreements/:id" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
 
         <Route path="/logistics/shipments" element={<ProtectedRoute requiredPermission="inventory.view"><ShipmentsPage /></ProtectedRoute>} />
         <Route path="/logistics/gate-passes" element={<ProtectedRoute requiredPermission="inventory.view"><GatePassPage /></ProtectedRoute>} />

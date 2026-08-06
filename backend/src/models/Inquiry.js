@@ -16,7 +16,6 @@ const inquirySchema = new mongoose.Schema({
     expectedTimeline: { type: String },
     source: { 
         type: String, 
-        enum: ['facebook', 'whatsapp', 'showroom', 'architect', 'contractor', 'referral', 'website', 'email', 'other'],
         default: 'website' 
     },
     products: [{
@@ -35,8 +34,8 @@ const inquirySchema = new mongoose.Schema({
     quotations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Quotation' }],
     status: {
         type: String,
-        enum: ['new', 'site_visit', 'quotation_pending', 'quotation_sent', 'negotiation', 'won', 'lost'],
-        default: 'new',
+        enum: ['new', 'site_visit', 'quotation_pending', 'quotation_sent', 'Quotation Pending', 'Quotation Sent', 'negotiation', 'won', 'lost'],
+        default: 'Quotation Pending',
     },
     lostReason: String,
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },

@@ -67,7 +67,10 @@ const AluQuotationFormPage = () => {
                             configuration: item.configuration,
                             width: item.width,
                             height: item.height,
-                            quantity: item.quantity
+                            quantity: item.quantity,
+                            trackSystem: item.trackSystem,
+                            topSection: item.topSection,
+                            panelArrangement: item.panelArrangement
                         })),
                         transportCost: q.transportCost || 0,
                         additionalCosts: q.additionalCosts || [],

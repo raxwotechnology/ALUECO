@@ -32,7 +32,7 @@ export default function QuickCreateCustomerModal({ isOpen, onClose, onCreated })
 
     const submit = async () => {
         if (!form.displayName) { toast.error('Customer name required'); return; }
-        if (!form.phone && !form.email) { toast.error('Phone or email required'); return; }
+        if (!form.phone) { toast.error('Phone number is required'); return; }
 
         try {
             const result = await createMutation.mutateAsync({
@@ -91,10 +91,10 @@ export default function QuickCreateCustomerModal({ isOpen, onClose, onCreated })
                     onChange={(e) => setForm((f) => ({ ...f, customerGroupId: e.target.value }))} />
 
                 <div className="grid grid-cols-2 gap-3">
-                    <Input label="Phone" placeholder="+94 71 XXX XXXX"
+                    <Input label="Phone Number" required placeholder="+94 71 XXX XXXX"
                         value={form.phone}
                         onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-                    <Input label="Email" type="email"
+                    <Input label="Email (optional)" type="email" placeholder="example@mail.com"
                         value={form.email}
                         onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
                 </div>

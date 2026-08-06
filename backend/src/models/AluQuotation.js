@@ -7,6 +7,17 @@ const aluQuotationItemSchema = new mongoose.Schema({
     height: { type: Number, required: true }, // in mm
     quantity: { type: Number, required: true, default: 1 }, // number of openings
     
+    trackSystem: { type: String },
+    topSection: {
+        enabled: { type: Boolean, default: false },
+        height: { type: Number, default: 0 },
+        type: { type: String, default: 'fixed' }
+    },
+    panelArrangement: [{
+        id: Number,
+        action: String
+    }],
+
     // Snapshot of calculated components for this opening
     profileCuts: [{
         profileCode: String,

@@ -2,6 +2,7 @@ import express from 'express';
 import {
     createCustomer, getCustomers, getCustomerById,
     updateCustomer, deleteCustomer, toggleCreditHold,
+    getCustomerStatement, getCustomerFinancials
 } from '../controllers/customerController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -12,6 +13,9 @@ import {
 
 const router = express.Router();
 router.use(protect);
+
+router.get('/financial-summary', requirePermission('customers.view', 'finance.view'), getCustomerFinancials);
+router.get('/:id/statement', requirePermission('customers.view', 'finance.view'), getCustomerStatement);
 
 router
     .route('/')

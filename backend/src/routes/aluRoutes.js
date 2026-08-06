@@ -13,11 +13,15 @@ import {
 } from '../controllers/aluController.js';
 import {
     getAluQuotations, getAluQuotationById, createAluQuotation,
-    updateAluQuotation, deleteAluQuotation, reviseAluQuotation,
+    updateAluQuotation, deleteAluQuotation, reviseAluQuotation, duplicateAluQuotation,
     convertAluQuotationToOrder, exportAluQuotationToCNC,
     approveAluQuotationDiscount, getWastageVarianceReport,
     getProjectCostingSheet
 } from '../controllers/aluQuotationController.js';
+import {
+    getAgreements, getAgreementById, createAgreement,
+    updateAgreement, deleteAgreement
+} from '../controllers/aluAgreementController.js';
 
 const router = express.Router();
 
@@ -81,6 +85,7 @@ router.route('/quotations/:id')
     .put(updateAluQuotation)
     .delete(deleteAluQuotation);
 router.post('/quotations/:id/revise', reviseAluQuotation);
+router.post('/quotations/:id/duplicate', duplicateAluQuotation);
 router.put('/quotations/:id/approve-discount', approveAluQuotationDiscount);
 router.post('/quotations/:id/convert-to-order', convertAluQuotationToOrder);
 router.post('/quotations/:id/cnc-export', exportAluQuotationToCNC);
@@ -106,6 +111,15 @@ router.route('/surveys')
 router.route('/surveys/:id')
     .put(updateSurvey)
     .delete(deleteSurvey);
+
+// Project Agreements CRUD
+router.route('/agreements')
+    .get(getAgreements)
+    .post(createAgreement);
+router.route('/agreements/:id')
+    .get(getAgreementById)
+    .put(updateAgreement)
+    .delete(deleteAgreement);
 
 // Project stock checks & reservations
 router.get('/projects/:id/stock-check', checkProjectStockAndShortages);

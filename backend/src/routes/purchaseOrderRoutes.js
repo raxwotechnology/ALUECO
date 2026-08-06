@@ -1,7 +1,6 @@
-import express from 'express';
 import {
     createPurchaseOrder, getPurchaseOrders, getPurchaseOrderById,
-    updatePurchaseOrder, changePurchaseOrderStatus, deletePurchaseOrder,
+    updatePurchaseOrder, changePurchaseOrderStatus, deletePurchaseOrder, duplicatePurchaseOrder
 } from '../controllers/purchaseOrderController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -10,6 +9,8 @@ import { createPurchaseOrderSchema, updatePurchaseOrderSchema } from '../validat
 
 const router = express.Router();
 router.use(protect);
+
+router.post('/:id/duplicate', requirePermission('purchasing.create'), duplicatePurchaseOrder);
 
 router
     .route('/')

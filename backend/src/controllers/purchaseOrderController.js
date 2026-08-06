@@ -205,10 +205,53 @@ export const changePurchaseOrderStatus = asyncHandler(async (req, res) => {
 export const deletePurchaseOrder = asyncHandler(async (req, res) => {
     const po = await PurchaseOrder.findById(req.params.id);
     if (!po) { res.status(404); throw new Error('Purchase order not found'); }
+
+    // Check if GRN records exist for this PO
+    const { default: Grn } = await import('../models/Grn.js');
+    const existingGrns = await Grn.countDocuments({ purchaseOrderId: po._id, deletedAt: null });
+
+    if (existingGrns > 0) {
+        res.status(400);
+        throw new Error('Cannot delete Purchase Order with existing Receiving Notes (GRNs). Please cancel the PO instead to preserve audit logs.');
+    }
+
     if (po.status !== 'draft') {
-        res.status(400); throw new Error('Only draft POs can be deleted');
+        res.status(400); throw new Error('Only draft POs without GRNs can be deleted');
     }
     po.deletedAt = new Date();
     await po.save();
     res.json({ success: true, message: 'Draft PO deleted' });
+});
+
+export const duplicatePurchaseOrder = asyncHandler(async (req, res) => {
+    const sourcePo = await PurchaseOrder.findById(req.params.id);
+    if (!sourcePo) { res.status(404); throw new Error('Purchase order not found'); }
+
+    const date = new Date();
+    const prefix = `PO-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await PurchaseOrder.countDocuments({ poNumber: { $regex: `^${prefix}` } });
+    const poNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+
+    const newPo = await PurchaseOrder.create({
+        poNumber,
+        supplierId: sourcePo.supplierId,
+        supplierSnapshot: sourcePo.supplierSnapshot,
+        warehouseId: sourcePo.warehouseId,
+        items: sourcePo.items.map((item, idx) => ({
+            lineNumber: idx + 1,
+            productId: item.productId,
+            productCode: item.productCode,
+            productName: item.productName,
+            orderedQuantity: item.orderedQuantity,
+            unitOfMeasure: item.unitOfMeasure,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal
+        })),
+        grandTotal: sourcePo.grandTotal,
+        status: 'draft',
+        notes: `Duplicated from ${sourcePo.poNumber}`,
+        createdBy: req.user._id
+    });
+
+    res.status(201).json({ success: true, data: newPo });
 });

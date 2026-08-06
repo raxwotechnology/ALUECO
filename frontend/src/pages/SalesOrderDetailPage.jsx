@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, Truck, PackageCheck, Ban, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Truck, PackageCheck, Ban, FileText, Printer } from 'lucide-react';
+import LetterheadPrint from '../components/ui/LetterheadPrint';
 
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -54,7 +55,7 @@ export default function SalesOrderDetailPage() {
     };
 
     const actionButtons = [];
-    if (['draft', 'pending_approval'].includes(order.status) && canApprove) {
+    if (['draft', 'pending_approval', 'pending'].includes(order.status) && canApprove) {
         actionButtons.push({ label: 'Approve', icon: CheckCircle, variant: 'primary', status: 'approved' });
     }
     if (order.status === 'approved' && canDispatch) {
@@ -102,9 +103,12 @@ export default function SalesOrderDetailPage() {
                 <p className="text-sm text-gray-500 mb-4">Created {fmtDate(order.createdAt)}</p>
 
                 {/* Action buttons — wrap on mobile */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 print:hidden">
                     <Button variant="outline" size="sm" onClick={() => navigate('/sales-orders')}>
                         <ArrowLeft size={15} className="mr-1.5" /> Back
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.print()}>
+                        <Printer size={15} className="mr-1.5" /> Print Letterhead
                     </Button>
                     {actionButtons.map((btn, idx) => (
                         <Button
@@ -413,6 +417,52 @@ export default function SalesOrderDetailPage() {
                 variant={action?.variant === 'danger' ? 'danger' : 'primary'}
                 loading={changeStatus.isPending}
             />
+
+            <LetterheadPrint
+                title="SALES ORDER"
+                docNumber={order.orderNumber}
+                date={order.orderDate || order.createdAt}
+                customer={{
+                    name: order.customerSnapshot?.name,
+                    code: order.customerSnapshot?.code,
+                    phone: order.customerSnapshot?.phone || '—',
+                    address: order.billingAddress?.line1
+                }}
+            >
+                <div className="my-6">
+                    <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr className="border-b-2 border-slate-900 bg-slate-100 font-bold uppercase">
+                                <th className="p-2">Item</th>
+                                <th className="p-2">Description</th>
+                                <th className="p-2 text-right">Qty</th>
+                                <th className="p-2 text-right">Unit Price</th>
+                                <th className="p-2 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {order.items?.map((item, idx) => (
+                                <tr key={idx}>
+                                    <td className="p-2 font-bold">{item.productName}</td>
+                                    <td className="p-2 text-slate-600">{item.description || '—'}</td>
+                                    <td className="p-2 text-right font-mono">{item.orderedQuantity} {item.unitOfMeasure}</td>
+                                    <td className="p-2 text-right font-mono">{fmt(item.unitPrice)}</td>
+                                    <td className="p-2 text-right font-mono font-bold">{fmt(item.lineTotal)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <div className="flex justify-end mt-4">
+                        <div className="w-64 space-y-1 text-right text-xs">
+                            <div className="flex justify-between border-b pb-1">
+                                <span className="font-semibold text-slate-600">Grand Total:</span>
+                                <span className="font-bold font-mono text-slate-900">{fmt(order.grandTotal)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </LetterheadPrint>
         </div>
     );
 }

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Alu2DCadPreview from '../components/aluminium/Alu2DCadPreview';
 
 const AluDatabasePage = () => {
     const [activeTab, setActiveTab] = useState('profiles');
@@ -25,6 +26,7 @@ const AluDatabasePage = () => {
     const [activeProfileSuggestionIdx, setActiveProfileSuggestionIdx] = useState(null);
     const [activeGlassSuggestionIdx, setActiveGlassSuggestionIdx] = useState(null);
     const [activeAccessorySuggestionIdx, setActiveAccessorySuggestionIdx] = useState(null);
+    const [showAppTypeSuggestions, setShowAppTypeSuggestions] = useState(false);
     
     // Form States
     const [profileForm, setProfileForm] = useState({ profileCode: '', description: '', supplier: '', standardLengths: [{ lengthMm: 2134, price: 0 }] });
@@ -432,18 +434,48 @@ const AluDatabasePage = () => {
 
                     {activeTab === 'applications' && (
                         <>
+                            {/* Live 2D CAD Elevation Generator */}
+                            <div className="mb-2">
+                                <Alu2DCadPreview
+                                    type={appForm.type}
+                                    configuration={appForm.configuration}
+                                    profileBOM={appForm.profileBOM}
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Application Type</label>
-                                    <select value={appForm.type} onChange={e => setAppForm({ ...appForm, type: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600">
-                                        <option value="Sliding Door">Sliding Door</option>
-                                        <option value="Sliding Window">Sliding Window</option>
-                                        <option value="Casement Window">Casement Window</option>
-                                        <option value="Swing Door">Swing Door</option>
-                                        <option value="Fixed Glass">Fixed Glass</option>
-                                        <option value="Folding Door">Folding Door</option>
-                                        <option value="Louver Window">Louver Window</option>
-                                    </select>
+                                <div className="relative">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Application Type (Suggest or Custom Type)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Select or type new (e.g. Sliding Door)"
+                                        value={appForm.type}
+                                        onChange={e => setAppForm({ ...appForm, type: e.target.value })}
+                                        onFocus={() => setShowAppTypeSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowAppTypeSuggestions(false), 200)}
+                                        required
+                                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 font-semibold text-slate-900"
+                                    />
+                                    {showAppTypeSuggestions && (
+                                        <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl">
+                                            {Array.from(new Set([
+                                                'Sliding Door', 'Sliding Window', 'Casement Window', 'Swing Door',
+                                                'Fixed Glass', 'Folding Door', 'Louver Window', 'Partition Wall',
+                                                ...applications.map(a => a.type).filter(Boolean)
+                                            ]))
+                                            .filter(t => t.toLowerCase().includes((appForm.type || '').toLowerCase()))
+                                            .map((typeStr, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onMouseDown={() => setAppForm({ ...appForm, type: typeStr })}
+                                                    className="px-3 py-2 text-xs font-bold text-slate-800 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer border-b border-slate-100 last:border-0 flex items-center justify-between"
+                                                >
+                                                    <span>{typeStr}</span>
+                                                    <span className="text-[10px] text-indigo-500 font-normal">Select</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Configuration (e.g. 3 Panel - 2 Track)</label>

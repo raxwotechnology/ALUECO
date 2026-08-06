@@ -444,7 +444,7 @@ const AluQuotationDetailPage = () => {
                 {[
                     { label: 'Total Aluminium Cost', val: `${quotation.totalAluminiumCost.toLocaleString()}`, color: 'text-slate-800', icon: Layers, iconColor: 'bg-indigo-50 text-indigo-600' },
                     { label: 'Total Glass Cost', val: `${quotation.totalGlassCost.toLocaleString()}`, color: 'text-slate-800', icon: Eye, iconColor: 'bg-cyan-50 text-cyan-600' },
-                    { label: 'Total Accessories Cost', val: `${quotation.totalAccessoriesCost.toLocaleString()}`, color: 'text-slate-800', icon: Settings, iconColor: 'bg-amber-50 text-amber-600' },
+                    { label: 'Total Accessories Cost', val: `${quotation.totalAccessoriesCost.toLocaleString()}`, color: 'text-slate-800', icon: SettingsIcon, iconColor: 'bg-amber-50 text-amber-600' },
                     { label: 'Total Labour Cost', val: `${quotation.totalLabourCost.toLocaleString()}`, color: 'text-slate-800', icon: Users, iconColor: 'bg-orange-50 text-orange-600' },
                     { label: 'Transport Cost', val: `${quotation.transportCost.toLocaleString()}`, color: 'text-slate-800', icon: Truck, iconColor: 'bg-teal-50 text-teal-600' },
                     { label: 'Total Cost (Before Margin)', val: `${subtotalCost.toLocaleString()}`, color: 'text-slate-800', icon: DollarSign, iconColor: 'bg-slate-100 text-slate-700' }

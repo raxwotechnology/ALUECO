@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { format } from 'date-fns';
-import { Plus, Eye, Edit, FileText, Trash2, ArrowRightLeft, GitBranch, ShieldCheck } from 'lucide-react';
+import { Plus, Eye, Edit, FileText, Trash2, ArrowRightLeft, GitBranch, ShieldCheck, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -52,13 +52,13 @@ const AluQuotationsPage = () => {
         }
     };
 
-    const handleConvertToOrder = async (id) => {
+    const handleDuplicateQuotation = async (id) => {
         try {
-            const { data } = await api.post(`/alu/quotations/${id}/convert-to-order`);
-            toast.success('Successfully converted to standard Sales Order!');
+            await api.post(`/alu/quotations/${id}/duplicate`);
+            toast.success('Quotation duplicated successfully!');
             fetchQuotations();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to convert to sales order');
+            toast.error(error.response?.data?.message || 'Failed to duplicate quotation');
         }
     };
 
@@ -201,6 +201,7 @@ const AluQuotationsPage = () => {
                                             )}
                                             
                                             <button onClick={() => handleCreateRevision(q._id)} title="Create a new revision copy using current rates" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100"><GitBranch size={16} /></button>
+                                            <button onClick={() => handleDuplicateQuotation(q._id)} title="Duplicate quotation (Create copy)" className="text-slate-600 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-slate-100"><Copy size={16} /></button>
                                             
                                             {q.status !== 'converted' && (
                                                 <button onClick={() => handleConvertToOrder(q._id)} title="Convert quote to Sales Order" className="text-slate-600 hover:text-purple-600 p-1.5 rounded-lg hover:bg-slate-100"><ArrowRightLeft size={16} /></button>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, ShoppingBag } from 'lucide-react';
+import { Plus, Search, Eye, ShoppingBag, Copy, Printer, Trash2, Ban } from 'lucide-react';
+import api from '../api/axios';
+import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -67,12 +69,36 @@ export default function PurchaseOrdersPage() {
         },
         { key: 'status', label: 'Status', render: (r) => <Badge variant={statusVariant[r.status]}>{r.status.replace('_', ' ')}</Badge> },
         {
-            key: 'actions', label: '', width: '60px',
+            key: 'actions', label: 'Actions', width: '130px',
             render: (r) => (
-                <button onClick={(e) => { e.stopPropagation(); navigate(`/purchase-orders/${r._id}`); }}
-                    className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded" title="View">
-                    <Eye size={16} />
-                </button>
+                <div className="flex gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/purchase-orders/${r._id}`); }}
+                        className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-slate-100 rounded" title="View / Print">
+                        <Eye size={15} />
+                    </button>
+                    <button onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                            await api.post(`/purchase-orders/${r._id}/duplicate`);
+                            toast.success('PO duplicated successfully');
+                            window.location.reload();
+                        } catch (err) { toast.error(err.response?.data?.message || 'Failed to duplicate PO'); }
+                    }} className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="Duplicate PO">
+                        <Copy size={15} />
+                    </button>
+                    <button onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm(`Are you sure you want to delete PO #${r.poNumber}?`)) {
+                            try {
+                                await api.delete(`/purchase-orders/${r._id}`);
+                                toast.success('PO deleted');
+                                window.location.reload();
+                            } catch (err) { toast.error(err.response?.data?.message || 'Failed to delete PO'); }
+                        }
+                    }} className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded" title="Delete PO">
+                        <Trash2 size={15} />
+                    </button>
+                </div>
             ),
         },
     ];

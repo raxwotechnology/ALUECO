@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Users, AlertTriangle, Ban, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Edit, Trash2, Users, AlertTriangle, Ban, CheckCircle, DollarSign, FileText } from 'lucide-react';
+import api from '../api/axios';
 
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -27,10 +29,15 @@ const statusVariant = {
 };
 
 export default function CustomersPage() {
+    const navigate = useNavigate();
     const { user } = useAuthStore();
     const canManage = ['admin', 'manager', 'sales_manager', 'sales_rep'].includes(user?.role);
     const canDelete = ['admin', 'manager'].includes(user?.role);
     const canHoldCredit = ['admin', 'manager', 'accountant'].includes(user?.role);
+
+    const [viewMode, setViewMode] = useState('list'); // 'list' | 'financials'
+    const [financialRows, setFinancialRows] = useState([]);
+    const [finLoading, setFinLoading] = useState(false);
 
     const [filters, setFilters] = useState({
         search: '', customerGroupId: '', status: '',
@@ -46,6 +53,21 @@ export default function CustomersPage() {
     const { data: groupsData } = useCustomerGroups();
     const deleteMutation = useDeleteCustomer();
     const holdMutation = useToggleCreditHold();
+
+    const fetchFinancials = async () => {
+        setFinLoading(true);
+        try {
+            const res = await api.get('/customers/financial-summary');
+            setFinancialRows(res.data.data || []);
+        } catch { }
+        finally { setFinLoading(false); }
+    };
+
+    useEffect(() => {
+        if (viewMode === 'financials') {
+            fetchFinancials();
+        }
+    }, [viewMode]);
 
     const customers = data?.data || [];
     const total = data?.total || 0;
@@ -88,8 +110,8 @@ export default function CustomersPage() {
         {
             key: 'displayName', label: 'Customer',
             render: (r) => (
-                <div>
-                    <p className="font-medium text-gray-900 flex items-center gap-2">
+                <div onClick={(e) => { e.stopPropagation(); navigate(`/customers/${r._id}`); }} className="cursor-pointer">
+                    <p className="font-semibold text-indigo-600 hover:underline flex items-center gap-2">
                         {r.displayName}
                         {r.creditStatus?.onCreditHold && (
                             <span title="On credit hold"><Ban size={14} className="text-red-500" /></span>
@@ -229,42 +251,96 @@ export default function CustomersPage() {
             />
 
             <Card>
-                <div className="p-4 border-b border-gray-200 flex flex-wrap gap-3">
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by name, code, or phone..."
-                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 text-sm"
-                            value={filters.search}
-                            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
-                        />
+                <div className="p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                <Users size={14} /> Directory View
+                            </button>
+                            <button
+                                onClick={() => setViewMode('financials')}
+                                className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition ${viewMode === 'financials' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                <DollarSign size={14} /> Financial Summary View
+                            </button>
+                        </div>
                     </div>
-                    <div className="w-48">
-                        <Select
-                            placeholder="All Groups"
-                            options={groupOptions}
-                            value={filters.customerGroupId}
-                            onChange={(e) => setFilters((f) => ({ ...f, customerGroupId: e.target.value, page: 1 }))}
-                        />
-                    </div>
-                    <div className="w-40">
-                        <Select
-                            placeholder="All Statuses"
-                            options={[
-                                { value: 'active', label: 'Active' },
-                                { value: 'prospect', label: 'Prospect' },
-                                { value: 'on_hold', label: 'On Hold' },
-                                { value: 'inactive', label: 'Inactive' },
-                                { value: 'blacklisted', label: 'Blacklisted' },
-                            ]}
-                            value={filters.status}
-                            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value, page: 1 }))}
-                        />
-                    </div>
+
+                    {viewMode === 'list' && (
+                        <div className="flex flex-wrap items-center gap-3 flex-1 justify-end min-w-[200px]">
+                            <div className="relative flex-1 min-w-[200px] max-w-xs">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by name, code, or phone..."
+                                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 text-sm"
+                                    value={filters.search}
+                                    onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
+                                />
+                            </div>
+                            <div className="w-44">
+                                <Select
+                                    placeholder="All Groups"
+                                    options={groupOptions}
+                                    value={filters.customerGroupId}
+                                    onChange={(e) => setFilters((f) => ({ ...f, customerGroupId: e.target.value, page: 1 }))}
+                                />
+                            </div>
+                            <div className="w-36">
+                                <Select
+                                    placeholder="All Statuses"
+                                    options={[
+                                        { value: 'active', label: 'Active' },
+                                        { value: 'prospect', label: 'Prospect' },
+                                        { value: 'on_hold', label: 'On Hold' },
+                                        { value: 'inactive', label: 'Inactive' },
+                                        { value: 'blacklisted', label: 'Blacklisted' },
+                                    ]}
+                                    value={filters.status}
+                                    onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value, page: 1 }))}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {isLoading ? (
+                {viewMode === 'financials' ? (
+                    finLoading ? (
+                        <div className="py-16 text-center text-gray-500">Loading customer financial summary...</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase">
+                                        <th className="p-3">Customer</th>
+                                        <th className="p-3">Code</th>
+                                        <th className="p-3">Phone</th>
+                                        <th className="p-3 text-right">Total Invoice Amount</th>
+                                        <th className="p-3 text-right">Paid Amount</th>
+                                        <th className="p-3 text-right">Unpaid Amount (Balance)</th>
+                                        <th className="p-3 text-right">Advance Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                    {financialRows.map(row => (
+                                        <tr key={row._id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/customers/${row._id}`)}>
+                                            <td className="p-3 font-semibold text-indigo-600 hover:underline">{row.displayName}</td>
+                                            <td className="p-3 font-mono">{row.customerCode}</td>
+                                            <td className="p-3">{row.phone}</td>
+                                            <td className="p-3 text-right font-mono font-semibold">LKR {formatMoney(row.totalInvoiceAmount)}</td>
+                                            <td className="p-3 text-right font-mono font-semibold text-emerald-600">LKR {formatMoney(row.paidAmount)}</td>
+                                            <td className="p-3 text-right font-mono font-bold text-rose-600">LKR {formatMoney(row.unpaidAmount)}</td>
+                                            <td className="p-3 text-right font-mono font-semibold text-amber-600">LKR {formatMoney(row.advanceAmount)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                ) : isLoading ? (
                     <div className="py-16 text-center text-gray-500">Loading customers...</div>
                 ) : customers.length === 0 ? (
                     <EmptyState
@@ -279,7 +355,7 @@ export default function CustomersPage() {
                     />
                 ) : (
                     <>
-                        <Table columns={columns} data={customers} />
+                        <Table columns={columns} data={customers} onRowClick={(r) => navigate(`/customers/${r._id}`)} />
                         <Pagination
                             page={filters.page}
                             totalPages={totalPages}

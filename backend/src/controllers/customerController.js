@@ -161,3 +161,152 @@ export const toggleCreditHold = asyncHandler(async (req, res) => {
 
     backupEmitter.emit(BACKUP_EVENTS.CUSTOMER_CHANGED);
 });
+
+// Get customer statement with running ledger and payment linkage
+export const getCustomerStatement = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+
+    const customer = await Customer.findById(id);
+    if (!customer) { res.status(404); throw new Error('Customer not found'); }
+
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const { default: Payment } = await import('../models/Payment.js');
+
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+
+    const invoiceQuery = { customerId: id, status: { $ne: 'cancelled' } };
+    if (Object.keys(dateFilter).length > 0) invoiceQuery.invoiceDate = dateFilter;
+
+    const paymentQuery = { customerId: id, status: { $ne: 'cancelled' } };
+    if (Object.keys(dateFilter).length > 0) paymentQuery.paymentDate = dateFilter;
+
+    const [invoices, payments] = await Promise.all([
+        Invoice.find(invoiceQuery).sort({ invoiceDate: 1 }),
+        Payment.find(paymentQuery).sort({ paymentDate: 1 })
+    ]);
+
+    // Build timeline ledger entries
+    const ledger = [];
+    invoices.forEach(inv => {
+        ledger.push({
+            date: inv.invoiceDate,
+            type: 'INVOICE',
+            refNumber: inv.invoiceNumber,
+            description: `Sales Invoice #${inv.invoiceNumber}`,
+            debit: inv.grandTotal,
+            credit: 0,
+            id: inv._id,
+            status: inv.paymentStatus,
+            dueDate: inv.dueDate,
+            daysPastDue: inv.daysPastDue
+        });
+    });
+
+    payments.forEach(pay => {
+        const linkedInvoices = (pay.allocations || []).map(a => a.documentNumber).filter(Boolean).join(', ');
+        ledger.push({
+            date: pay.paymentDate,
+            type: 'PAYMENT',
+            refNumber: pay.paymentNumber,
+            description: `Payment Received (${pay.method ? pay.method.toUpperCase().replace('_', ' ') : 'N/A'})${linkedInvoices ? ` - Linked Inv: ${linkedInvoices}` : ''}`,
+            method: pay.method,
+            chequeNumber: pay.chequeNumber,
+            chequeStatus: pay.chequeStatus,
+            linkedInvoices,
+            debit: 0,
+            credit: pay.amount,
+            unallocatedAmount: pay.unallocatedAmount || 0,
+            id: pay._id
+        });
+    });
+
+    // Sort chronologically
+    ledger.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Calculate running balance
+    let runningBalance = 0;
+    ledger.forEach(entry => {
+        runningBalance += (entry.debit - entry.credit);
+        entry.runningBalance = +runningBalance.toFixed(2);
+    });
+
+    const totalInvoiced = invoices.reduce((sum, i) => sum + i.grandTotal, 0);
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalAdvance = payments.reduce((sum, p) => sum + (p.unallocatedAmount || 0), 0);
+    const outstandingBalance = +(totalInvoiced - totalPaid).toFixed(2);
+
+    res.json({
+        success: true,
+        data: {
+            customer,
+            summary: {
+                totalInvoiced: +totalInvoiced.toFixed(2),
+                totalPaid: +totalPaid.toFixed(2),
+                outstandingBalance: Math.max(0, outstandingBalance),
+                advanceAmount: +totalAdvance.toFixed(2),
+                currentBalance: customer.creditStatus?.currentBalance || Math.max(0, outstandingBalance)
+            },
+            ledger
+        }
+    });
+});
+
+// Get financial summary for all customers (Row view)
+export const getCustomerFinancials = asyncHandler(async (req, res) => {
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const { default: Payment } = await import('../models/Payment.js');
+
+    const [customers, invoiceAgg, paymentAgg] = await Promise.all([
+        Customer.find({ deletedAt: null }).select('displayName customerCode companyName primaryContact creditStatus status'),
+        Invoice.aggregate([
+            { $match: { status: { $ne: 'cancelled' }, deletedAt: null } },
+            {
+                $group: {
+                    _id: '$customerId',
+                    totalInvoiced: { $sum: '$grandTotal' },
+                    totalUnpaid: { $sum: '$balanceDue' }
+                }
+            }
+        ]),
+        Payment.aggregate([
+            { $match: { status: { $ne: 'cancelled' }, deletedAt: null } },
+            {
+                $group: {
+                    _id: '$customerId',
+                    totalPaid: { $sum: '$amount' },
+                    totalAdvance: { $sum: '$unallocatedAmount' }
+                }
+            }
+        ])
+    ]);
+
+    const invMap = {};
+    invoiceAgg.forEach(i => { if (i._id) invMap[i._id.toString()] = i; });
+
+    const payMap = {};
+    paymentAgg.forEach(p => { if (p._id) payMap[p._id.toString()] = p; });
+
+    const rows = customers.map(c => {
+        const cId = c._id.toString();
+        const inv = invMap[cId] || { totalInvoiced: 0, totalUnpaid: 0 };
+        const pay = payMap[cId] || { totalPaid: 0, totalAdvance: 0 };
+
+        return {
+            _id: c._id,
+            customerCode: c.customerCode,
+            displayName: c.displayName,
+            companyName: c.companyName,
+            phone: c.primaryContact?.phone || '—',
+            status: c.status,
+            totalInvoiceAmount: +inv.totalInvoiced.toFixed(2),
+            paidAmount: +pay.totalPaid.toFixed(2),
+            unpaidAmount: +inv.totalUnpaid.toFixed(2),
+            advanceAmount: +pay.totalAdvance.toFixed(2)
+        };
+    });
+
+    res.json({ success: true, count: rows.length, data: rows });
+});

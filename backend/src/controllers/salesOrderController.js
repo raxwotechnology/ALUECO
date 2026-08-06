@@ -510,6 +510,7 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
     const allowedTransitions = {
         draft: ['approved', 'cancelled'],
         pending_approval: ['approved', 'cancelled'],
+        pending: ['approved', 'cancelled'],
         approved: ['dispatched', 'cancelled', 'on_hold'],
         on_hold: ['approved', 'cancelled'],
         dispatched: ['delivered', 'cancelled'],
