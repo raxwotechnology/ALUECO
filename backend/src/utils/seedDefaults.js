@@ -9,6 +9,8 @@ import AluProfile from '../models/AluProfile.js';
 import AluGlass from '../models/AluGlass.js';
 import AluAccessory from '../models/AluAccessory.js';
 import AluApplication from '../models/AluApplication.js';
+import AluQuotation from '../models/AluQuotation.js';
+import AluAgreement from '../models/AluAgreement.js';
 
 const defaultUoms = [
     { name: 'Piece', symbol: 'pc', type: 'count' },
@@ -345,6 +347,147 @@ const seedAluDefaults = async () => {
                 }
             ]);
             console.log('✓ Seeded Alu Application Templates');
+        }
+
+        // Seed 2 Realistic Example Quotations (QOT-231 and QOT-232)
+        const qCount = await AluQuotation.countDocuments();
+        if (qCount === 0) {
+            const q1 = await AluQuotation.create({
+                quoteNumber: 'QOT-231',
+                version: 0,
+                revisionGroupCode: 'QOT-231',
+                isLatestRevision: true,
+                customerName: 'Mr.Shashika Rodrigo',
+                projectName: 'Thalangama Villa - 4-Panel Awning System',
+                location: '22/25, Army housing scheme, Dhawatagahawatta, Thalangama north, Koswatta, Battaramulla',
+                date: new Date(),
+                validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                preparedBy: 'LUXO Construction (Pvt) Ltd',
+                items: [{
+                    applicationType: 'Sliding Door',
+                    configuration: '4-Panel Center Slide with Top Awning',
+                    width: 2800,
+                    height: 2400,
+                    quantity: 1,
+                    trackSystem: '2-Track',
+                    topSection: { enabled: true, height: 600, type: 'awning' },
+                    panelArrangement: [
+                        { id: 0, action: 'fixed' },
+                        { id: 1, action: 'slide_left' },
+                        { id: 2, action: 'slide_right' },
+                        { id: 3, action: 'fixed' }
+                    ],
+                    unitPrice: 1650000,
+                    totalPrice: 1650000
+                }],
+                totalAluminiumCost: 850000,
+                totalGlassCost: 350000,
+                totalAccessoriesCost: 175000,
+                totalLabourCost: 125000,
+                profitMarginPercent: 20,
+                calculatedSellingPrice: 1650000,
+                finalSellingPrice: 1650000,
+                status: 'accepted'
+            });
+
+            const q2 = await AluQuotation.create({
+                quoteNumber: 'QOT-232',
+                version: 0,
+                revisionGroupCode: 'QOT-232',
+                isLatestRevision: true,
+                customerName: 'Dr. Nimal Perera',
+                projectName: 'Sea Avenue Luxury Penthouse - Triple Slide System',
+                location: 'No. 45, Sea Avenue, Colombo 03, Sri Lanka',
+                date: new Date(),
+                validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                preparedBy: 'ALUECO Team',
+                items: [{
+                    applicationType: 'Sliding Door',
+                    configuration: '3-Panel Triple Slide with Top Louvers',
+                    width: 3200,
+                    height: 2600,
+                    quantity: 1,
+                    trackSystem: '3-Track',
+                    topSection: { enabled: true, height: 500, type: 'louver' },
+                    panelArrangement: [
+                        { id: 0, action: 'slide_left' },
+                        { id: 1, action: 'slide_left' },
+                        { id: 2, action: 'slide_left' }
+                    ],
+                    unitPrice: 2250000,
+                    totalPrice: 2250000
+                }],
+                totalAluminiumCost: 1100000,
+                totalGlassCost: 520000,
+                totalAccessoriesCost: 250000,
+                totalLabourCost: 130000,
+                profitMarginPercent: 20,
+                calculatedSellingPrice: 2250000,
+                finalSellingPrice: 2250000,
+                status: 'sent'
+            });
+            console.log('✓ Seeded 2 Example Quotations (QOT-231, QOT-232)');
+
+            // Seed 2 Realistic Example Agreements (PA-200 and PA-201)
+            const agCount = await AluAgreement.countDocuments();
+            if (agCount === 0) {
+                await AluAgreement.create({
+                    agreementNumber: 'PA-200',
+                    quotationId: q1._id,
+                    quotationNumber: 'QOT-231',
+                    agreementDate: new Date(),
+                    customerDetails: {
+                        customerName: 'Mr.Shashika Rodrigo',
+                        projectLocation: '22/25, Army housing scheme, Dhawatagahawatta, Thalangama north, Koswatta, Battaramulla',
+                        contactNo: '0767204946'
+                    },
+                    projectValue: 1650000,
+                    paymentSchedule: [
+                        { stageName: 'Order Confirmation Advance', amount: 900000, percentage: 54.55 },
+                        { stageName: 'Project Progress Payment', amount: 300000, percentage: 18.18 },
+                        { stageName: 'Final Payment Upon Project Completion', amount: 450000, percentage: 27.27 }
+                    ],
+                    scopeOfWork: 'LUXO Construction (Pvt) Ltd agrees to supply, fabricate, deliver, and install the aluminium works as detailed in approved quotation QOT-231.',
+                    leadTimeDays: 14,
+                    warranties: { workmanshipYears: 10, hardwareYears: 5 },
+                    bankDetails: {
+                        bankName: 'Hatton National Bank',
+                        accountName: 'M.E.H.Bandara',
+                        accountNumber: '147020135728',
+                        branch: 'Nawala'
+                    },
+                    status: 'signed'
+                });
+
+                await AluAgreement.create({
+                    agreementNumber: 'PA-201',
+                    quotationId: q2._id,
+                    quotationNumber: 'QOT-232',
+                    agreementDate: new Date(),
+                    customerDetails: {
+                        customerName: 'Dr. Nimal Perera',
+                        projectLocation: 'No. 45, Sea Avenue, Colombo 03, Sri Lanka',
+                        contactNo: '0773344556'
+                    },
+                    projectValue: 2250000,
+                    paymentSchedule: [
+                        { stageName: 'Order Confirmation Advance', amount: 1237500, percentage: 55 },
+                        { stageName: 'Project Progress Payment', amount: 450000, percentage: 20 },
+                        { stageName: 'Final Payment Upon Project Completion', amount: 562500, percentage: 25 }
+                    ],
+                    scopeOfWork: 'LUXO Construction (Pvt) Ltd agrees to supply, fabricate, deliver, and install 3-Panel Triple Slide Aluminium Doors with DGU Glazing as per quotation QOT-232.',
+                    leadTimeDays: 21,
+                    warranties: { workmanshipYears: 10, hardwareYears: 5 },
+                    bankDetails: {
+                        bankName: 'Hatton National Bank',
+                        accountName: 'M.E.H.Bandara',
+                        accountNumber: '147020135728',
+                        branch: 'Nawala'
+                    },
+                    status: 'sent'
+                });
+                console.log('✓ Seeded 2 Example Agreements (PA-200, PA-201)');
+            }
         }
     } catch (e) {
         console.error('Alu Seeding error:', e.message);

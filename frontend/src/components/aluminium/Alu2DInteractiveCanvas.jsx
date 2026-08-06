@@ -10,7 +10,8 @@ export default function Alu2DInteractiveCanvas({
     panelArrangement = [],
     topSection = { enabled: true, height: 600, type: 'fixed' },
     selectedPanelIndex = null,
-    onSelectPanel = () => {}
+    onSelectPanel = () => {},
+    customAddons = []
 }) {
     const svgRef = useRef(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -27,10 +28,10 @@ export default function Alu2DInteractiveCanvas({
     const topType = hasTop ? (topSection.type || 'fixed') : 'none';
 
     // SVG ViewBox & Aspect Scaling
-    const containerW = 460;
-    const containerH = 380;
-    const marginX = 45;
-    const marginY = 45;
+    const containerW = 480;
+    const containerH = 390;
+    const marginX = 55;
+    const marginY = 50;
 
     const drawableW = containerW - marginX * 2;
     const drawableH = containerH - marginY * 2;
@@ -47,9 +48,9 @@ export default function Alu2DInteractiveCanvas({
     const topFrameH = frameH * topRatio;
     const bottomFrameH = frameH - topFrameH;
 
-    const panelFrameW = frameW / P;
     const outerThick = Math.max(6, Math.min(12, 80 * scale));
     const sashThick = Math.max(4, Math.min(8, 50 * scale));
+    const panelFrameW = (frameW - outerThick * 2) / P;
 
     // Handle SVG Export / Download
     const handleDownloadSVG = () => {
@@ -168,6 +169,11 @@ export default function Alu2DInteractiveCanvas({
                             {/* Technical Grid Pattern */}
                             <pattern id="cadGridBg" width="20" height="20" patternUnits="userSpaceOnUse">
                                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2,2" />
+                            </pattern>
+
+                            {/* Flyscreen Mesh Net Pattern */}
+                            <pattern id="flyscreenMeshBg" width="8" height="8" patternUnits="userSpaceOnUse">
+                                <path d="M 8 0 L 0 8 M 0 0 L 8 8" fill="none" stroke="#38bdf8" strokeWidth="0.4" opacity="0.35" />
                             </pattern>
                         </defs>
 
@@ -433,18 +439,31 @@ export default function Alu2DInteractiveCanvas({
                                         )}
                                     </g>
 
-                                    {/* Panel Index Label */}
-                                    <text
-                                        x={px + pw / 2}
-                                        y={py + ph - 10}
-                                        fill="#94a3b8"
-                                        fontSize="9"
-                                        textAnchor="middle"
-                                        fontWeight="bold"
-                                        className="font-mono"
-                                    >
-                                        P{idx + 1} ({action === 'fixed' ? 'FIXED' : 'SLIDE'})
-                                    </text>
+                                    {/* Panel Index Label (High Contrast Pill Badge) */}
+                                    <g transform={`translate(${px + pw / 2}, ${py + ph - 14})`}>
+                                        <rect
+                                            x="-36"
+                                            y="-8"
+                                            width="72"
+                                            height="14"
+                                            fill="#0f172a"
+                                            fillOpacity="0.9"
+                                            stroke="#38bdf8"
+                                            strokeWidth="0.75"
+                                            rx="4"
+                                        />
+                                        <text
+                                            x="0"
+                                            y="2.5"
+                                            fill="#38bdf8"
+                                            fontSize="9"
+                                            textAnchor="middle"
+                                            fontWeight="900"
+                                            className="font-mono tracking-wider"
+                                        >
+                                            P{idx + 1} ({action === 'fixed' ? 'FIXED' : 'SLIDE'})
+                                        </text>
+                                    </g>
 
                                     {/* Roller Wheel Representation at Bottom */}
                                     {action !== 'fixed' && (
@@ -526,6 +545,37 @@ export default function Alu2DInteractiveCanvas({
                                 >
                                     Bot: {H_bottom}mm
                                 </text>
+                            </g>
+                        )}
+
+                        {/* Active Custom Add-on Badges on 2D Visual Canvas */}
+                        {Array.isArray(customAddons) && customAddons.length > 0 && (
+                            <g transform={`translate(${frameX + 6}, ${frameY + 6})`}>
+                                {customAddons.map((addon, aIdx) => (
+                                    <g key={aIdx} transform={`translate(0, ${aIdx * 16})`}>
+                                        <rect
+                                            x="0"
+                                            y="0"
+                                            width={Math.min(180, (addon.name || '').length * 6 + 16)}
+                                            height="13"
+                                            fill="#0f172a"
+                                            fillOpacity="0.85"
+                                            stroke="#10b981"
+                                            strokeWidth="0.75"
+                                            rx="3"
+                                        />
+                                        <text
+                                            x="5"
+                                            y="9"
+                                            fill="#10b981"
+                                            fontSize="7.5"
+                                            fontWeight="bold"
+                                            className="font-mono uppercase"
+                                        >
+                                            + {addon.name}
+                                        </text>
+                                    </g>
+                                ))}
                             </g>
                         )}
                     </svg>

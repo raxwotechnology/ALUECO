@@ -14,7 +14,8 @@ export const calculateBOM = ({
     topSection = { enabled: true, height: 600, type: 'fixed' },
     quantity = 1,
     profitMarginPercent = 20,
-    rates = null
+    rates = null,
+    customAddons = []
 }) => {
     // Sanitize inputs
     const W = Math.max(300, Number(width) || 2400);
@@ -332,6 +333,25 @@ export const calculateBOM = ({
     });
 
     const totalAccessoriesCost = Math.round(accessories.reduce((sum, a) => sum + a.cost, 0));
+
+    // Custom Add-ons & Hardware Extras (Flyscreen, Special Lock, DGU Glass, Sub-frame, etc.)
+    const customAddonItems = [];
+    if (Array.isArray(customAddons) && customAddons.length > 0) {
+        customAddons.forEach((item, idx) => {
+            if (item.name && item.cost > 0) {
+                const itemObj = {
+                    code: item.code || `CUSTOM_ADDON_${idx + 1}`,
+                    name: item.name,
+                    qty: Number(item.qty) || 1,
+                    unit: item.unit || 'pcs',
+                    unitRate: Number(item.unitRate) || Number(item.cost),
+                    cost: Math.round(Number(item.cost))
+                };
+                accessories.push(itemObj);
+                customAddonItems.push(itemObj);
+            }
+        });
+    }
 
     // ----------------------------------------------------
     // 4. LABOUR COST & TOTAL ESTIMATION SUMMARY

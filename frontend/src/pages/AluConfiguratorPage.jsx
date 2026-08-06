@@ -126,6 +126,21 @@ const AluConfiguratorPage = () => {
         });
     };
 
+    // Custom Hardware Add-ons & Extra Items State
+    const [customAddons, setCustomAddons] = useState([]);
+
+    const handleAddPresetAddon = (name, cost, unit = 'pcs') => {
+        setCustomAddons(prev => [
+            ...prev,
+            { name, qty: 1, unitRate: cost, cost }
+        ]);
+        toast.success(`Added ${name} to quotation BOM!`);
+    };
+
+    const handleRemoveAddon = (idx) => {
+        setCustomAddons(prev => prev.filter((_, i) => i !== idx));
+    };
+
     // Real-Time Dynamic BOM Calculation using client calculator
     const bomResult = useMemo(() => {
         return calculateBOM({
@@ -136,9 +151,10 @@ const AluConfiguratorPage = () => {
             panelArrangement,
             topSection,
             quantity: Number(quantity) || 1,
-            profitMarginPercent: Number(profitMarginPercent) || 20
+            profitMarginPercent: Number(profitMarginPercent) || 20,
+            customAddons
         });
-    }, [width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent]);
+    }, [width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, customAddons]);
 
     // Handle "Add to New Quotation"
     const handleAddToQuotation = () => {
@@ -448,6 +464,72 @@ const AluConfiguratorPage = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Section 5: Custom Hardware Add-ons & Extra Services */}
+                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
+                            <Package size={16} /> 5. Custom Hardware Add-ons & Extra Services
+                        </h3>
+                        
+                        <div className="space-y-1">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Preset Add-ons</label>
+                            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                                <button
+                                    onClick={() => handleAddPresetAddon('Insect Flyscreen Mesh Door', 8500)}
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
+                                >
+                                    <span>+ Flyscreen Mesh</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 8,500</span>
+                                </button>
+                                <button
+                                    onClick={() => handleAddPresetAddon('Multi-Point Gear Lock System', 6500)}
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
+                                >
+                                    <span>+ Multi-Point Lock</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 6,500</span>
+                                </button>
+                                <button
+                                    onClick={() => handleAddPresetAddon('Sub-Frame Equal Angle Flange', 4500)}
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
+                                >
+                                    <span>+ Sub-Frame Angle</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 4,500</span>
+                                </button>
+                                <button
+                                    onClick={() => handleAddPresetAddon('Wood Finish Powder Coat Surcharge', 12000)}
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
+                                >
+                                    <span>+ Wood Powder Coat</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 12,000</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Selected Custom Add-ons List */}
+                        {customAddons.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Custom Add-ons ({customAddons.length})</label>
+                                <div className="space-y-1">
+                                    {customAddons.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center p-2 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs">
+                                            <div>
+                                                <span className="font-bold text-slate-800">{item.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono font-bold text-indigo-700">LKR {(item.cost || 0).toLocaleString()}</span>
+                                                <button
+                                                    onClick={() => handleRemoveAddon(idx)}
+                                                    className="text-rose-600 hover:bg-rose-100 p-1 rounded-md text-xs font-bold"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* ======================================================== */}
@@ -465,6 +547,7 @@ const AluConfiguratorPage = () => {
                         topSection={topSection}
                         selectedPanelIndex={selectedPanelIndex}
                         onSelectPanel={(idx) => setSelectedPanelIndex(idx)}
+                        customAddons={customAddons}
                     />
 
                     {/* Estimation Costing Overview Banner */}
