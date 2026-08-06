@@ -1,4 +1,5 @@
 import React from 'react';
+import WarrantyTermsPrint from './WarrantyTermsPrint';
 
 export default function AluAgreementPrintView({ agreement }) {
     if (!agreement) return null;
@@ -167,12 +168,9 @@ export default function AluAgreementPrintView({ agreement }) {
             </div>
 
             {/* 5. Warranty */}
-            <div className="space-y-1 mb-6">
-                <h3 className="font-bold text-slate-900 text-sm">5. Warranty</h3>
-                <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
-                    <li>Fabrication Workmanship – <span className="font-bold">{warranties.workmanshipYears || 10} Years</span></li>
-                    <li>Hardware & Accessories – <span className="font-bold">{warranties.hardwareYears || 5} Years</span></li>
-                </ul>
+            {/* 5. Warranty Terms & Conditions */}
+            <div className="mb-6">
+                <WarrantyTermsPrint compact={false} />
             </div>
 
             {/* 6. General Conditions */}

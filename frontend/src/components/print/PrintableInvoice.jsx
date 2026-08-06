@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import WarrantyTermsPrint from './WarrantyTermsPrint';
 
 const fmt = (n) => new Intl.NumberFormat('en-LK', {
     style: 'currency', currency: 'LKR', minimumFractionDigits: 2,
@@ -19,6 +20,15 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-LK', {
 const PrintableInvoice = forwardRef(({ companyInfo, invoice, payments = [] }, ref) => {
     if (!invoice) return null;
 
+    const company = {
+        name: companyInfo?.name || 'ALUECO ALUMINIUM SYSTEMS',
+        address: companyInfo?.address || '123 Industrial Zone, Colombo, Sri Lanka',
+        taxNumber: companyInfo?.taxNumber || 'VAT-123456789',
+        phone: companyInfo?.phone || '+94 11 234 5678',
+        email: companyInfo?.email || 'info@alueco.lk',
+        logo: companyInfo?.logo,
+    };
+
     const customer = invoice.customerSnapshot || {};
     const billingAddr = invoice.billingAddress || {};
     const shippingAddr = invoice.shippingAddress || billingAddr;
@@ -28,29 +38,30 @@ const PrintableInvoice = forwardRef(({ companyInfo, invoice, payments = [] }, re
             (a.documentId?._id?.toString() || a.documentId?.toString()) === invoice._id.toString()
         );
         return sum + (alloc?.amount || 0);
-    }, 0);
+    }, 0) || invoice.amountPaid || 0;
 
-    const balanceDue = invoice.grandTotal - totalPaid;
+    const balanceDue = invoice.balanceDue !== undefined ? invoice.balanceDue : (invoice.grandTotal - totalPaid);
 
     return (
         <div ref={ref} className="print-container bg-white text-black p-10 max-w-[800px] mx-auto">
             {/* Header */}
-            <div className="flex justify-between items-start mb-8 pb-4 border-b-2 border-gray-800">
+            <div className="flex justify-between items-start mb-8 pb-4 border-b-2 border-indigo-900">
                 <div>
-                    {companyInfo?.logo && (
-                        <img src={companyInfo.logo} alt="Logo" className="h-16 mb-2" />
+                    {company.logo && (
+                        <img src={company.logo} alt="Logo" className="h-16 mb-2" />
                     )}
-                    <h1 className="text-2xl font-bold">{companyInfo?.name || 'Your Company'}</h1>
-                    {companyInfo?.address && <p className="text-sm">{companyInfo.address}</p>}
-                    {companyInfo?.taxNumber && <p className="text-sm">Tax No: {companyInfo.taxNumber}</p>}
-                    <p className="text-sm">
-                        {companyInfo?.phone && `Tel: ${companyInfo.phone}`}
-                        {companyInfo?.email && ` · ${companyInfo.email}`}
+                    <h1 className="text-2xl font-black text-indigo-950 tracking-wider">{company.name}</h1>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Premium Aluminium Fabrication &amp; Systems</p>
+                    {company.address && <p className="text-xs text-slate-500 mt-1">{company.address}</p>}
+                    <p className="text-xs text-slate-500">
+                        {company.taxNumber && `Tax No: ${company.taxNumber} · `}
+                        {company.phone && `Tel: ${company.phone} · `}
+                        {company.email && company.email}
                     </p>
                 </div>
                 <div className="text-right">
-                    <h2 className="text-3xl font-bold text-gray-700">INVOICE</h2>
-                    <p className="text-sm font-mono mt-1">{invoice.invoiceNumber}</p>
+                    <h2 className="text-3xl font-extrabold text-indigo-900">INVOICE</h2>
+                    <p className="text-sm font-mono font-bold text-gray-800 mt-1">{invoice.invoiceNumber}</p>
                 </div>
             </div>
 
@@ -218,6 +229,9 @@ const PrintableInvoice = forwardRef(({ companyInfo, invoice, payments = [] }, re
                     <p className="text-sm whitespace-pre-wrap">{invoice.notes}</p>
                 </div>
             )}
+
+            {/* Warranty Terms Section */}
+            <WarrantyTermsPrint />
 
             <div className="text-center text-xs text-gray-500 pt-6 border-t border-gray-200 mt-8">
                 Thank you for your business.

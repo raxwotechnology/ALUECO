@@ -369,8 +369,9 @@ export default function CustomerFormModal({ isOpen, onClose, customer = null }) 
                             <Select
                                 label="Payment Terms" required
                                 options={[
+                                    { value: 'cash', label: 'Cash' },
                                     { value: 'advance', label: 'Advance (pay before delivery)' },
-                                    { value: 'cod', label: 'COD (pay on delivery)' },
+                                    { value: 'cod', label: 'Cash' },
                                     { value: 'credit', label: 'Credit (pay later)' },
                                 ]}
                                 {...register('paymentTermsType')}

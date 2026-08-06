@@ -247,8 +247,9 @@ export default function SupplierFormModal({ isOpen, onClose, supplier = null }) 
                         <div className="space-y-4">
                             <Select label="Payment Terms" required
                                 options={[
+                                    { value: 'cash', label: 'Cash' },
                                     { value: 'advance', label: 'Advance (pay before goods)' },
-                                    { value: 'cod', label: 'COD (pay on delivery)' },
+                                    { value: 'cod', label: 'Cash' },
                                     { value: 'credit', label: 'Credit' },
                                     { value: 'consignment', label: 'Consignment' },
                                 ]}

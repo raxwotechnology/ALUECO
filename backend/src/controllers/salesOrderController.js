@@ -234,8 +234,19 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
                     salesOrderLineId: orderItem._id,
                 }));
 
+                const isAdvance = paymentMethod === 'advance' || (req.body.advancePaidAmount !== undefined && Number(req.body.advancePaidAmount) < order.grandTotal);
+                const rawPayAmount = isAdvance ? Number(req.body.advancePaidAmount || 0) : order.grandTotal;
+                const payAmount = Math.min(order.grandTotal, Math.max(0, +rawPayAmount.toFixed(2)));
+                const balanceDue = Math.max(0, +(order.grandTotal - payAmount).toFixed(2));
+
+                order.advancePaidAmount = payAmount;
+                order.pendingBalance = balanceDue;
+                if (isAdvance) {
+                    order.paymentTerms = { type: 'advance' };
+                }
+
                 const isChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
-                const payAmount = order.grandTotal;
+                const invPaymentStatus = payAmount >= order.grandTotal ? 'paid' : (payAmount > 0 ? 'partially_paid' : 'unpaid');
 
                 const invoice = new Invoice({
                     customerId: foundCustomer._id,
@@ -253,14 +264,14 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
                     invoiceDate: new Date(),
                     salesRepId: foundCustomer.assignedSalesRep || req.user._id,
                     paymentTerms: {
-                        type: foundCustomer.paymentTerms?.type || 'cod',
+                        type: isAdvance ? 'advance' : (foundCustomer.paymentTerms?.type || 'cash'),
                         creditDays: foundCustomer.paymentTerms?.creditDays || 0,
                     },
                     items: invoiceItems,
                     status: 'approved',
-                    paymentStatus: 'paid',
+                    paymentStatus: invPaymentStatus,
                     amountPaid: payAmount,
-                    balanceDue: 0,
+                    balanceDue: balanceDue,
                     stockDeducted: true,
                     warehouseId: warehouseId,
                     createdBy: req.user._id,
@@ -268,7 +279,7 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
 
                 await invoice.save({ session });
 
-                if (paymentMethod) {
+                if (paymentMethod && payAmount > 0) {
                     if (bankAccountId && paymentMethod !== 'cash' && !isChequePending) {
                         const bankAccount = await BankAccount.findById(bankAccountId).session(session);
                         if (!bankAccount) throw new Error('Company bank/cash account not found');
@@ -281,7 +292,7 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
                         customerId: foundCustomer._id,
                         bankAccountId: paymentMethod !== 'cash' ? (bankAccountId || undefined) : undefined,
                         amount: payAmount,
-                        method: paymentMethod,
+                        method: paymentMethod === 'advance' ? (req.body.advanceMethod || 'cash') : paymentMethod,
                         chequeNumber: paymentMethod === 'cheque' ? chequeNumber : undefined,
                         chequeDate: paymentMethod === 'cheque' && chequeDate ? new Date(chequeDate) : undefined,
                         chequeStatus: paymentMethod === 'cheque' ? (chequeStatus || 'pending') : undefined,

@@ -109,7 +109,7 @@ export default function QuickCreateCustomerModal({ isOpen, onClose, onCreated })
 
                 <Select label="Payment Terms"
                     options={[
-                        { value: 'cash', label: 'Cash on delivery' },
+                        { value: 'cash', label: 'Cash' },
                         { value: 'credit', label: 'Credit' },
                     ]}
                     value={form.paymentTermsType}

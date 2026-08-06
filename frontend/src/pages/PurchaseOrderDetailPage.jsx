@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Send, Ban, PackageCheck, Receipt } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Send, Ban, PackageCheck, Receipt, Printer, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -11,6 +11,8 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import GrnModal from '../features/purchaseOrders/GrnModal';
 import QaApprovalModal from '../features/purchaseOrders/QaApprovalModal';
 import SendGrnSmsModal from '../features/purchaseOrders/SendGrnSmsModal';
+import SendPoModal from '../features/purchaseOrders/SendPoModal';
+import PrintablePurchaseOrder from '../components/print/PrintablePurchaseOrder';
 import { usePurchaseOrder, useChangePoStatus, useApproveGrnQA } from '../features/purchaseOrders/usePurchaseOrders';
 import { useAuthStore } from '../store/authStore';
 
@@ -24,9 +26,12 @@ export default function PurchaseOrderDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuthStore();
+    const printRef = useRef(null);
+
     const [action, setAction] = useState(null);
     const [reason, setReason] = useState('');
     const [isGrnOpen, setIsGrnOpen] = useState(false);
+    const [isSendPoOpen, setIsSendPoOpen] = useState(false);
     const [selectedGrnToApprove, setSelectedGrnToApprove] = useState(null);
     const [selectedGrnToSendSms, setSelectedGrnToSendSms] = useState(null);
 
@@ -90,6 +95,10 @@ export default function PurchaseOrderDetailPage() {
         setAction(null); setReason('');
     };
 
+    const handlePrint = () => {
+        window.print();
+    };
+
     return (
         <div>
             <PageHeader
@@ -102,6 +111,15 @@ export default function PurchaseOrderDetailPage() {
                     <div className="flex gap-2 flex-wrap">
                         <Button variant="outline" onClick={() => navigate('/purchase-orders')}>
                             <ArrowLeft size={16} className="mr-1.5" /> Back
+                        </Button>
+                        <Button variant="outline" onClick={handlePrint}>
+                            <Printer size={16} className="mr-1.5" /> Print Letterhead
+                        </Button>
+                        <Button variant="outline" onClick={handlePrint}>
+                            <Download size={16} className="mr-1.5" /> Download PDF
+                        </Button>
+                        <Button variant="primary" onClick={() => setIsSendPoOpen(true)}>
+                            <Send size={16} className="mr-1.5" /> Send PO
                         </Button>
                         {actions.map((a) => (
                             <Button key={a.label} variant={a.variant} onClick={a.onClick || (() => setAction(a))}>
@@ -274,6 +292,12 @@ export default function PurchaseOrderDetailPage() {
             <QaApprovalModal isOpen={!!selectedGrnToApprove} onClose={() => setSelectedGrnToApprove(null)} grn={selectedGrnToApprove} />
 
             <SendGrnSmsModal isOpen={!!selectedGrnToSendSms} onClose={() => setSelectedGrnToSendSms(null)} grn={selectedGrnToSendSms} />
+
+            <SendPoModal isOpen={isSendPoOpen} onClose={() => setIsSendPoOpen(false)} po={po} />
+
+            <div className="hidden print:block">
+                <PrintablePurchaseOrder ref={printRef} po={po} />
+            </div>
 
             <ConfirmDialog
                 isOpen={!!action}

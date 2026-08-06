@@ -80,7 +80,7 @@ export default function QuickCreateSupplierModal({ isOpen, onClose, onCreated })
                 <div className="grid grid-cols-2 gap-3">
                     <Select label="Payment Terms"
                         options={[
-                            { value: 'cash', label: 'Cash on delivery' },
+                            { value: 'cash', label: 'Cash' },
                             { value: 'credit', label: 'Credit' },
                         ]}
                         value={form.paymentTermsType}

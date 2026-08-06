@@ -132,7 +132,8 @@ export default function InvoiceDetailPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-gray-500 uppercase mb-1">Payment Terms</p>
-                                <p className="text-sm">{inv.paymentTerms?.type?.toUpperCase()}
+                                <p className="text-sm">
+                                    {['cod', 'cash'].includes(inv.paymentTerms?.type?.toLowerCase()) ? 'CASH' : inv.paymentTerms?.type?.toUpperCase()}
                                     {inv.paymentTerms?.type === 'credit' && ` (${inv.paymentTerms.creditDays} days)`}
                                 </p>
                                 {inv.salesOrderNumbers?.length > 0 && (

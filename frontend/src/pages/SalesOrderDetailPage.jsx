@@ -322,7 +322,9 @@ export default function SalesOrderDetailPage() {
                             </div>
                             <div className="flex justify-between gap-4">
                                 <span className="text-gray-500 flex-shrink-0">Payment</span>
-                                <span className="uppercase text-xs font-semibold text-right">{order.paymentTerms?.type}</span>
+                                <span className="uppercase text-xs font-semibold text-right">
+                                    {['cod', 'cash'].includes(order.paymentTerms?.type?.toLowerCase()) ? 'CASH' : order.paymentTerms?.type}
+                                </span>
                             </div>
                             {order.paymentTerms?.type === 'credit' && (
                                 <div className="flex justify-between gap-4">

@@ -20,6 +20,7 @@ import { useWarehouses } from '../features/warehouses/useWarehouses';
 import { useCategories } from '../features/products/useProducts';
 import { useCreateSalesOrder } from '../features/salesOrders/useSalesOrders';
 import QuickCreateCustomerModal from '../features/customers/QuickCreateCustomerModal';
+import PosReceiptPrintModal from '../components/print/PosReceiptPrintModal';
 import api from '../api/axios';
 import Modal from '../components/ui/Modal';
 
@@ -127,6 +128,12 @@ export default function PosPage() {
     const [chequeDate, setChequeDate] = useState('');
     const [bankName, setBankName] = useState('');
     const [chequeStatus, setChequeStatus] = useState('pending');
+    const [advancePaidAmount, setAdvancePaidAmount] = useState('');
+    const [advanceMethod, setAdvanceMethod] = useState('cash');
+
+    // POS Print Receipt Modal state
+    const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+    const [lastCompletedOrder, setLastCompletedOrder] = useState(null);
 
     const cartDrawerRef = useRef(null);
     const searchRef = useRef(null);
@@ -392,13 +399,27 @@ export default function PosPage() {
         }
 
         if (!saveAsDraft) {
-            if (paymentMethod !== 'cash' && !bankAccountId) { toast.error('Select Bank/Cash Account'); return; }
+            if (paymentMethod === 'advance') {
+                const advVal = Number(advancePaidAmount);
+                if (!advancePaidAmount || isNaN(advVal) || advVal < 0) {
+                    toast.error('Please enter a valid advance payment amount');
+                    return;
+                }
+            } else if (paymentMethod !== 'cash' && !bankAccountId) {
+                toast.error('Select Bank/Cash Account');
+                return;
+            }
+
             if (paymentMethod === 'cheque') {
                 if (!chequeNumber) { toast.error('Enter Cheque Number'); return; }
                 if (!chequeDate) { toast.error('Select Cheque Date'); return; }
                 if (!bankName) { toast.error('Enter Bank Name'); return; }
             }
         }
+
+        const effectiveAdvance = paymentMethod === 'advance' 
+            ? Number(advancePaidAmount || 0) 
+            : totals.grandTotal;
 
         const payload = {
             customerId: activeCustomerId,
@@ -417,6 +438,8 @@ export default function PosPage() {
                 : undefined,
             status: saveAsDraft ? 'draft' : 'approved',
             paymentMethod: saveAsDraft ? undefined : paymentMethod,
+            advancePaidAmount: saveAsDraft ? undefined : effectiveAdvance,
+            advanceMethod: saveAsDraft ? undefined : advanceMethod,
             bankAccountId: (saveAsDraft || paymentMethod === 'cash') ? undefined : bankAccountId,
             paymentReference: saveAsDraft ? undefined : (paymentMethod === 'card' || paymentMethod === 'bank_transfer') ? paymentReference : undefined,
             chequeNumber: saveAsDraft ? undefined : paymentMethod === 'cheque' ? chequeNumber : undefined,
@@ -427,13 +450,23 @@ export default function PosPage() {
 
         try {
             const result = await createOrder.mutateAsync(payload);
-            toast.success(saveAsDraft ? 'Order saved as draft' : 'Order created!');
-            setCart([]);
-            setCustomerId('');
-            setOrderDiscountPercent(0);
-            setTaxMode('item');
-            setIsCartOpen(false);
-            navigate(`/sales-orders/${result.data._id}`);
+            toast.success(saveAsDraft ? 'Order saved as draft' : 'POS Checkout Completed!');
+            
+            if (saveAsDraft) {
+                setCart([]);
+                setCustomerId('');
+                setOrderDiscountPercent(0);
+                setIsCartOpen(false);
+                navigate(`/sales-orders/${result.data._id}`);
+            } else {
+                setLastCompletedOrder(result.data);
+                setIsReceiptModalOpen(true);
+                setCart([]);
+                setCustomerId('');
+                setOrderDiscountPercent(0);
+                setAdvancePaidAmount('');
+                setIsCartOpen(false);
+            }
         } catch { }
     };
 
@@ -786,6 +819,10 @@ export default function PosPage() {
                         setBankName={setBankName}
                         chequeStatus={chequeStatus}
                         setChequeStatus={setChequeStatus}
+                        advancePaidAmount={advancePaidAmount}
+                        setAdvancePaidAmount={setAdvancePaidAmount}
+                        advanceMethod={advanceMethod}
+                        setAdvanceMethod={setAdvanceMethod}
                         bankAccounts={bankAccounts}
                     />
                 </div>
@@ -899,6 +936,10 @@ export default function PosPage() {
                             setBankName={setBankName}
                             chequeStatus={chequeStatus}
                             setChequeStatus={setChequeStatus}
+                            advancePaidAmount={advancePaidAmount}
+                            setAdvancePaidAmount={setAdvancePaidAmount}
+                            advanceMethod={advanceMethod}
+                            setAdvanceMethod={setAdvanceMethod}
                             bankAccounts={bankAccounts}
                         />
                     </div>
@@ -918,6 +959,23 @@ export default function PosPage() {
                 isOpen={isCustomerModalOpen}
                 onClose={() => setIsCustomerModalOpen(false)}
                 onCreated={(c) => setCustomerId(c._id)}
+            />
+
+            <PosReceiptPrintModal
+                isOpen={isReceiptModalOpen}
+                onClose={() => setIsReceiptModalOpen(false)}
+                order={lastCompletedOrder}
+                customer={customers.find(c => c._id === (lastCompletedOrder?.customer?._id || lastCompletedOrder?.customer))}
+                paymentDetails={{
+                    paymentMethod,
+                    advancePaidAmount: lastCompletedOrder?.advancePaidAmount,
+                    pendingBalance: lastCompletedOrder?.pendingBalance,
+                }}
+                onNewSale={() => {
+                    setIsReceiptModalOpen(false);
+                    setCart([]);
+                    setCustomerId('');
+                }}
             />
 
             <Modal isOpen={isCloseShiftModalOpen} onClose={() => setIsCloseShiftModalOpen(false)} title="Close Cashier Shift">
@@ -1039,6 +1097,8 @@ function CartPanel({
     chequeDate, setChequeDate,
     bankName, setBankName,
     chequeStatus, setChequeStatus,
+    advancePaidAmount, setAdvancePaidAmount,
+    advanceMethod, setAdvanceMethod,
     bankAccounts,
 }) {
     return (
@@ -1155,18 +1215,24 @@ function CartPanel({
                     {/* Payment Method & Bank Accounts UI */}
                     <div className="space-y-2 pt-2 border-t border-gray-100">
                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Method</span>
-                        <div className="grid grid-cols-4 gap-1">
+                        <div className="grid grid-cols-5 gap-1">
                             {[
                                 { id: 'cash', label: 'Cash' },
                                 { id: 'card', label: 'Card' },
                                 { id: 'bank_transfer', label: 'Bank' },
-                                { id: 'cheque', label: 'Cheque' }
+                                { id: 'cheque', label: 'Cheque' },
+                                { id: 'advance', label: 'Advance' }
                             ].map((pm) => (
                                 <button
                                     key={pm.id}
                                     type="button"
-                                    onClick={() => setPaymentMethod(pm.id)}
-                                    className={`py-1.5 px-1 rounded-xl text-xs font-bold border-2 transition-all flex flex-col items-center justify-center gap-1 ${
+                                    onClick={() => {
+                                        setPaymentMethod(pm.id);
+                                        if (pm.id === 'advance' && (!advancePaidAmount || +advancePaidAmount === 0)) {
+                                            setAdvancePaidAmount((totals.grandTotal * 0.5).toFixed(2));
+                                        }
+                                    }}
+                                    className={`py-1.5 px-0.5 rounded-xl text-[11px] font-bold border-2 transition-all flex flex-col items-center justify-center gap-1 ${
                                         paymentMethod === pm.id
                                             ? 'border-primary-600 bg-primary-50 text-primary-700'
                                             : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
@@ -1176,6 +1242,65 @@ function CartPanel({
                                 </button>
                             ))}
                         </div>
+
+                        {/* Advance Payment UI Section */}
+                        {paymentMethod === 'advance' && (
+                            <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5 my-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-indigo-900">Advance Amount (LKR)</span>
+                                    <div className="flex gap-1">
+                                        {[20, 30, 50, 70, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                type="button"
+                                                onClick={() => setAdvancePaidAmount((totals.grandTotal * (pct / 100)).toFixed(2))}
+                                                className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-100"
+                                            >
+                                                {pct}%
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={totals.grandTotal}
+                                    step="0.01"
+                                    value={advancePaidAmount}
+                                    onChange={(e) => setAdvancePaidAmount(e.target.value)}
+                                    placeholder="Enter advance LKR amount"
+                                    className="w-full px-3 py-2 border border-indigo-300 rounded-xl text-sm font-bold text-indigo-950 font-mono bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+
+                                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-indigo-200/60 font-mono">
+                                    <div>
+                                        <span className="text-gray-500 block text-[10px] font-sans uppercase">Paid Now</span>
+                                        <span className="font-bold text-emerald-700">{fmt(+advancePaidAmount || 0)}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-gray-500 block text-[10px] font-sans uppercase">Balance Due</span>
+                                        <span className="font-bold text-rose-700">{fmt(Math.max(0, totals.grandTotal - (+advancePaidAmount || 0)))}</span>
+                                    </div>
+                                </div>
+
+                                <div className="pt-1">
+                                    <label className="text-[10px] uppercase font-bold text-indigo-700 block mb-1">Paid Via</label>
+                                    <div className="grid grid-cols-4 gap-1 text-[10px]">
+                                        {['cash', 'card', 'bank_transfer', 'cheque'].map((m) => (
+                                            <button
+                                                key={m}
+                                                type="button"
+                                                onClick={() => setAdvanceMethod(m)}
+                                                className={`py-1 rounded font-bold uppercase transition ${advanceMethod === m ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-800 border border-indigo-200'}`}
+                                            >
+                                                {m === 'bank_transfer' ? 'Bank' : m}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Company Account Selector */}
                         {paymentMethod !== 'cash' && (
