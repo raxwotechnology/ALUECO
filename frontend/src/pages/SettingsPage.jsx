@@ -22,6 +22,7 @@ const settingsSchema = z.object({
     currencySymbol: z.string().min(1, 'Symbol required'),
     defaultTaxRate: z.coerce.number().min(0),
     lowStockThreshold: z.coerce.number().min(0),
+    defaultTermsAndConditions: z.string().optional(),
 });
 
 const TABS = [
@@ -419,12 +420,24 @@ export default function SettingsPage() {
                                         />
                                     </div>
 
+                                    <div className="mt-4 mb-6">
+                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                                            Default System Terms &amp; Conditions (One line per term)
+                                        </label>
+                                        <textarea
+                                            rows={4}
+                                            placeholder="Quotation valid for 30 days...&#10;60% advance payment required..."
+                                            {...register('defaultTermsAndConditions')}
+                                            className="w-full pl-3 pr-3 py-2.5 rounded-xl bg-white border text-sm text-gray-800 placeholder-gray-300 outline-none transition-all border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                                        />
+                                    </div>
+
                                     <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex gap-3">
                                         <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-semibold text-emerald-700">Sri Lanka Rupee (LKR)</p>
                                             <p className="text-xs text-emerald-600/70 mt-0.5">
-                                                All quotations, invoices, and cost summaries will use these currency settings system-wide.
+                                                All quotations, invoices, and cost summaries will use these currency and default terms settings system-wide.
                                             </p>
                                         </div>
                                     </div>

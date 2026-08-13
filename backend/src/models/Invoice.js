@@ -138,6 +138,8 @@ const invoiceSchema = new mongoose.Schema({
     internalNotes: String,
     paymentInstructions: String,
     termsAndConditions: String,
+    includeVat: { type: Boolean, default: true },
+    distributeTransportCost: { type: Boolean, default: false },
 
     warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
     stockDeducted: { type: Boolean, default: false },

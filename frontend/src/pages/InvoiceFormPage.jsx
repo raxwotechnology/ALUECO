@@ -26,6 +26,9 @@ export default function InvoiceFormPage() {
     const [notes, setNotes] = useState('');
     const [paymentInstructions, setPaymentInstructions] = useState('');
     const [shippingCost, setShippingCost] = useState(0);
+    const [includeVat, setIncludeVat] = useState(true);
+    const [distributeTransportCost, setDistributeTransportCost] = useState(false);
+    const [termsAndConditions, setTermsAndConditions] = useState('');
     const [items, setItems] = useState([{ productName: '', quantity: 1, unitPrice: 0, taxRate: 18, taxable: true }]);
 
     const { data: customersData } = useQuery({
@@ -105,6 +108,9 @@ export default function InvoiceFormPage() {
                     taxable: i.taxable,
                 })),
                 shippingCost: +shippingCost || 0,
+                includeVat,
+                distributeTransportCost,
+                termsAndConditions: termsAndConditions || undefined,
                 notes: notes || undefined,
                 paymentInstructions: paymentInstructions || undefined,
                 status: 'approved',
@@ -187,8 +193,9 @@ export default function InvoiceFormPage() {
                     </Card>
 
                     <Card className="p-6">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-4">Notes</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 mb-4">Notes &amp; Terms &amp; Conditions</h3>
                         <div className="space-y-4">
+                            <Textarea label="Custom Terms & Conditions (One per line)" rows={3} placeholder="Enter customized Terms & Conditions..." value={termsAndConditions} onChange={(e) => setTermsAndConditions(e.target.value)} />
                             <Textarea label="Invoice Notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
                             <Textarea label="Payment Instructions" rows={2} value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} />
                         </div>
@@ -197,14 +204,41 @@ export default function InvoiceFormPage() {
 
                 <div>
                     <Card className="p-6 sticky top-6">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-4">Summary</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 mb-4">Summary &amp; Options</h3>
                         <div className="space-y-3 text-sm">
                             <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span>{fmt(totals.sub)}</span></div>
                             <div className="flex justify-between"><span className="text-gray-600">Tax</span><span>{fmt(totals.tax)}</span></div>
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-gray-600">Shipping</span>
+                                <span className="text-gray-600">Shipping / Transport</span>
                                 <input type="number" step="0.01" min="0" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)}
                                     className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right" />
+                            </div>
+
+                            <div className="pt-2 border-t space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="invIncludeVat" 
+                                        checked={includeVat} 
+                                        onChange={(e) => setIncludeVat(e.target.checked)} 
+                                        className="w-4 h-4 text-emerald-600 rounded cursor-pointer" 
+                                    />
+                                    <label htmlFor="invIncludeVat" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                        Include 18% VAT
+                                    </label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="invDistributeTransport" 
+                                        checked={distributeTransportCost} 
+                                        onChange={(e) => setDistributeTransportCost(e.target.checked)} 
+                                        className="w-4 h-4 text-emerald-600 rounded cursor-pointer" 
+                                    />
+                                    <label htmlFor="invDistributeTransport" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                        Distribute Shipping into Items
+                                    </label>
+                                </div>
                             </div>
                             <div className="flex justify-between pt-3 border-t font-bold">
                                 <span>Total</span><span className="text-primary-600">{fmt(totals.grand)}</span>

@@ -78,7 +78,9 @@ dotenv.config();
 
 
 connectDB().then(async () => {
-    await seedDefaults();
+    if (process.env.ENABLE_AUTO_SEED === 'true') {
+        await seedDefaults();
+    }
     try {
         // Drop problematic legacy index if it exists
         const { default: PettyCash } = await import('./models/PettyCash.js');
@@ -87,11 +89,12 @@ connectDB().then(async () => {
         await ProductionBatch.collection.dropIndex('batchCode_1').catch(() => {});
         await ProductionBatch.collection.dropIndex('batchNumber_1').catch(() => {});
 
-        
-        const { default: excelService } = await import('./services/excelService.js');
-        await excelService.syncAllFilesToDB();
+        if (process.env.ENABLE_AUTO_SEED === 'true') {
+            const { default: excelService } = await import('./services/excelService.js');
+            await excelService.syncAllFilesToDB();
+        }
     } catch (err) {
-        console.error('[Startup] Excel Sync failed:', err.message);
+        console.error('[Startup] Index drop or Excel Sync error:', err.message);
     }
 });
 

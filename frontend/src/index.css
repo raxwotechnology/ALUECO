@@ -9,34 +9,65 @@ body {
 }
 
 /* Print styles */
+#customer-quotation-view-doc,
+#customer-quotation-view-doc * {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+
 @media print {
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 297mm !important;
+    overflow: hidden !important;
+  }
+
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
 
-  .print-container,
-  .print-container * {
-    visibility: visible;
+  #customer-quotation-view-doc,
+  #customer-quotation-view-doc * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  .print-container {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 20mm;
-    box-shadow: none;
+  #customer-quotation-view-doc {
+    position: absolute !important;
+    left: 50% !important;
+    top: 2mm !important;
+    transform: translateX(-50%) !important;
+    width: 205mm !important;
+    max-width: 205mm !important;
+    height: 285mm !important;
+    max-height: 285mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* Hide app shell when printing */
-  .no-print {
+  /* Hide app shell & action buttons when printing */
+  .no-print,
+  header,
+  nav,
+  aside,
+  button {
     display: none !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 0mm;
   }
 }
 

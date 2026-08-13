@@ -238,8 +238,8 @@ const QuotationsPage = () => {
 
         const pageWidth = doc.internal.pageSize.width;
         
-        // 1. Header (Primary Accent)
-        doc.setFillColor(79, 70, 229); // Indigo 600
+        // 1. Header (Primary Accent: Dark Green)
+        doc.setFillColor(6, 78, 59); // Dark Green #064E3B
         doc.rect(0, 0, pageWidth, 40, 'F');
 
         let textLeftX = 14;
@@ -273,16 +273,16 @@ const QuotationsPage = () => {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text((settings?.companyName || 'EXPORT LANKA').toUpperCase(), textLeftX, 17);
+        doc.text((settings?.companyName || 'ALUECO ALUMINIUM SYSTEMS').toUpperCase(), textLeftX, 17);
         
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(settings?.companyAddress || 'Colombo, Sri Lanka', textLeftX, 23);
+        doc.text(settings?.companyAddress || 'No. 123, Negoda Road, Weliweriya, Sri Lanka.', textLeftX, 23);
         
         const contactInfo = [
-            settings?.companyPhone ? `Tel: ${settings.companyPhone}` : '',
-            settings?.companyEmail ? `Email: ${settings.companyEmail}` : ''
-        ].filter(Boolean).join(' | ') || 'info@exportlanka.com';
+            settings?.companyPhone ? `Tel: ${settings.companyPhone}` : 'Tel: 0777 140 680',
+            settings?.companyEmail ? `Email: ${settings.companyEmail}` : 'Email: info@alueco.lk'
+        ].join(' | ');
         doc.text(contactInfo, textLeftX, 28);
 
         doc.setFontSize(18);
@@ -295,11 +295,12 @@ const QuotationsPage = () => {
         doc.text(`Status: ${(quote.status || 'draft').toUpperCase()}`, textRightX, 29, { align: 'right' });
 
         // 2. Client Details & Date details
-        doc.setTextColor(50, 50, 50);
+        doc.setTextColor(6, 78, 59);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.text('QUOTED TO (CLIENT)', 14, 52);
         
+        doc.setTextColor(50, 50, 50);
         doc.setFont('helvetica', 'normal');
         doc.text([
             quote.customerName || quote.customerId?.companyName || 'Walk-in Client',
@@ -308,9 +309,11 @@ const QuotationsPage = () => {
             quote.customerAddress ? `Address: ${quote.customerAddress}` : ''
         ].filter(Boolean), 14, 58);
 
+        doc.setTextColor(6, 78, 59);
         doc.setFont('helvetica', 'bold');
         doc.text('QUOTE METADATA', pageWidth - 14, 52, { align: 'right' });
         
+        doc.setTextColor(50, 50, 50);
         doc.setFont('helvetica', 'normal');
         doc.text([
             `Expiry Date: ${quote.expiryDate ? new Date(quote.expiryDate).toLocaleDateString('en-LK') : 'No Expiry'}`,
@@ -336,8 +339,8 @@ const QuotationsPage = () => {
             startY: 85,
             head: [columns],
             body: rows,
-            theme: 'striped',
-            headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
+            theme: 'grid',
+            headStyles: { fillColor: [6, 78, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
             columnStyles: {
                 0: { width: 10 },
                 2: { halign: 'right' },
@@ -348,29 +351,32 @@ const QuotationsPage = () => {
         });
 
         const finalY = doc.lastAutoTable.finalY + 10;
+        const summaryX = pageWidth - 95;
 
-        // 4. Totals (Right side)
-        const summaryX = pageWidth - 90;
-        doc.setFontSize(10);
-        
+        // Sums as per User requirement
+        const subtotal = quote.grandTotal || quote.totalAmount || 0;
+        const vat = subtotal * 0.18; // 18% VAT
+        const finalTotal = subtotal + vat;
+
+        doc.setFontSize(8.5);
         doc.setFont('helvetica', 'normal');
-        doc.text('Subtotal:', summaryX, finalY);
-        doc.text(quote.totalAmount.toLocaleString('en-LK', { minimumFractionDigits: 2 }), pageWidth - 14, finalY, { align: 'right' });
+        doc.text('Sub Total (Inclusive of Transport & Labour):', summaryX, finalY);
+        doc.text(`LKR ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY, { align: 'right' });
 
-        if (quote.discount > 0) {
-            doc.text('Discount:', summaryX, finalY + 6);
-            doc.text(`-${quote.discount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + 6, { align: 'right' });
-        }
+        doc.text('VAT (18%):', summaryX, finalY + 6);
+        doc.text(`LKR ${vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + 6, { align: 'right' });
 
-        if (quote.tax > 0) {
-            doc.text('Tax:', summaryX, finalY + (quote.discount > 0 ? 12 : 6));
-            doc.text(quote.tax.toLocaleString('en-LK', { minimumFractionDigits: 2 }), pageWidth - 14, finalY + (quote.discount > 0 ? 12 : 6), { align: 'right' });
-        }
-
-        const grandTotalY = finalY + (quote.discount > 0 ? (quote.tax > 0 ? 18 : 12) : (quote.tax > 0 ? 12 : 6));
+        // Highlight Box for Final Total
+        doc.setFillColor(6, 78, 59);
+        doc.rect(summaryX - 4, finalY + 11, pageWidth - summaryX + 18, 12, 'F');
+        doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.text('Grand Total (LKR):', summaryX, grandTotalY);
-        doc.text(quote.grandTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 }), pageWidth - 14, grandTotalY, { align: 'right' });
+        doc.setFontSize(9);
+        doc.text('FINAL QUOTATION VALUE (Including VAT):', summaryX, finalY + 18);
+        doc.text(`LKR ${finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + 18, { align: 'right' });
+
+        // 5. Notes
+        const grandTotalY = finalY + 25;
 
         // 5. Notes
         if (quote.notes) {

@@ -22,10 +22,13 @@ const AluQuotationFormPage = () => {
         validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         items: [{ applicationType: '', configuration: '', width: 2400, height: 2100, quantity: 1 }],
         transportCost: 0,
+        includeVat: true,
+        distributeTransportCost: false,
         additionalCosts: [],
         profitMarginPercent: 20,
         discount: 0,
         manualAdjustment: 0,
+        termsAndConditions: '',
         terms: [
             'This quotation is valid for 30 days from date of issue.',
             '60% advance payment is required to proceed with fabrication.',
@@ -73,10 +76,13 @@ const AluQuotationFormPage = () => {
                             panelArrangement: item.panelArrangement
                         })),
                         transportCost: q.transportCost || 0,
+                        includeVat: q.includeVat !== undefined ? q.includeVat : true,
+                        distributeTransportCost: q.distributeTransportCost !== undefined ? q.distributeTransportCost : false,
                         additionalCosts: q.additionalCosts || [],
                         profitMarginPercent: q.profitMarginPercent || 20,
                         discount: q.discount || 0,
                         manualAdjustment: q.manualAdjustment || 0,
+                        termsAndConditions: q.termsAndConditions || '',
                         terms: q.terms?.length ? q.terms : formData.terms,
                         checklist: q.checklist?.length ? q.checklist : formData.checklist
                     });
@@ -331,6 +337,20 @@ const AluQuotationFormPage = () => {
                             <label className="block text-sm font-semibold text-slate-600 mb-1">Transport Cost (LKR)</label>
                             <input type="number" value={formData.transportCost} onChange={e => setFormData({ ...formData, transportCost: Number(e.target.value) })} className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-indigo-600" />
                         </div>
+
+                        {/* Transport cost distribution checkbox */}
+                        <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-center gap-2">
+                            <input 
+                                type="checkbox" 
+                                id="distributeTransportCost"
+                                checked={formData.distributeTransportCost} 
+                                onChange={e => setFormData({ ...formData, distributeTransportCost: e.target.checked })} 
+                                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" 
+                            />
+                            <label htmlFor="distributeTransportCost" className="text-xs font-bold text-emerald-950 cursor-pointer select-none">
+                                Automatically Distribute Transport Cost into Item Rates (Hide separate Transport Line)
+                            </label>
+                        </div>
                         
                         {formData.additionalCosts.map((ac, idx) => (
                             <div key={idx} className="flex gap-2 items-center">
@@ -346,9 +366,9 @@ const AluQuotationFormPage = () => {
                     </div>
                 </div>
 
-                {/* Profit Margin & Adjustments */}
+                {/* Profit Margin & Tax / Adjustments */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                    <h3 className="text-lg font-bold text-slate-800">4. Margin & Pricing Adjustments</h3>
+                    <h3 className="text-lg font-bold text-slate-800">4. Margin, Tax &amp; Pricing Adjustments</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-semibold text-slate-600 mb-1">Profit Margin (%)</label>
@@ -358,6 +378,21 @@ const AluQuotationFormPage = () => {
                             <label className="block text-sm font-semibold text-slate-600 mb-1">Special Discount (LKR)</label>
                             <input type="number" value={formData.discount} onChange={e => setFormData({ ...formData, discount: Number(e.target.value) })} className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-indigo-600" />
                         </div>
+
+                        {/* Include VAT Checkbox */}
+                        <div className="md:col-span-2 p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl flex items-center gap-2">
+                            <input 
+                                type="checkbox" 
+                                id="includeVat"
+                                checked={formData.includeVat} 
+                                onChange={e => setFormData({ ...formData, includeVat: e.target.checked })} 
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer" 
+                            />
+                            <label htmlFor="includeVat" className="text-xs font-bold text-indigo-950 cursor-pointer select-none">
+                                Include 18% VAT (Value Added Tax) on Quotation Summary
+                            </label>
+                        </div>
+
                         <div className="md:col-span-2">
                             <label className="block text-sm font-semibold text-slate-600 mb-1">Manual Price Adjustment / Buffer (+/- LKR)</label>
                             <input type="number" placeholder="e.g. -5000 or 12000" value={formData.manualAdjustment} onChange={e => setFormData({ ...formData, manualAdjustment: Number(e.target.value) })} className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-indigo-600" />
@@ -371,7 +406,18 @@ const AluQuotationFormPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-t pt-6">
                 {/* Terms and conditions */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-                    <h3 className="text-lg font-bold text-slate-800">5. Terms & Conditions</h3>
+                    <h3 className="text-lg font-bold text-slate-800">5. Terms &amp; Conditions (Customizable)</h3>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">Custom Terms Paragraph / Lines (Enter each term on a new line)</label>
+                        <textarea
+                            rows={4}
+                            placeholder="Enter custom terms and conditions here..."
+                            value={formData.termsAndConditions}
+                            onChange={e => setFormData({ ...formData, termsAndConditions: e.target.value })}
+                            className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 mb-3"
+                        />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">Individual Bullet Point Terms:</p>
                     {formData.terms.map((term, idx) => (
                         <div key={idx} className="flex gap-2">
                             <span className="text-sm font-semibold text-slate-400 mt-2">{idx + 1}.</span>

@@ -28,6 +28,10 @@ const settingsSchema = new mongoose.Schema({
         type: Number,
         default: 10
     },
+    defaultTermsAndConditions: {
+        type: String,
+        default: ''
+    },
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'

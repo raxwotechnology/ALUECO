@@ -95,6 +95,9 @@ const aluQuotationSchema = new mongoose.Schema({
     
     checklist: [{ type: String }],
     terms: [{ type: String }],
+    termsAndConditions: { type: String, default: '' },
+    includeVat: { type: Boolean, default: true },
+    distributeTransportCost: { type: Boolean, default: false },
     
     discountStatus: { 
         type: String, 

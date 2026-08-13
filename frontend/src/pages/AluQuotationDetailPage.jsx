@@ -7,7 +7,10 @@ import { format } from 'date-fns';
 import Button from '../components/ui/Button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import { useSettings } from '../features/settings/useSettings';
+
+import CustomerQuotationView from '../components/aluminium/CustomerQuotationView';
 
 const AluQuotationDetailPage = () => {
     const { id } = useParams();
@@ -19,12 +22,20 @@ const AluQuotationDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [selectedProfileCode, setSelectedProfileCode] = useState(null);
     const [selectedGlassType, setSelectedGlassType] = useState(null);
+    const [viewMode, setViewMode] = useState('customer'); // 'customer' or 'internal'
+    const [includeVat, setIncludeVat] = useState(true);
+    const [distributeTransportCost, setDistributeTransportCost] = useState(false);
+    const [customTerms, setCustomTerms] = useState('');
 
     useEffect(() => {
         const fetchQuotation = async () => {
             try {
                 const { data } = await api.get(`/alu/quotations/${id}`);
-                setQuotation(data.data);
+                const q = data.data;
+                setQuotation(q);
+                if (q.includeVat !== undefined) setIncludeVat(q.includeVat);
+                if (q.distributeTransportCost !== undefined) setDistributeTransportCost(q.distributeTransportCost);
+                if (q.termsAndConditions) setCustomTerms(q.termsAndConditions);
                 
                 // Set default selected profile for visual optimization layout
                 const optKeys = Object.keys(data.data.cuttingOptimizationResults || {});
@@ -46,187 +57,94 @@ const AluQuotationDetailPage = () => {
         fetchQuotation();
     }, [id]);
 
-    const handleDownloadCustomerPDF = () => {
+    const handleDownloadCustomerPDF = async () => {
         if (!quotation) return;
-        
-        const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
 
-        const pageWidth = doc.internal.pageSize.width;
-        
-        // Header styling
-        doc.setFillColor(15, 118, 110); // Teal 700
-        doc.rect(0, 0, pageWidth, 40, 'F');
+        if (viewMode !== 'customer') {
+            setViewMode('customer');
+            await new Promise((r) => setTimeout(r, 250));
+        }
 
-        let textLeftX = 14;
-        // Primary System Logo (Left)
-        if (settings?.companyLogo) {
-            try {
-                doc.addImage(settings.companyLogo, 'PNG', 14, 6, 26, 26);
-                textLeftX = 44;
-            } catch (e) {
-                try {
-                    doc.addImage(settings.companyLogo, 'JPEG', 14, 6, 26, 26);
-                    textLeftX = 44;
-                } catch (err) {}
+        const element = document.getElementById('customer-quotation-view-doc');
+        if (!element) {
+            toast.error('Quotation view element not ready');
+            return;
+        }
+
+        try {
+            const toastId = toast.loading('Generating PDF...');
+
+            const canvas = await html2canvas(element, {
+                scale: 3,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                allowTaint: true,
+                onclone: (clonedDoc) => {
+                    clonedDoc.querySelectorAll('[data-pdf-badge="main"]').forEach(el => {
+                        el.style.paddingTop = '1px';
+                        el.style.paddingBottom = '6px';
+                        el.style.lineHeight = '1';
+                    });
+                    clonedDoc.querySelectorAll('[data-pdf-badge="card"]').forEach(el => {
+                        el.style.paddingTop = '1px';
+                        el.style.paddingBottom = '5px';
+                        el.style.lineHeight = '1';
+                    });
+                    clonedDoc.querySelectorAll('[data-pdf-badge="circle"]').forEach(el => {
+                        el.style.paddingTop = '0px';
+                        el.style.paddingBottom = '4px';
+                        el.style.lineHeight = '1';
+                    });
+                    clonedDoc.querySelectorAll('[data-pdf-badge="seal"]').forEach(el => {
+                        el.style.paddingTop = '1px';
+                        el.style.paddingBottom = '4px';
+                        el.style.lineHeight = '1';
+                    });
+                }
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const pdfPageW = pdf.internal.pageSize.getWidth();   // 210mm
+            const pdfPageH = pdf.internal.pageSize.getHeight();  // 297mm
+
+            // Calculate natural height of image at full A4 width
+            const naturalH = (canvas.height * pdfPageW) / canvas.width;
+
+            if (naturalH <= pdfPageH) {
+                // Fits on one page — place at full width
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfPageW, naturalH);
+            } else {
+                // Content taller than A4 — scale down proportionally to fit
+                const scaleFactor = pdfPageH / naturalH;
+                const scaledW = pdfPageW * scaleFactor;
+                const xOffset = (pdfPageW - scaledW) / 2; // centre horizontally
+                pdf.addImage(imgData, 'PNG', xOffset, 0, scaledW, pdfPageH);
             }
+
+            pdf.save(`ALUECO_Customer_Quotation_${quotation.quoteNumber}.pdf`);
+            toast.success('PDF Downloaded Successfully!', { id: toastId });
+        } catch (err) {
+            console.error('PDF export error:', err);
+            toast.error('Failed to export PDF');
+        }
+    };
+
+    const handlePrintCustomerPDF = async () => {
+        if (!quotation) return;
+
+        if (viewMode !== 'customer') {
+            setViewMode('customer');
+            await new Promise((r) => setTimeout(r, 200));
         }
 
-        let textRightX = pageWidth - 14;
-        // Secondary Logo (Right)
-        if (settings?.secondaryLogo) {
-            try {
-                doc.addImage(settings.secondaryLogo, 'PNG', pageWidth - 38, 6, 24, 24);
-                textRightX = pageWidth - 42;
-            } catch (e) {
-                try {
-                    doc.addImage(settings.secondaryLogo, 'JPEG', pageWidth - 38, 6, 24, 24);
-                    textRightX = pageWidth - 42;
-                } catch (err) {}
-            }
-        }
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text((settings?.companyName || 'ALUECO ALUMINIUM SYSTEMS').toUpperCase(), textLeftX, 17);
-        
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text(settings?.companyAddress || 'No. 123, Negoda Road, Weliweriya, Sri Lanka', textLeftX, 23);
-        
-        const contactLine = [
-            settings?.companyPhone ? `Tel: ${settings.companyPhone}` : '',
-            settings?.companyEmail ? `Email: ${settings.companyEmail}` : ''
-        ].filter(Boolean).join(' | ') || 'Tel: 0777 140 680 | Email: info@alueco.lk';
-        doc.text(contactLine, textLeftX, 28);
-
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('QUOTATION', textRightX, 17, { align: 'right' });
-        
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Quote No: ${quotation.quoteNumber}-Rev${String(quotation.version).padStart(2, '0')}`, textRightX, 23, { align: 'right' });
-        doc.text(`Date: ${format(new Date(quotation.date), 'dd MMM yyyy')}`, textRightX, 28, { align: 'right' });
-        doc.text(`Valid Till: ${format(new Date(quotation.validTill), 'dd MMM yyyy')}`, textRightX, 33, { align: 'right' });
-
-        // Metadata grid
-        doc.setTextColor(50, 50, 50);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text('CUSTOMER DETAILS', 14, 52);
-        doc.setFont('helvetica', 'normal');
-        doc.text([
-            `Name: ${quotation.customerName}`,
-            `Location: ${quotation.location || 'N/A'}`,
-            `Date: ${format(new Date(quotation.date), 'yyyy-MM-dd')}`
-        ], 14, 58);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('PROJECT DETAILS', pageWidth / 2, 52);
-        doc.setFont('helvetica', 'normal');
-        doc.text([
-            `Project: ${quotation.projectName}`,
-            `Payment Terms: 60% Advance, 40% Completion`,
-            `Prepared By: ${quotation.preparedBy}`
-        ], pageWidth / 2, 58);
-
-        // Main items table
-        const columns = ['No.', 'Application', 'Description', 'Width (mm)', 'Height (mm)', 'Qty', 'Unit Rate (LKR)', 'Total (LKR)'];
-        const rows = quotation.items.map((item, idx) => [
-            idx + 1,
-            item.applicationType,
-            item.configuration,
-            item.width,
-            item.height,
-            item.quantity,
-            item.unitPrice.toLocaleString('en-LK', { minimumFractionDigits: 2 }),
-            item.totalPrice.toLocaleString('en-LK', { minimumFractionDigits: 2 })
-        ]);
-
-        autoTable(doc, {
-            startY: 78,
-            head: [columns],
-            body: rows,
-            theme: 'striped',
-            headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
-            columnStyles: {
-                0: { width: 10 },
-                3: { halign: 'right' },
-                4: { halign: 'right' },
-                5: { halign: 'right' },
-                6: { halign: 'right' },
-                7: { halign: 'right', fontStyle: 'bold' }
-            },
-            margin: { left: 14, right: 14 }
-        });
-
-        const finalY = doc.lastAutoTable.finalY + 8;
-        const summaryX = pageWidth - 90;
-        
-        // Sums
-        const subtotal = quotation.items.reduce((s, item) => s + item.totalPrice, 0);
-        const transport = quotation.transportCost;
-        const additional = quotation.additionalCosts.reduce((s, a) => s + a.cost, 0);
-        const discount = quotation.discount;
-        const subTotalExcludingTax = subtotal + transport + additional - discount;
-        const vat = subTotalExcludingTax * 0.18; // default 18% VAT
-        const finalValue = subTotalExcludingTax + vat;
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Sub Total:', summaryX, finalY);
-        doc.text(`LKR ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY, { align: 'right' });
-
-        doc.text('Transport:', summaryX, finalY + 5);
-        doc.text(`LKR ${transport.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + 5, { align: 'right' });
-
-        if (additional > 0) {
-            doc.text('Other Charges:', summaryX, finalY + 10);
-            doc.text(`LKR ${additional.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + 10, { align: 'right' });
-        }
-        
-        const discountOffset = additional > 0 ? 15 : 10;
-        if (discount > 0) {
-            doc.text('Discount:', summaryX, finalY + discountOffset);
-            doc.text(`-LKR ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + discountOffset, { align: 'right' });
-        }
-        
-        const vatOffset = discountOffset + (discount > 0 ? 5 : 0);
-        doc.text('VAT (18%):', summaryX, finalY + vatOffset + 5);
-        doc.text(`LKR ${vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + vatOffset + 5, { align: 'right' });
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('FINAL QUOTATION VALUE:', summaryX, finalY + vatOffset + 12);
-        doc.text(`LKR ${finalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, pageWidth - 14, finalY + vatOffset + 12, { align: 'right' });
-
-        // Left checklist/terms
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('THIS QUOTATION INCLUDES', 14, finalY);
-        doc.setFont('helvetica', 'normal');
-        const checklistTexts = quotation.checklist.map(c => `[x] ${c}`);
-        doc.text(checklistTexts, 14, finalY + 5, { maxWidth: 100 });
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('TERMS & CONDITIONS', 14, finalY + 32);
-        doc.setFont('helvetica', 'normal');
-        const termsTexts = quotation.terms.map((t, i) => `${i + 1}. ${t}`);
-        doc.text(termsTexts, 14, finalY + 37, { maxWidth: 100 });
-
-        // Signatures
-        const bottomY = doc.internal.pageSize.height - 25;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, bottomY, 64, bottomY);
-        doc.line(pageWidth - 64, bottomY, pageWidth - 14, bottomY);
-        doc.text('Authorised Signature', 39, bottomY + 4, { align: 'center' });
-        doc.text('Customer Acceptance Signature', pageWidth - 39, bottomY + 4, { align: 'center' });
-
-        doc.save(`ALUECO_Quotation_${quotation.quoteNumber}_Rev${quotation.version}.pdf`);
+        window.print();
     };
 
     const handleDownloadInternalPDF = () => {
@@ -381,33 +299,102 @@ const AluQuotationDetailPage = () => {
         return <div className="text-center py-20 text-slate-500 font-semibold">Quotation not found.</div>;
     }
 
-    const additionalCostSum = quotation.additionalCosts.reduce((s, a) => s + a.cost, 0);
-    const subtotalCost = quotation.totalAluminiumCost + quotation.totalGlassCost + quotation.totalAccessoriesCost + quotation.totalLabourCost + quotation.transportCost + additionalCostSum;
+    const additionalCostSum = (quotation.additionalCosts || []).reduce((s, a) => s + (a?.cost || 0), 0);
+    const subtotalCost = (quotation.totalAluminiumCost || 0) + (quotation.totalGlassCost || 0) + (quotation.totalAccessoriesCost || 0) + (quotation.totalLabourCost || 0) + (quotation.transportCost || 0) + additionalCostSum;
 
-    const selectedProfileOpt = quotation.cuttingOptimizationResults[selectedProfileCode];
+    const selectedProfileOpt = (quotation.cuttingOptimizationResults && selectedProfileCode) ? quotation.cuttingOptimizationResults[selectedProfileCode] : null;
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* Top Toolbar Actions */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
-                <h1 className="text-xl font-bold text-slate-800">Material List (Internal)</h1>
+            <div className="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/alu/quotations')}
+                        className="flex items-center gap-2 bg-[#064E3B] hover:bg-emerald-900 text-white font-black py-2 px-4 rounded-xl text-xs shadow-md transition-all cursor-pointer border border-emerald-800"
+                    >
+                        <ArrowLeft size={16} className="text-white" /> Back to Quotations
+                    </button>
+
+                    {/* View Mode Toggle Switch */}
+                    <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200">
+                        <button
+                            onClick={() => setViewMode('customer')}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                viewMode === 'customer'
+                                    ? 'bg-[#064E3B] text-white shadow-sm'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Customer Quotation View (Official)
+                        </button>
+                        <button
+                            onClick={() => setViewMode('internal')}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                viewMode === 'internal'
+                                    ? 'bg-slate-900 text-white shadow-sm'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            Internal Material List &amp; Costing
+                        </button>
+                    </div>
+
+                    {/* Options Toggles */}
+                    {viewMode === 'customer' && (
+                        <div className="flex items-center gap-3 text-xs font-semibold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={includeVat}
+                                    onChange={(e) => setIncludeVat(e.target.checked)}
+                                    className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                                />
+                                <span>Include 18% VAT</span>
+                            </label>
+
+                            <span className="text-slate-300">|</span>
+
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={distributeTransportCost}
+                                    onChange={(e) => setDistributeTransportCost(e.target.checked)}
+                                    className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                                />
+                                <span>Distribute Transport into Items</span>
+                            </label>
+                        </div>
+                    )}
+                </div>
+
                 <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => navigate('/alu/quotations')} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3.5 rounded-lg text-xs transition">
-                        <ArrowLeft size={14} /> Back to Quotation
+                    <Button onClick={handleDownloadInternalPDF} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
+                        <FileSpreadsheet size={14} /> Export Internal Costing
                     </Button>
-                    <Button onClick={handleDownloadInternalPDF} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-sm transition">
-                        <FileSpreadsheet size={14} /> Export Excel
+                    <Button onClick={handleDownloadCustomerPDF} className="flex items-center gap-1.5 bg-[#064E3B] hover:bg-emerald-900 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
+                        <Download size={14} /> Export Customer PDF
                     </Button>
-                    <Button onClick={handleDownloadCustomerPDF} className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-sm transition">
-                        <Download size={14} /> Export PDF
-                    </Button>
-                    <Button onClick={() => window.print()} className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-sm transition">
+                    <Button onClick={handlePrintCustomerPDF} className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
                         <Printer size={14} /> Print
                     </Button>
                 </div>
             </div>
 
-            {/* Quotation Metadata Panel */}
+            {/* CONDITIONAL VIEW RENDER */}
+            {viewMode === 'customer' ? (
+                <CustomerQuotationView 
+                    quotation={quotation} 
+                    settings={settings} 
+                    options={{
+                        includeVat,
+                        distributeTransportCost,
+                        customTerms
+                    }}
+                />
+            ) : (
+                <>
+                    {/* Quotation Metadata Panel */}
             <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-stretch gap-6">
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-6 flex-1">
                     <div>
@@ -520,18 +507,26 @@ const AluQuotationDetailPage = () => {
 
                         {/* Totals aggregate block */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            {[
-                                { label: 'Total Purchased Length', val: `${Object.values(quotation.cuttingOptimizationResults).reduce((s, p) => s + p.purchasedLengthMm, 0).toLocaleString()} mm` },
-                                { label: 'Total Used Length', val: `${Object.values(quotation.cuttingOptimizationResults).reduce((s, p) => s + p.usedLengthMm, 0).toLocaleString()} mm` },
-                                { label: 'Total Waste Length', val: `${Object.values(quotation.cuttingOptimizationResults).reduce((s, p) => s + p.wasteLengthMm, 0).toLocaleString()} mm` },
-                                { label: 'Overall Waste %', val: `${(Object.values(quotation.cuttingOptimizationResults).reduce((s, p) => s + p.wasteLengthMm, 0) / Object.values(quotation.cuttingOptimizationResults).reduce((s, p) => s + p.purchasedLengthMm, 0) * 100).toFixed(1)}%` },
-                                { label: 'Total Aluminium Cost', val: `LKR ${quotation.totalAluminiumCost.toLocaleString()}`, highlight: true }
-                            ].map((agg, idx) => (
-                                <div key={idx}>
-                                    <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">{agg.label}</span>
-                                    <span className={`text-xs font-black mt-1 ${agg.highlight ? 'text-emerald-600' : 'text-slate-700'}`}>{agg.val}</span>
-                                </div>
-                            ))}
+                            {(() => {
+                                const cutOpts = Object.values(quotation.cuttingOptimizationResults || {});
+                                const totalPurchased = cutOpts.reduce((s, p) => s + (p.purchasedLengthMm || 0), 0);
+                                const totalUsed = cutOpts.reduce((s, p) => s + (p.usedLengthMm || 0), 0);
+                                const totalWaste = cutOpts.reduce((s, p) => s + (p.wasteLengthMm || 0), 0);
+                                const overallWastePct = totalPurchased > 0 ? ((totalWaste / totalPurchased) * 100).toFixed(1) : '0.0';
+
+                                return [
+                                    { label: 'Total Purchased Length', val: `${totalPurchased.toLocaleString()} mm` },
+                                    { label: 'Total Used Length', val: `${totalUsed.toLocaleString()} mm` },
+                                    { label: 'Total Waste Length', val: `${totalWaste.toLocaleString()} mm` },
+                                    { label: 'Overall Waste %', val: `${overallWastePct}%` },
+                                    { label: 'Total Aluminium Cost', val: `LKR ${(quotation.totalAluminiumCost || 0).toLocaleString()}`, highlight: true }
+                                ].map((agg, idx) => (
+                                    <div key={idx}>
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">{agg.label}</span>
+                                        <span className={`text-xs font-black mt-1 ${agg.highlight ? 'text-emerald-600' : 'text-slate-700'}`}>{agg.val}</span>
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     </div>
 
@@ -821,6 +816,8 @@ const AluQuotationDetailPage = () => {
                     Note: This is an internal material list. Prices and costs are not visible in the customer quotation PDF.
                 </p>
             </div>
+                </>
+            )}
         </div>
     );
 };
