@@ -500,15 +500,19 @@ export default function CustomerQuotationView({
                     </ul>
                 </div>
 
-                {/* Signatures & Seal (Dedicated Vertical Height for Physical Signing) */}
-                <div className="pt-3 flex flex-row justify-between items-end gap-4 border-t border-slate-100">
+                {/* Signatures & Seal (Dedicated Vertical Height for Physical Signing & Dating) */}
+                <div className="pt-2 flex flex-row justify-between items-end gap-4 border-t border-slate-100">
                     
                     {/* Customer Signature Space */}
-                    <div className="w-48 text-center">
-                        <div className="border-b border-slate-400 mb-1 h-14 flex items-end justify-center pb-1">
+                    <div className="w-48 text-center space-y-1">
+                        <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1">
                             <span className="text-[9px] text-slate-300 italic">Sign Here</span>
                         </div>
                         <p className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide">Customer Signature</p>
+                        <div className="flex justify-between items-center text-[9px] text-slate-600 pt-0.5 border-t border-dashed border-slate-200">
+                            <span className="font-semibold text-slate-500">Date :</span>
+                            <span className="border-b border-slate-400 w-32 inline-block"></span>
+                        </div>
                     </div>
 
                     {/* Thank You Note */}
@@ -519,11 +523,15 @@ export default function CustomerQuotationView({
                     </div>
 
                     {/* Authorised Signature Space */}
-                    <div className="w-48 text-center">
-                        <div className="border-b border-slate-400 mb-1 h-14 flex items-end justify-center pb-1">
+                    <div className="w-48 text-center space-y-1">
+                        <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1">
                             <span className="font-serif italic text-slate-500 text-[10px]">ALUECO Authorised Signature</span>
                         </div>
                         <p className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide">Authorised Signature</p>
+                        <div className="flex justify-between items-center text-[9px] text-slate-600 pt-0.5 border-t border-dashed border-slate-200">
+                            <span className="font-semibold text-slate-500">Date :</span>
+                            <span className="border-b border-slate-400 w-32 inline-block"></span>
+                        </div>
                     </div>
                 </div>
 
