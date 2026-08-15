@@ -9,7 +9,19 @@ import AluSurvey from '../models/AluSurvey.js';
 
 // === ALU PROFILES ===
 export const getProfiles = asyncHandler(async (req, res) => {
-    const profiles = await AluProfile.find({}).sort({ profileCode: 1 });
+    let profiles = await AluProfile.find({}).sort({ profileCode: 1 });
+    if (profiles.length === 0) {
+        profiles = await AluProfile.insertMany([
+            { profileCode: 'SD1001', description: 'Outer Frame (Track/Frame)', supplier: 'Swisstek', standardLengths: [{ lengthMm: 2134, price: 1500 }, { lengthMm: 3658, price: 2500 }, { lengthMm: 4877, price: 3300 }, { lengthMm: 5800, price: 3950 }] },
+            { profileCode: 'SD1002', description: 'Sash Profile', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3048, price: 2200 }, { lengthMm: 3658, price: 2600 }, { lengthMm: 4877, price: 3400 }, { lengthMm: 5800, price: 4100 }] },
+            { profileCode: 'SD1003', description: 'Interlock Profile', supplier: 'Swisstek', standardLengths: [{ lengthMm: 2134, price: 1600 }, { lengthMm: 3658, price: 2700 }, { lengthMm: 5800, price: 4200 }] },
+            { profileCode: 'SD1004', description: 'Bottom Track', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3048, price: 2100 }, { lengthMm: 4877, price: 3200 }, { lengthMm: 5800, price: 3800 }] },
+            { profileCode: 'SD1005', description: 'Top Track', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3048, price: 2100 }, { lengthMm: 4877, price: 3200 }, { lengthMm: 5800, price: 3800 }] },
+            { profileCode: 'CA5401', description: 'Outer Frame - Casement', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3658, price: 2800 }, { lengthMm: 4877, price: 3700 }, { lengthMm: 5800, price: 4400 }] },
+            { profileCode: 'CA5402', description: 'Sash Frame - Casement', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3658, price: 2900 }, { lengthMm: 4877, price: 3800 }, { lengthMm: 5800, price: 4500 }] },
+            { profileCode: 'FD6011', description: 'Glass Clip (Beading)', supplier: 'Swisstek', standardLengths: [{ lengthMm: 3658, price: 800 }, { lengthMm: 5800, price: 1250 }] }
+        ]);
+    }
     res.json({ success: true, data: profiles });
 });
 
@@ -38,7 +50,16 @@ export const deleteProfile = asyncHandler(async (req, res) => {
 
 // === ALU GLASS ===
 export const getGlass = asyncHandler(async (req, res) => {
-    const glass = await AluGlass.find({}).sort({ typeName: 1 });
+    let glass = await AluGlass.find({}).sort({ typeName: 1 });
+    if (glass.length === 0) {
+        glass = await AluGlass.insertMany([
+            { typeName: '5mm Tempered Clear', thickness: '5mm', ratePerSqFt: 350, ratePerSqM: 3767, temperingCharge: 100, processingCharge: 50 },
+            { typeName: '5mm Clear Float', thickness: '5mm', ratePerSqFt: 220, ratePerSqM: 2368, temperingCharge: 0, processingCharge: 30 },
+            { typeName: '6mm Tempered Clear', thickness: '6mm', ratePerSqFt: 450, ratePerSqM: 4843, temperingCharge: 120, processingCharge: 60 },
+            { typeName: '5mm Tinted Dark Grey', thickness: '5mm', ratePerSqFt: 280, ratePerSqM: 3013, temperingCharge: 0, processingCharge: 40 },
+            { typeName: '8mm Tempered Clear', thickness: '8mm', ratePerSqFt: 580, ratePerSqM: 6243, temperingCharge: 150, processingCharge: 80 }
+        ]);
+    }
     res.json({ success: true, data: glass });
 });
 
@@ -67,7 +88,18 @@ export const deleteGlass = asyncHandler(async (req, res) => {
 
 // === ALU ACCESSORIES ===
 export const getAccessories = asyncHandler(async (req, res) => {
-    const accessories = await AluAccessory.find({}).sort({ code: 1 });
+    let accessories = await AluAccessory.find({}).sort({ code: 1 });
+    if (accessories.length === 0) {
+        accessories = await AluAccessory.insertMany([
+            { code: 'ACC001', name: 'Roller Heavy Duty Double', brand: 'Kinlong', unit: 'Nos', purchaseRate: 350, sellingRate: 450 },
+            { code: 'ACC002', name: 'Handle C-Groove Flush Lock', brand: 'Kinlong', unit: 'Nos', purchaseRate: 600, sellingRate: 850 },
+            { code: 'ACC003', name: 'Multi-Point Security Lock', brand: 'Kinlong', unit: 'Nos', purchaseRate: 550, sellingRate: 750 },
+            { code: 'ACC004', name: 'Wool Pile Weatherstrip (per m)', brand: 'BP', unit: 'm', purchaseRate: 60, sellingRate: 100 },
+            { code: 'ACC005', name: 'DOWSIL Weatherproof Silicone Tube', brand: 'DOWSIL', unit: 'Nos', purchaseRate: 800, sellingRate: 1200 },
+            { code: 'ACC006', name: 'Friction Stay / Hinge 12"', brand: '3H', unit: 'Nos', purchaseRate: 150, sellingRate: 220 },
+            { code: 'ACC007', name: 'Die-cast Corner Bracket', brand: 'General', unit: 'Nos', purchaseRate: 80, sellingRate: 120 }
+        ]);
+    }
     res.json({ success: true, data: accessories });
 });
 
@@ -96,7 +128,99 @@ export const deleteAccessory = asyncHandler(async (req, res) => {
 
 // === ALU APPLICATIONS ===
 export const getApplications = asyncHandler(async (req, res) => {
-    const applications = await AluApplication.find({}).sort({ type: 1, configuration: 1 });
+    let applications = await AluApplication.find({}).sort({ type: 1, configuration: 1 });
+    if (applications.length === 0) {
+        applications = await AluApplication.insertMany([
+            {
+                type: 'Sliding Door',
+                configuration: '3 Panel - 2 Track',
+                description: 'Swisstek C-Groove Sliding Door (3 Panel, 2 Track)',
+                profileBOM: [
+                    { profileCode: 'SD1001', description: 'Outer Frame Left/Right', quantityFormula: '2', lengthFormula: 'H' },
+                    { profileCode: 'SD1001', description: 'Outer Frame Top/Bottom', quantityFormula: '2', lengthFormula: 'W' },
+                    { profileCode: 'SD1002', description: 'Sash Vertical', quantityFormula: '6', lengthFormula: 'H - 50' },
+                    { profileCode: 'SD1002', description: 'Sash Horizontal', quantityFormula: '6', lengthFormula: 'W / 3' },
+                    { profileCode: 'SD1003', description: 'Interlock Vertical', quantityFormula: '2', lengthFormula: 'H - 50' },
+                    { profileCode: 'SD1004', description: 'Bottom Track', quantityFormula: '1', lengthFormula: 'W' },
+                    { profileCode: 'SD1005', description: 'Top Track', quantityFormula: '1', lengthFormula: 'W' }
+                ],
+                glassBOM: [
+                    { glassType: '5mm Tempered Clear', quantityFormula: '3', widthFormula: 'W / 3 - 100', heightFormula: 'H - 180' }
+                ],
+                accessoryBOM: [
+                    { accessoryCode: 'ACC001', quantityFormula: '6' },
+                    { accessoryCode: 'ACC002', quantityFormula: '2' },
+                    { accessoryCode: 'ACC003', quantityFormula: '2' },
+                    { accessoryCode: 'ACC004', quantityFormula: '6 * H / 1000 + 6 * (W / 3) / 1000' },
+                    { accessoryCode: 'ACC005', quantityFormula: '2' }
+                ],
+                labourMethod: 'opening',
+                labourRate: 25000
+            },
+            {
+                type: 'Casement Window',
+                configuration: '2 Panel',
+                description: 'Swisstek Casement Window (2 Panel with Friction Hinges)',
+                profileBOM: [
+                    { profileCode: 'CA5401', description: 'Outer Frame Left/Right', quantityFormula: '2', lengthFormula: 'H' },
+                    { profileCode: 'CA5401', description: 'Outer Frame Top/Bottom', quantityFormula: '2', lengthFormula: 'W' },
+                    { profileCode: 'CA5402', description: 'Sash Vertical', quantityFormula: '4', lengthFormula: 'H - 30' },
+                    { profileCode: 'CA5402', description: 'Sash Horizontal', quantityFormula: '4', lengthFormula: 'W / 2 - 20' }
+                ],
+                glassBOM: [
+                    { glassType: '5mm Tempered Clear', quantityFormula: '2', widthFormula: 'W / 2 - 80', heightFormula: 'H - 90' }
+                ],
+                accessoryBOM: [
+                    { accessoryCode: 'ACC006', quantityFormula: '4' },
+                    { accessoryCode: 'ACC002', quantityFormula: '2' },
+                    { accessoryCode: 'ACC007', quantityFormula: '8' }
+                ],
+                labourMethod: 'opening',
+                labourRate: 8000
+            },
+            {
+                type: 'Fixed Glass',
+                configuration: '1 Panel',
+                description: 'Standard Fixed Glass View Panel',
+                profileBOM: [
+                    { profileCode: 'SD1001', description: 'Outer Frame Left/Right', quantityFormula: '2', lengthFormula: 'H' },
+                    { profileCode: 'SD1001', description: 'Outer Frame Top/Bottom', quantityFormula: '2', lengthFormula: 'W' },
+                    { profileCode: 'FD6011', description: 'Glass Beading Left/Right', quantityFormula: '2', lengthFormula: 'H - 40' },
+                    { profileCode: 'FD6011', description: 'Glass Beading Top/Bottom', quantityFormula: '2', lengthFormula: 'W - 40' }
+                ],
+                glassBOM: [
+                    { glassType: '5mm Tempered Clear', quantityFormula: '1', widthFormula: 'W - 40', heightFormula: 'H - 40' }
+                ],
+                accessoryBOM: [
+                    { accessoryCode: 'ACC005', quantityFormula: '1' }
+                ],
+                labourMethod: 'sqft',
+                labourRate: 350
+            },
+            {
+                type: 'Sliding Window',
+                configuration: '2 Panel - 2 Track',
+                description: 'Standard 2-Track Sliding Window',
+                profileBOM: [
+                    { profileCode: 'SD1001', description: 'Outer Frame Left/Right', quantityFormula: '2', lengthFormula: 'H' },
+                    { profileCode: 'SD1001', description: 'Outer Frame Top/Bottom', quantityFormula: '2', lengthFormula: 'W' },
+                    { profileCode: 'SD1002', description: 'Sash Vertical', quantityFormula: '4', lengthFormula: 'H - 40' },
+                    { profileCode: 'SD1002', description: 'Sash Horizontal', quantityFormula: '4', lengthFormula: 'W / 2' },
+                    { profileCode: 'SD1003', description: 'Interlock Vertical', quantityFormula: '2', lengthFormula: 'H - 40' }
+                ],
+                glassBOM: [
+                    { glassType: '5mm Clear Float', quantityFormula: '2', widthFormula: 'W / 2 - 60', heightFormula: 'H - 120' }
+                ],
+                accessoryBOM: [
+                    { accessoryCode: 'ACC001', quantityFormula: '4' },
+                    { accessoryCode: 'ACC002', quantityFormula: '2' },
+                    { accessoryCode: 'ACC004', quantityFormula: '4 * H / 1000 + 4 * (W / 2) / 1000' }
+                ],
+                labourMethod: 'opening',
+                labourRate: 12000
+            }
+        ]);
+    }
     res.json({ success: true, data: applications });
 });
 

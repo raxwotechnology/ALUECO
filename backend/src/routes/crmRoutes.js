@@ -1,9 +1,12 @@
 import express from 'express';
 import {
     getInquiries,
+    getInquiryById,
     createInquiry,
     updateInquiry,
+    addFollowUpLog,
     transitionInquiry,
+    getInquiryDashboardStats,
     getConversionRate,
     deleteInquiry
 } from '../controllers/inquiryController.js';
@@ -15,22 +18,25 @@ import {
     deleteQuotation,
     convertQuotationToOrder
 } from '../controllers/quotationController.js';
-import { protect, authorize } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.use(protect);
 
-// ── Inquiry Routes ─────────────────────────────────────────────────────────────
+// ── Inquiry / Lead Follow-up Routes ───────────────────────────────────────────
+router.get('/inquiries/stats',           getInquiryDashboardStats);
 router.get('/inquiries/conversion-rate', getConversionRate);
-router.get('/inquiries',     getInquiries);
-router.post('/inquiries',    createInquiry);
-router.put('/inquiries/:id', updateInquiry);
-router.delete('/inquiries/:id', deleteInquiry);
+router.get('/inquiries',                 getInquiries);
+router.get('/inquiries/:id',             getInquiryById);
+router.post('/inquiries',                createInquiry);
+router.put('/inquiries/:id',             updateInquiry);
+router.post('/inquiries/:id/follow-up',   addFollowUpLog);
+router.delete('/inquiries/:id',          deleteInquiry);
 
 // State machine transition endpoint
-// PUT /api/crm/inquiries/:id/transition  { nextStatus: "quoted", lostReason?: "..." }
-router.put('/inquiries/:id/transition', transitionInquiry);
+// PUT /api/crm/inquiries/:id/transition
+router.put('/inquiries/:id/transition',  transitionInquiry);
 
 // ── Quotation Routes ───────────────────────────────────────────────────────────
 router.get('/quotations',       getQuotations);
@@ -41,3 +47,4 @@ router.delete('/quotations/:id', deleteQuotation);
 router.post('/quotations/:id/convert-to-order', convertQuotationToOrder);
 
 export default router;
+
