@@ -41,6 +41,9 @@ const AluConfiguratorPage = () => {
     // Profit Margin % State
     const [profitMarginPercent, setProfitMarginPercent] = useState(0);
 
+    // Active BOM View Tab State
+    const [activeTab, setActiveTab] = useState('profiles'); // 'profiles' | 'glass' | 'accessories' | 'optimization' | 'summary'
+
     // Dynamic Database Rates State
     const [dbRates, setDbRates] = useState(null);
 
