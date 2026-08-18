@@ -36,8 +36,8 @@ export const calculateBOM = ({
     const panelWidth = Math.round((W + totalOverlaps) / P);
     const panelHeight = H_bottom - 70; // deduct outer frame header/sill thickness & track clearances
 
-    // Default Rate Snapshot if custom rates not provided (defaults to 0 when DB is empty)
-    const profileRates = rates?.profiles || {
+    // Default Rate Snapshot if custom rates not provided
+    const defaultProfileRates = {
         'OUTER_HEAD': { name: 'Outer Frame Header / Track Profile', ratePerM: 0, code: 'ALU-OUT-01' },
         'OUTER_SILL': { name: 'Outer Frame Bottom Sill Profile', ratePerM: 0, code: 'ALU-OUT-02' },
         'OUTER_JAMB': { name: 'Outer Frame Side Jamb Profile', ratePerM: 0, code: 'ALU-OUT-03' },
@@ -50,13 +50,13 @@ export const calculateBOM = ({
         'LOUVER_FRAME': { name: 'Louver Channel Side Stile Frame', ratePerM: 0, code: 'ALU-LOU-01' }
     };
 
-    const glassRates = rates?.glass || {
+    const defaultGlassRates = {
         'CLEAR_5MM': { name: '5mm Clear Floating Glass', ratePerSqFt: 0, ratePerSqM: 0 },
         'TINTED_6MM': { name: '6mm Dark Grey Tinted Glass', ratePerSqFt: 0, ratePerSqM: 0 },
         'TEMPERED_6MM': { name: '6mm Clear Tempered Safety Glass', ratePerSqFt: 0, ratePerSqM: 0 }
     };
 
-    const accessoryRates = rates?.accessories || {
+    const defaultAccessoryRates = {
         'ROLLER_HEAVY': { name: 'Heavy Duty Bearing Roller Wheels', unitRate: 0, unit: 'pcs' },
         'TOUCH_LOCK': { name: 'Flush Touch Lock Set with Key', unitRate: 0, unit: 'pcs' },
         'INTERLOCK_BLOCK': { name: 'Weather Seal Interlock Block', unitRate: 0, unit: 'pcs' },
@@ -68,6 +68,14 @@ export const calculateBOM = ({
         'WOOLPILE': { name: 'Silicone Weatherstrip Woolpile Seal', unitRate: 0, unit: 'm' }
     };
 
+    const profileRates = { ...defaultProfileRates, ...(rates?.profiles || {}) };
+    const glassRates = { ...defaultGlassRates, ...(rates?.glass || {}) };
+    const accessoryRates = { ...defaultAccessoryRates, ...(rates?.accessories || {}) };
+
+    const getProf = (key) => profileRates[key] || defaultProfileRates[key] || { name: key, ratePerM: 0, code: key };
+    const getGlass = (key) => glassRates[key] || defaultGlassRates[key] || { name: key, ratePerSqFt: 0, ratePerSqM: 0 };
+    const getAcc = (key) => accessoryRates[key] || defaultAccessoryRates[key] || { name: key, unitRate: 0, unit: 'pcs' };
+
     // ----------------------------------------------------
     // 1. ALUMINIUM PROFILE CUTTING SPECIFICATIONS
     // ----------------------------------------------------
@@ -75,78 +83,78 @@ export const calculateBOM = ({
 
     // Outer Frame Header & Sill
     profileCuts.push({
-        code: profileRates.OUTER_HEAD.code,
-        name: profileRates.OUTER_HEAD.name,
+        code: getProf('OUTER_HEAD').code,
+        name: getProf('OUTER_HEAD').name,
         length: W,
         qty: 1 * Q,
         totalLengthM: (W / 1000) * 1 * Q,
-        unitRate: profileRates.OUTER_HEAD.ratePerM,
-        cost: (W / 1000) * profileRates.OUTER_HEAD.ratePerM * Q
+        unitRate: getProf('OUTER_HEAD').ratePerM || 0,
+        cost: (W / 1000) * (getProf('OUTER_HEAD').ratePerM || 0) * Q
     });
 
     profileCuts.push({
-        code: profileRates.OUTER_SILL.code,
-        name: profileRates.OUTER_SILL.name,
+        code: getProf('OUTER_SILL').code,
+        name: getProf('OUTER_SILL').name,
         length: W,
         qty: 1 * Q,
         totalLengthM: (W / 1000) * 1 * Q,
-        unitRate: profileRates.OUTER_SILL.ratePerM,
-        cost: (W / 1000) * profileRates.OUTER_SILL.ratePerM * Q
+        unitRate: getProf('OUTER_SILL').ratePerM || 0,
+        cost: (W / 1000) * (getProf('OUTER_SILL').ratePerM || 0) * Q
     });
 
     // Outer Frame Side Jambs
     profileCuts.push({
-        code: profileRates.OUTER_JAMB.code,
-        name: profileRates.OUTER_JAMB.name,
+        code: getProf('OUTER_JAMB').code,
+        name: getProf('OUTER_JAMB').name,
         length: H_total,
         qty: 2 * Q,
         totalLengthM: (H_total / 1000) * 2 * Q,
-        unitRate: profileRates.OUTER_JAMB.ratePerM,
-        cost: (H_total / 1000) * 2 * profileRates.OUTER_JAMB.ratePerM * Q
+        unitRate: getProf('OUTER_JAMB').ratePerM || 0,
+        cost: (H_total / 1000) * 2 * (getProf('OUTER_JAMB').ratePerM || 0) * Q
     });
 
     // Transom Bar (if top fanlight section enabled)
     if (hasTop) {
         profileCuts.push({
-            code: profileRates.TRANSOM_BAR.code,
-            name: profileRates.TRANSOM_BAR.name,
+            code: getProf('TRANSOM_BAR').code,
+            name: getProf('TRANSOM_BAR').name,
             length: W,
             qty: 1 * Q,
             totalLengthM: (W / 1000) * 1 * Q,
-            unitRate: profileRates.TRANSOM_BAR.ratePerM,
-            cost: (W / 1000) * profileRates.TRANSOM_BAR.ratePerM * Q
+            unitRate: getProf('TRANSOM_BAR').ratePerM || 0,
+            cost: (W / 1000) * (getProf('TRANSOM_BAR').ratePerM || 0) * Q
         });
 
         // Top Section Specific Profiles
         if (topType === 'awning') {
             // Awning Sash outer frame & vent sash
             profileCuts.push({
-                code: profileRates.AWNING_SASH.code,
+                code: getProf('AWNING_SASH').code,
                 name: 'Top Awning Sash Horizontal Rails',
                 length: W - 40,
                 qty: 2 * Q,
                 totalLengthM: ((W - 40) / 1000) * 2 * Q,
-                unitRate: profileRates.AWNING_SASH.ratePerM,
-                cost: ((W - 40) / 1000) * 2 * profileRates.AWNING_SASH.ratePerM * Q
+                unitRate: getProf('AWNING_SASH').ratePerM || 0,
+                cost: ((W - 40) / 1000) * 2 * (getProf('AWNING_SASH').ratePerM || 0) * Q
             });
             profileCuts.push({
-                code: profileRates.AWNING_SASH.code,
+                code: getProf('AWNING_SASH').code,
                 name: 'Top Awning Sash Vertical Stiles',
                 length: H_top - 40,
                 qty: 2 * Q,
                 totalLengthM: ((H_top - 40) / 1000) * 2 * Q,
-                unitRate: profileRates.AWNING_SASH.ratePerM,
-                cost: ((H_top - 40) / 1000) * 2 * profileRates.AWNING_SASH.ratePerM * Q
+                unitRate: getProf('AWNING_SASH').ratePerM || 0,
+                cost: ((H_top - 40) / 1000) * 2 * (getProf('AWNING_SASH').ratePerM || 0) * Q
             });
         } else if (topType === 'louver') {
             profileCuts.push({
-                code: profileRates.LOUVER_FRAME.code,
-                name: profileRates.LOUVER_FRAME.name,
+                code: getProf('LOUVER_FRAME').code,
+                name: getProf('LOUVER_FRAME').name,
                 length: H_top - 20,
                 qty: 2 * Q,
                 totalLengthM: ((H_top - 20) / 1000) * 2 * Q,
-                unitRate: profileRates.LOUVER_FRAME.ratePerM,
-                cost: ((H_top - 20) / 1000) * 2 * profileRates.LOUVER_FRAME.ratePerM * Q
+                unitRate: getProf('LOUVER_FRAME').ratePerM || 0,
+                cost: ((H_top - 20) / 1000) * 2 * (getProf('LOUVER_FRAME').ratePerM || 0) * Q
             });
         }
     }
@@ -157,23 +165,23 @@ export const calculateBOM = ({
     const totalRails = P * 2;
 
     profileCuts.push({
-        code: profileRates.SASH_INTERLOCK.code,
+        code: getProf('SASH_INTERLOCK').code,
         name: 'Sliding Sash Vertical Interlock Stiles',
         length: panelHeight,
         qty: totalStiles * Q,
         totalLengthM: (panelHeight / 1000) * totalStiles * Q,
-        unitRate: profileRates.SASH_INTERLOCK.ratePerM,
-        cost: (panelHeight / 1000) * totalStiles * profileRates.SASH_INTERLOCK.ratePerM * Q
+        unitRate: getProf('SASH_INTERLOCK').ratePerM || 0,
+        cost: (panelHeight / 1000) * totalStiles * (getProf('SASH_INTERLOCK').ratePerM || 0) * Q
     });
 
     profileCuts.push({
-        code: profileRates.SASH_RAIL.code,
+        code: getProf('SASH_RAIL').code,
         name: 'Sliding Sash Horizontal Rails (Top & Bottom)',
         length: panelWidth,
         qty: totalRails * Q,
         totalLengthM: (panelWidth / 1000) * totalRails * Q,
-        unitRate: profileRates.SASH_RAIL.ratePerM,
-        cost: (panelWidth / 1000) * totalRails * profileRates.SASH_RAIL.ratePerM * Q
+        unitRate: getProf('SASH_RAIL').ratePerM || 0,
+        cost: (panelWidth / 1000) * totalRails * (getProf('SASH_RAIL').ratePerM || 0) * Q
     });
 
     // Sum Aluminium Cost
@@ -189,8 +197,8 @@ export const calculateBOM = ({
         const topGlassW = W - 50;
         const topGlassH = H_top - 50;
         const areaSqFt = (topGlassW * topGlassH) / 92903.04;
-        const glassRate = glassRates.CLEAR_5MM;
-        const cost = areaSqFt * glassRate.ratePerSqFt * Q;
+        const glassRate = getGlass('CLEAR_5MM');
+        const cost = areaSqFt * (glassRate.ratePerSqFt || 0) * Q;
 
         glassItems.push({
             section: 'Top Fanlight Section',
@@ -199,7 +207,7 @@ export const calculateBOM = ({
             height: topGlassH,
             qty: 1 * Q,
             areaSqFt: parseFloat(areaSqFt.toFixed(2)),
-            unitRate: glassRate.ratePerSqFt,
+            unitRate: glassRate.ratePerSqFt || 0,
             cost: Math.round(cost)
         });
     }
@@ -208,8 +216,8 @@ export const calculateBOM = ({
     const bottomGlassW = panelWidth - 90;
     const bottomGlassH = panelHeight - 90;
     const bottomSingleAreaSqFt = (bottomGlassW * bottomGlassH) / 92903.04;
-    const bottomGlassRate = glassRates.CLEAR_5MM;
-    const bottomTotalCost = bottomSingleAreaSqFt * bottomGlassRate.ratePerSqFt * P * Q;
+    const bottomGlassRate = getGlass('CLEAR_5MM');
+    const bottomTotalCost = bottomSingleAreaSqFt * (bottomGlassRate.ratePerSqFt || 0) * P * Q;
 
     glassItems.push({
         section: 'Bottom Sliding Panels',
@@ -218,7 +226,7 @@ export const calculateBOM = ({
         height: bottomGlassH,
         qty: P * Q,
         areaSqFt: parseFloat((bottomSingleAreaSqFt * P * Q).toFixed(2)),
-        unitRate: bottomGlassRate.ratePerSqFt,
+        unitRate: bottomGlassRate.ratePerSqFt || 0,
         cost: Math.round(bottomTotalCost)
     });
 
@@ -236,100 +244,109 @@ export const calculateBOM = ({
 
     // Rollers (2 per sliding panel)
     const rollerCount = slidingPanels * 2 * Q;
+    const accRoller = getAcc('ROLLER_HEAVY');
     accessories.push({
         code: 'ROLLER_HEAVY',
-        name: accessoryRates.ROLLER_HEAVY.name,
+        name: accRoller.name,
         qty: rollerCount,
-        unit: 'pcs',
-        unitRate: accessoryRates.ROLLER_HEAVY.unitRate,
-        cost: rollerCount * accessoryRates.ROLLER_HEAVY.unitRate
+        unit: accRoller.unit || 'pcs',
+        unitRate: accRoller.unitRate || 0,
+        cost: rollerCount * (accRoller.unitRate || 0)
     });
 
     // Touch locks (1 per sliding panel)
     const lockCount = Math.max(1, slidingPanels) * Q;
+    const accLock = getAcc('TOUCH_LOCK');
     accessories.push({
         code: 'TOUCH_LOCK',
-        name: accessoryRates.TOUCH_LOCK.name,
+        name: accLock.name,
         qty: lockCount,
-        unit: 'pcs',
-        unitRate: accessoryRates.TOUCH_LOCK.unitRate,
-        cost: lockCount * accessoryRates.TOUCH_LOCK.unitRate
+        unit: accLock.unit || 'pcs',
+        unitRate: accLock.unitRate || 0,
+        cost: lockCount * (accLock.unitRate || 0)
     });
 
     // Weather seal interlock blocks
     const interlockBlockCount = (P - 1) * 2 * Q;
+    const accInterlock = getAcc('INTERLOCK_BLOCK');
     accessories.push({
         code: 'INTERLOCK_BLOCK',
-        name: accessoryRates.INTERLOCK_BLOCK.name,
+        name: accInterlock.name,
         qty: interlockBlockCount,
-        unit: 'pcs',
-        unitRate: accessoryRates.INTERLOCK_BLOCK.unitRate,
-        cost: interlockBlockCount * accessoryRates.INTERLOCK_BLOCK.unitRate
+        unit: accInterlock.unit || 'pcs',
+        unitRate: accInterlock.unitRate || 0,
+        cost: interlockBlockCount * (accInterlock.unitRate || 0)
     });
 
     // Corner Cleats
     const cleatCount = (4 + P * 4) * Q;
+    const accCleat = getAcc('CORNER_CLEAT');
     accessories.push({
         code: 'CORNER_CLEAT',
-        name: accessoryRates.CORNER_CLEAT.name,
+        name: accCleat.name,
         qty: cleatCount,
-        unit: 'pcs',
-        unitRate: accessoryRates.CORNER_CLEAT.unitRate,
-        cost: cleatCount * accessoryRates.CORNER_CLEAT.unitRate
+        unit: accCleat.unit || 'pcs',
+        unitRate: accCleat.unitRate || 0,
+        cost: cleatCount * (accCleat.unitRate || 0)
     });
 
     // Awning Stays & Handles if Top Awning
     if (hasTop && topType === 'awning') {
+        const accStay = getAcc('AWNING_STAY');
         accessories.push({
             code: 'AWNING_STAY',
-            name: accessoryRates.AWNING_STAY.name,
+            name: accStay.name,
             qty: 1 * Q,
-            unit: 'pair',
-            unitRate: accessoryRates.AWNING_STAY.unitRate,
-            cost: 1 * Q * accessoryRates.AWNING_STAY.unitRate
+            unit: accStay.unit || 'pair',
+            unitRate: accStay.unitRate || 0,
+            cost: 1 * Q * (accStay.unitRate || 0)
         });
+        const accHandle = getAcc('AWNING_HANDLE');
         accessories.push({
             code: 'AWNING_HANDLE',
-            name: accessoryRates.AWNING_HANDLE.name,
+            name: accHandle.name,
             qty: 1 * Q,
-            unit: 'pcs',
-            unitRate: accessoryRates.AWNING_HANDLE.unitRate,
-            cost: 1 * Q * accessoryRates.AWNING_HANDLE.unitRate
+            unit: accHandle.unit || 'pcs',
+            unitRate: accHandle.unitRate || 0,
+            cost: 1 * Q * (accHandle.unitRate || 0)
         });
     }
 
     // Louver Clips if Top Louver
     if (hasTop && topType === 'louver') {
         const slatPairs = Math.ceil((H_top - 40) / 100);
+        const accLouver = getAcc('LOUVER_CLIP');
         accessories.push({
             code: 'LOUVER_CLIP',
-            name: accessoryRates.LOUVER_CLIP.name,
+            name: accLouver.name,
             qty: slatPairs * Q,
-            unit: 'pair',
-            unitRate: accessoryRates.LOUVER_CLIP.unitRate,
-            cost: slatPairs * Q * accessoryRates.LOUVER_CLIP.unitRate
+            unit: accLouver.unit || 'pair',
+            unitRate: accLouver.unitRate || 0,
+            cost: slatPairs * Q * (accLouver.unitRate || 0)
         });
     }
 
     // EPDM Rubber & Woolpile Seals
     const glassPerimeterM = ((bottomGlassW + bottomGlassH) * 2 * P / 1000) * Q;
+    const accEpdm = getAcc('RUBBER_EPDM');
     accessories.push({
         code: 'RUBBER_EPDM',
-        name: accessoryRates.RUBBER_EPDM.name,
+        name: accEpdm.name,
         qty: parseFloat(glassPerimeterM.toFixed(1)),
-        unit: 'm',
-        unitRate: accessoryRates.RUBBER_EPDM.unitRate,
-        cost: Math.round(glassPerimeterM * accessoryRates.RUBBER_EPDM.unitRate)
+        unit: accEpdm.unit || 'm',
+        unitRate: accEpdm.unitRate || 0,
+        cost: Math.round(glassPerimeterM * (accEpdm.unitRate || 0))
     });
 
     const woolpilePerimeterM = ((panelWidth + panelHeight) * 2 * P / 1000) * Q;
+    const accWool = getAcc('WOOLPILE');
     accessories.push({
         code: 'WOOLPILE',
-        name: accessoryRates.WOOLPILE.name,
+        name: accWool.name,
         qty: parseFloat(woolpilePerimeterM.toFixed(1)),
-        unit: 'm',
-        unitRate: accessoryRates.WOOLPILE.unitRate,
-        cost: Math.round(woolpilePerimeterM * accessoryRates.WOOLPILE.unitRate)
+        unit: accWool.unit || 'm',
+        unitRate: accWool.unitRate || 0,
+        cost: Math.round(woolpilePerimeterM * (accWool.unitRate || 0))
     });
 
     const totalAccessoriesCost = Math.round(accessories.reduce((sum, a) => sum + a.cost, 0));
