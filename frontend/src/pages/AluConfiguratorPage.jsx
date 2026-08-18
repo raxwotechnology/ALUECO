@@ -27,8 +27,8 @@ const AluConfiguratorPage = () => {
     const [selectedPanelIndex, setSelectedPanelIndex] = useState(null);
 
     // Geometry Dimensions State
-    const [width, setWidth] = useState(2400);
-    const [height, setHeight] = useState(2100);
+    const [width, setWidth] = useState(0);
+    const [height, setHeight] = useState(0);
     const [quantity, setQuantity] = useState(1);
 
     // Vertical Sub-Division & Fanlight / Louver State
@@ -191,8 +191,8 @@ const AluConfiguratorPage = () => {
     // Real-Time Dynamic BOM Calculation using client calculator
     const bomResult = useMemo(() => {
         return calculateBOM({
-            width: Number(width) || 2400,
-            height: Number(height) || 2100,
+            width: Number(width) || 0,
+            height: Number(height) || 0,
             trackSystem,
             panelCount,
             panelArrangement,
@@ -679,88 +679,106 @@ const AluConfiguratorPage = () => {
                         {/* Tab Content: Profiles */}
                         {activeTab === 'profiles' && (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs font-sans">
-                                    <thead>
-                                        <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
-                                            <th className="p-2.5">Profile Code</th>
-                                            <th className="p-2.5">Description</th>
-                                            <th className="p-2.5">Cut Length</th>
-                                            <th className="p-2.5 text-center">Qty</th>
-                                            <th className="p-2.5 text-right">Total Meters</th>
-                                            <th className="p-2.5 text-right">Estimated Cost</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {bomResult.profileCuts.map((item, i) => (
-                                            <tr key={i} className="hover:bg-slate-50">
-                                                <td className="p-2.5 font-bold font-mono text-indigo-600">{item.code}</td>
-                                                <td className="p-2.5 font-semibold text-slate-700">{item.name}</td>
-                                                <td className="p-2.5 font-mono text-slate-600">{item.length} mm</td>
-                                                <td className="p-2.5 text-center font-bold text-slate-700">{item.qty}</td>
-                                                <td className="p-2.5 text-right font-mono text-slate-600">{item.totalLengthM.toFixed(2)} m</td>
-                                                <td className="p-2.5 text-right font-bold text-slate-800">LKR {Math.round(item.cost).toLocaleString()}</td>
+                                {bomResult.profileCuts.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+                                        No aluminium profile cuts calculated. Enter dimensions (Width & Height) to calculate BOM.
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left text-xs font-sans">
+                                        <thead>
+                                            <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
+                                                <th className="p-2.5">Profile Code</th>
+                                                <th className="p-2.5">Description</th>
+                                                <th className="p-2.5">Cut Length</th>
+                                                <th className="p-2.5 text-center">Qty</th>
+                                                <th className="p-2.5 text-right">Total Meters</th>
+                                                <th className="p-2.5 text-right">Estimated Cost</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bomResult.profileCuts.map((item, i) => (
+                                                <tr key={i} className="hover:bg-slate-50">
+                                                    <td className="p-2.5 font-bold font-mono text-indigo-600">{item.code}</td>
+                                                    <td className="p-2.5 font-semibold text-slate-700">{item.name}</td>
+                                                    <td className="p-2.5 font-mono text-slate-600">{item.length} mm</td>
+                                                    <td className="p-2.5 text-center font-bold text-slate-700">{item.qty}</td>
+                                                    <td className="p-2.5 text-right font-mono text-slate-600">{item.totalLengthM.toFixed(2)} m</td>
+                                                    <td className="p-2.5 text-right font-bold text-slate-800">LKR {Math.round(item.cost).toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
                             </div>
                         )}
 
                         {/* Tab Content: Glass */}
                         {activeTab === 'glass' && (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs font-sans">
-                                    <thead>
-                                        <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
-                                            <th className="p-2.5">Section</th>
-                                            <th className="p-2.5">Glass Type</th>
-                                            <th className="p-2.5">Pane Cut Size</th>
-                                            <th className="p-2.5 text-center">Qty</th>
-                                            <th className="p-2.5 text-right">Total Area</th>
-                                            <th className="p-2.5 text-right">Estimated Cost</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {bomResult.glassItems.map((g, i) => (
-                                            <tr key={i} className="hover:bg-slate-50">
-                                                <td className="p-2.5 font-bold text-slate-700">{g.section}</td>
-                                                <td className="p-2.5 font-semibold text-indigo-600">{g.type}</td>
-                                                <td className="p-2.5 font-mono text-slate-600">{g.width} × {g.height} mm</td>
-                                                <td className="p-2.5 text-center font-bold text-slate-700">{g.qty}</td>
-                                                <td className="p-2.5 text-right font-mono text-slate-600">{g.areaSqFt} sq.ft</td>
-                                                <td className="p-2.5 text-right font-bold text-slate-800">LKR {g.cost.toLocaleString()}</td>
+                                {bomResult.glassItems.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+                                        No glass panels calculated. Enter dimensions (Width & Height) to calculate BOM.
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left text-xs font-sans">
+                                        <thead>
+                                            <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
+                                                <th className="p-2.5">Section</th>
+                                                <th className="p-2.5">Glass Type</th>
+                                                <th className="p-2.5">Pane Cut Size</th>
+                                                <th className="p-2.5 text-center">Qty</th>
+                                                <th className="p-2.5 text-right">Total Area</th>
+                                                <th className="p-2.5 text-right">Estimated Cost</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bomResult.glassItems.map((g, i) => (
+                                                <tr key={i} className="hover:bg-slate-50">
+                                                    <td className="p-2.5 font-bold text-slate-700">{g.section}</td>
+                                                    <td className="p-2.5 font-semibold text-indigo-600">{g.type}</td>
+                                                    <td className="p-2.5 font-mono text-slate-600">{g.width} × {g.height} mm</td>
+                                                    <td className="p-2.5 text-center font-bold text-slate-700">{g.qty}</td>
+                                                    <td className="p-2.5 text-right font-mono text-slate-600">{g.areaSqFt} sq.ft</td>
+                                                    <td className="p-2.5 text-right font-bold text-slate-800">LKR {g.cost.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
                             </div>
                         )}
 
                         {/* Tab Content: Accessories */}
                         {activeTab === 'accessories' && (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs font-sans">
-                                    <thead>
-                                        <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
-                                            <th className="p-2.5">Item Code</th>
-                                            <th className="p-2.5">Description</th>
-                                            <th className="p-2.5 text-center">Quantity</th>
-                                            <th className="p-2.5 text-right">Unit Rate</th>
-                                            <th className="p-2.5 text-right">Subtotal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {bomResult.accessories.map((acc, i) => (
-                                            <tr key={i} className="hover:bg-slate-50">
-                                                <td className="p-2.5 font-bold font-mono text-indigo-600">{acc.code}</td>
-                                                <td className="p-2.5 font-semibold text-slate-700">{acc.name}</td>
-                                                <td className="p-2.5 text-center font-bold text-slate-700">{acc.qty} {acc.unit}</td>
-                                                <td className="p-2.5 text-right font-mono text-slate-600">LKR {acc.unitRate.toLocaleString()}</td>
-                                                <td className="p-2.5 text-right font-bold text-slate-800">LKR {acc.cost.toLocaleString()}</td>
+                                {bomResult.accessories.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+                                        No hardware accessories or seals calculated. Enter dimensions (Width & Height) to calculate BOM.
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left text-xs font-sans">
+                                        <thead>
+                                            <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
+                                                <th className="p-2.5">Item Code</th>
+                                                <th className="p-2.5">Description</th>
+                                                <th className="p-2.5 text-center">Quantity</th>
+                                                <th className="p-2.5 text-right">Unit Rate</th>
+                                                <th className="p-2.5 text-right">Subtotal</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bomResult.accessories.map((acc, i) => (
+                                                <tr key={i} className="hover:bg-slate-50">
+                                                    <td className="p-2.5 font-bold font-mono text-indigo-600">{acc.code}</td>
+                                                    <td className="p-2.5 font-semibold text-slate-700">{acc.name}</td>
+                                                    <td className="p-2.5 text-center font-bold text-slate-700">{acc.qty} {acc.unit}</td>
+                                                    <td className="p-2.5 text-right font-mono text-slate-600">LKR {acc.unitRate}</td>
+                                                    <td className="p-2.5 text-right font-bold text-slate-800">LKR {acc.cost.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
                             </div>
                         )}
 
