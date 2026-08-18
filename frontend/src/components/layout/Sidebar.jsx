@@ -85,10 +85,9 @@ const menuGroups = [
         items: [
             { label: 'Customers', icon: UserCircle, path: '/customers', permission: 'customers.view' },
             { label: 'Customer Groups', icon: Tags, path: '/customer-groups', permission: 'customers.view' },
-            { label: 'Sales Inquiries', icon: UserPlus, path: '/crm/inquiries', permission: 'customers.view' },
+            { label: 'Lead Follow-Up System', icon: UserPlus, path: '/crm/inquiries', permission: 'customers.view' },
             { label: 'Quotations', icon: FileText, path: '/crm/quotations', permission: 'sales.view' },
             { label: 'Sales Orders', icon: ShoppingCart, path: '/sales-orders', permission: 'sales.view' },
-            { label: 'Sales Pipeline', icon: TrendingUp, path: '/crm/inquiries', permission: 'customers.view' },
             { label: 'POS', icon: Calculator, path: '/pos', permission: 'pos.access' },
             { label: 'Customer Returns', icon: RotateCcw, path: '/returns', permission: 'returns.view' },
             { label: 'Supplier Returns', icon: RotateCcw, path: '/supplier-returns', permission: 'supplier_returns.view' },

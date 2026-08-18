@@ -46,9 +46,65 @@ export const createQuotation = asyncHandler(async (req, res) => {
         version: 1
     });
 
-    // If linked to an inquiry, update inquiry status
+    const quoteVal = quotation.grandTotal || quotation.totalAmount || 0;
+    const officerName = req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer';
+    const followDate = quotation.expiryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // If linked to an existing inquiry, update that inquiry's details
     if (quotation.inquiryId) {
-        await Inquiry.findByIdAndUpdate(quotation.inquiryId, { status: 'quoted' });
+        await Inquiry.findByIdAndUpdate(quotation.inquiryId, {
+            quotationNo: quotation.quoteNumber,
+            quotationValue: quoteVal,
+            status: 'Quotation Sent',
+            $push: {
+                quotations: quotation._id,
+                followUpHistory: {
+                    date: new Date(),
+                    salesOfficer: officerName,
+                    user: req.user?._id,
+                    note: `Quotation #${quotation.quoteNumber} issued (Amount: Rs. ${quoteVal.toLocaleString()})`,
+                    nextFollowUpDate: followDate
+                }
+            }
+        });
+    } else {
+        // Direct quotation creation -> auto-create new Inquiry/Lead on Inquiry Dashboard
+        try {
+            const reqSummary = quotation.items?.map(i => i.productName || 'Item').filter(Boolean).join(', ') || 'Custom Quotation Items';
+            const newInq = await Inquiry.create({
+                customerName: quotation.customerName || 'Customer',
+                companyName: quotation.customerName || 'Customer',
+                contactPerson: quotation.customerName || 'Customer',
+                contactNo: quotation.customerPhone,
+                phone: quotation.customerPhone,
+                email: quotation.customerEmail,
+                projectLocation: quotation.customerAddress || 'Colombo',
+                requirement: reqSummary,
+                inquirySource: 'Direct',
+                source: 'Direct',
+                quotationNo: quotation.quoteNumber,
+                quotationValue: quoteVal,
+                quotations: [quotation._id],
+                status: 'Quotation Sent',
+                result: 'Pending',
+                nextFollowUpDate: followDate,
+                followUpDate: followDate,
+                notes: `Direct quotation #${quotation.quoteNumber}`,
+                followUpHistory: [{
+                    date: new Date(),
+                    salesOfficer: officerName,
+                    user: req.user?._id,
+                    note: `Quotation #${quotation.quoteNumber} generated directly (Quoted Value: Rs. ${quoteVal.toLocaleString()})`,
+                    nextFollowUpDate: followDate
+                }],
+                createdBy: req.user?._id
+            });
+
+            quotation.inquiryId = newInq._id;
+            await quotation.save();
+        } catch (inqErr) {
+            console.warn('Failed to auto-create lead from quotation:', inqErr.message);
+        }
     }
 
     createAuditLog({

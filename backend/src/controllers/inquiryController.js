@@ -2,28 +2,43 @@ import asyncHandler from 'express-async-handler';
 import Inquiry from '../models/Inquiry.js';
 import { createAuditLog } from '../utils/auditLogger.js';
 
-// ── Valid state machine transitions ───────────────────────────────────────────
-const VALID_TRANSITIONS = {
-    new:               ['site_visit', 'lost'],
-    site_visit:        ['quotation_pending', 'lost'],
-    quotation_pending: ['quotation_sent', 'lost'],
-    quotation_sent:    ['negotiation', 'lost'],
-    negotiation:       ['won', 'lost', 'quotation_pending'],
-    won:               [],
-    lost:              ['new'],
-};
-
 /**
- * @desc    Get all inquiries
+ * @desc    Get all inquiries / leads
  * @route   GET /api/crm/inquiries
  * @access  Private
  */
 export const getInquiries = asyncHandler(async (req, res) => {
-    const { status, source, page = 1, limit = 20 } = req.query;
+    const { status, source, search, result, page = 1, limit = 50 } = req.query;
     const filter = { deletedAt: null };
     
-    if (status) filter.status = status;
-    if (source) filter.source = source;
+    if (status && status !== 'all') {
+        filter.status = status;
+    }
+    if (source && source !== 'all') {
+        filter.$or = [{ inquirySource: source }, { source: source }];
+    }
+    if (result && result !== 'all') {
+        filter.result = result;
+    }
+    if (search && search.trim()) {
+        const regex = new RegExp(search.trim(), 'i');
+        filter.$and = filter.$and || [];
+        filter.$and.push({
+            $or: [
+                { leadNo: regex },
+                { inquiryCode: regex },
+                { customerName: regex },
+                { companyName: regex },
+                { contactPerson: regex },
+                { contactNo: regex },
+                { phone: regex },
+                { email: regex },
+                { projectLocation: regex },
+                { requirement: regex },
+                { quotationNo: regex }
+            ]
+        });
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -31,6 +46,7 @@ export const getInquiries = asyncHandler(async (req, res) => {
         Inquiry.find(filter)
             .populate('products.product', 'name productCode')
             .populate('assignedTo', 'firstName lastName')
+            .populate('followUpHistory.user', 'name firstName lastName email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit)),
@@ -47,21 +63,53 @@ export const getInquiries = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Create a new inquiry
+ * @desc    Get single inquiry by ID
+ * @route   GET /api/crm/inquiries/:id
+ * @access  Private
+ */
+export const getInquiryById = asyncHandler(async (req, res) => {
+    const inquiry = await Inquiry.findOne({ _id: req.params.id, deletedAt: null })
+        .populate('products.product', 'name productCode')
+        .populate('assignedTo', 'firstName lastName')
+        .populate('followUpHistory.user', 'name firstName lastName email')
+        .populate('customer', 'displayName companyName');
+
+    if (!inquiry) {
+        res.status(404);
+        throw new Error('Inquiry not found');
+    }
+
+    res.json({ success: true, data: inquiry });
+});
+
+/**
+ * @desc    Create a new inquiry / lead
  * @route   POST /api/crm/inquiries
  * @access  Private
  */
 export const createInquiry = asyncHandler(async (req, res) => {
+    const initialHistory = [];
+    if (req.body.initialNote || req.body.notes) {
+        initialHistory.push({
+            date: new Date(),
+            salesOfficer: req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer',
+            user: req.user?._id,
+            note: req.body.initialNote || req.body.notes || 'Inquiry created',
+            nextFollowUpDate: req.body.nextFollowUpDate || req.body.followUpDate
+        });
+    }
+
     const inquiry = await Inquiry.create({
         ...req.body,
-        createdBy: req.user._id
+        followUpHistory: req.body.followUpHistory || (initialHistory.length > 0 ? initialHistory : undefined),
+        createdBy: req.user?._id
     });
 
     createAuditLog({
         action: 'create',
         module: 'crm',
         documentId: inquiry._id,
-        description: `New lead/inquiry from ${inquiry.companyName} (${inquiry.contactPerson})`,
+        description: `New lead created: ${inquiry.leadNo || inquiry.inquiryCode} - ${inquiry.customerName || inquiry.companyName}`,
         req
     });
 
@@ -69,28 +117,44 @@ export const createInquiry = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Update inquiry status/details
+ * @desc    Update inquiry / lead details
  * @route   PUT /api/crm/inquiries/:id
  * @access  Private
  */
 export const updateInquiry = asyncHandler(async (req, res) => {
     const oldData = await Inquiry.findById(req.params.id);
-    const inquiry = await Inquiry.findByIdAndUpdate(
-        req.params.id,
-        { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
-    );
-
-    if (!inquiry) {
+    if (!oldData || oldData.deletedAt) {
         res.status(404);
         throw new Error('Inquiry not found');
     }
+
+    const updates = { ...req.body, updatedBy: req.user?._id };
+
+    // Auto update result based on status
+    if (updates.status === 'Won' || updates.status === 'won') {
+        updates.result = 'Won';
+        if (updates.advanceAmount > 0 || updates.advanceDate) {
+            updates.projectStatus = updates.projectStatus || 'Created';
+        }
+    } else if (updates.status === 'Lost' || updates.status === 'lost') {
+        updates.result = 'Lost';
+    } else if (updates.status === 'Hold') {
+        updates.result = 'Hold';
+    } else if (updates.status) {
+        updates.result = updates.result || 'Pending';
+    }
+
+    const inquiry = await Inquiry.findByIdAndUpdate(
+        req.params.id,
+        updates,
+        { new: true, runValidators: true }
+    ).populate('followUpHistory.user', 'name firstName lastName');
 
     createAuditLog({
         action: 'update',
         module: 'crm',
         documentId: inquiry._id,
-        description: `Updated inquiry for ${inquiry.companyName}`,
+        description: `Updated lead ${inquiry.leadNo || inquiry.inquiryCode} (${inquiry.customerName || inquiry.companyName})`,
         changes: req.body,
         previousData: oldData,
         req
@@ -100,45 +164,99 @@ export const updateInquiry = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Transition inquiry through the sales pipeline state machine
- * @route   PUT /api/crm/inquiries/:id/transition
+ * @desc    Add follow-up history log to an inquiry
+ * @route   POST /api/crm/inquiries/:id/follow-up
  * @access  Private
- *
- * Valid transitions:
- *   new → quoted → sample_sent → sample_approved → order_confirmed → shipped → closed
- *   Any stage → lost
  */
-export const transitionInquiry = asyncHandler(async (req, res) => {
-    const { nextStatus, lostReason } = req.body;
+export const addFollowUpLog = asyncHandler(async (req, res) => {
+    const { note, nextFollowUpDate, salesOfficer } = req.body;
     const inquiry = await Inquiry.findById(req.params.id);
 
-    if (!inquiry) {
+    if (!inquiry || inquiry.deletedAt) {
         res.status(404);
         throw new Error('Inquiry not found');
     }
 
-    const currentStatus = inquiry.status;
-    const allowed = VALID_TRANSITIONS[currentStatus] || [];
+    const officerName = salesOfficer || (req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer');
 
-    if (!allowed.includes(nextStatus)) {
-        res.status(400);
-        throw new Error(
-            `Invalid transition: "${currentStatus}" → "${nextStatus}". Allowed: [${allowed.join(', ')}]`
-        );
+    const historyItem = {
+        date: new Date(),
+        salesOfficer: officerName,
+        user: req.user?._id,
+        note: note || 'Follow-up conducted',
+        nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : inquiry.nextFollowUpDate
+    };
+
+    inquiry.followUpHistory.unshift(historyItem);
+    if (nextFollowUpDate) {
+        inquiry.nextFollowUpDate = new Date(nextFollowUpDate);
+        inquiry.followUpDate = new Date(nextFollowUpDate);
+    }
+    if (note) {
+        inquiry.notes = note;
+    }
+    if (req.body.status) {
+        inquiry.status = req.body.status;
+        if (req.body.status === 'Won') inquiry.result = 'Won';
+        if (req.body.status === 'Lost') inquiry.result = 'Lost';
+    }
+    inquiry.updatedBy = req.user?._id;
+
+    await inquiry.save();
+
+    res.json({ success: true, data: inquiry });
+});
+
+/**
+ * @desc    Transition inquiry through pipeline
+ * @route   PUT /api/crm/inquiries/:id/transition
+ * @access  Private
+ */
+export const transitionInquiry = asyncHandler(async (req, res) => {
+    const { nextStatus, lostReason, advanceAmount, advanceDate, finalValue, note } = req.body;
+    const inquiry = await Inquiry.findById(req.params.id);
+
+    if (!inquiry || inquiry.deletedAt) {
+        res.status(404);
+        throw new Error('Inquiry not found');
     }
 
+    const prevStatus = inquiry.status;
     inquiry.status = nextStatus;
-    if (nextStatus === 'lost' && lostReason) {
-        inquiry.lostReason = lostReason;
+
+    if (nextStatus === 'Won' || nextStatus === 'won') {
+        inquiry.result = 'Won';
+        if (advanceAmount !== undefined) inquiry.advanceAmount = Number(advanceAmount);
+        if (advanceDate) inquiry.advanceDate = new Date(advanceDate);
+        if (finalValue !== undefined) inquiry.finalValue = Number(finalValue);
+        inquiry.projectStatus = 'Created';
+    } else if (nextStatus === 'Lost' || nextStatus === 'lost') {
+        inquiry.result = 'Lost';
+        if (lostReason) inquiry.lostReason = lostReason;
+    } else if (nextStatus === 'Hold') {
+        inquiry.result = 'Hold';
+    } else {
+        inquiry.result = 'Pending';
     }
-    inquiry.updatedBy = req.user._id;
+
+    // Add to history log
+    const officerName = req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer';
+    inquiry.followUpHistory.unshift({
+        date: new Date(),
+        salesOfficer: officerName,
+        user: req.user?._id,
+        note: note || `Status changed from "${prevStatus}" to "${nextStatus}"${lostReason ? ` (Reason: ${lostReason})` : ''}`,
+        nextFollowUpDate: inquiry.nextFollowUpDate
+    });
+
+    inquiry.updatedBy = req.user?._id;
     await inquiry.save();
 
     createAuditLog({
         action: 'update',
         module: 'crm',
         documentId: inquiry._id,
-        description: `Inquiry transitioned: ${currentStatus} → ${nextStatus} for ${inquiry.companyName}`,
+        description: `Lead ${inquiry.leadNo || inquiry.inquiryCode} transitioned: ${prevStatus} → ${nextStatus}`,
         req
     });
 
@@ -146,43 +264,81 @@ export const transitionInquiry = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get inquiry pipeline conversion rate
+ * @desc    Get dashboard metrics for Lead Follow-Up System
+ * @route   GET /api/crm/inquiries/stats
+ * @access  Private
+ */
+export const getInquiryDashboardStats = asyncHandler(async (req, res) => {
+    const match = { deletedAt: null };
+    const allLeads = await Inquiry.find(match).select('status result quotationValue finalValue advanceAmount nextFollowUpDate createdAt');
+
+    const totalLeads = allLeads.length;
+    const now = new Date();
+
+    let pendingFollowUps = 0;
+    let wonLeads = 0;
+    let lostLeads = 0;
+    let totalWonValue = 0;
+
+    const statusCounts = {};
+
+    for (const lead of allLeads) {
+        const s = lead.status || 'New Inquiry';
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+
+        const isWon = s === 'Won' || s === 'won' || lead.result === 'Won' || lead.result === 'won';
+        const isLost = s === 'Lost' || s === 'lost' || lead.result === 'Lost' || lead.result === 'lost';
+
+        if (isWon) {
+            wonLeads += 1;
+            totalWonValue += Number(lead.finalValue || lead.quotationValue || 0);
+        } else if (isLost) {
+            lostLeads += 1;
+        } else {
+            // Active lead: check if follow-up is pending/due or in follow-up pipeline
+            if (lead.nextFollowUpDate || ['Follow-Up', 'Contacted', 'Site Visit Pending', 'Quotation Pending', 'Quotation Sent', 'Negotiation'].includes(s)) {
+                pendingFollowUps += 1;
+            }
+        }
+    }
+
+    const conversionRate = totalLeads > 0 ? (wonLeads / totalLeads) * 100 : 0;
+
+    res.json({
+        success: true,
+        data: {
+            totalLeads,
+            pendingFollowUps,
+            wonLeads,
+            lostLeads,
+            totalWonValue,
+            conversionRate: parseFloat(conversionRate.toFixed(1)),
+            statusCounts
+        }
+    });
+});
+
+/**
+ * @desc    Legacy conversion rate endpoint
  * @route   GET /api/crm/inquiries/conversion-rate
  * @access  Private
  */
 export const getConversionRate = asyncHandler(async (req, res) => {
-    const { startDate, endDate } = req.query;
-    const match = { deletedAt: null };
-    if (startDate || endDate) {
-        match.createdAt = {};
-        if (startDate) match.createdAt.$gte = new Date(startDate);
-        if (endDate)   match.createdAt.$lte = new Date(endDate);
-    }
+    const allLeads = await Inquiry.find({ deletedAt: null }).select('status result finalValue quotationValue');
+    const total = allLeads.length;
+    const confirmed = allLeads.filter(l => l.status === 'Won' || l.status === 'won' || l.result === 'Won').length;
+    const lost = allLeads.filter(l => l.status === 'Lost' || l.status === 'lost' || l.result === 'Lost').length;
+    const conversionRate = total > 0 ? (confirmed / total) * 100 : 0;
 
-    const [stats] = await Inquiry.aggregate([
-        { $match: match },
-        {
-            $group: {
-                _id: null,
-                total:     { $sum: 1 },
-                confirmed: { $sum: { $cond: [{ $eq: ['$status', 'won'] }, 1, 0] } },
-                lost:      { $sum: { $cond: [{ $eq: ['$status', 'lost'] }, 1, 0] } },
-            }
-        },
-        {
-            $addFields: {
-                conversionRate: {
-                    $cond: [
-                        { $gt: ['$total', 0] },
-                        { $multiply: [{ $divide: ['$confirmed', '$total'] }, 100] },
-                        0
-                    ]
-                }
-            }
+    res.json({
+        success: true,
+        data: {
+            total,
+            confirmed,
+            lost,
+            conversionRate: parseFloat(conversionRate.toFixed(1))
         }
-    ]);
-
-    res.json({ success: true, data: stats || { total: 0, confirmed: 0, lost: 0, conversionRate: 0 } });
+    });
 });
 
 /**
@@ -203,9 +359,9 @@ export const deleteInquiry = asyncHandler(async (req, res) => {
         action: 'delete',
         module: 'crm',
         documentId: inquiry._id,
-        description: `Deleted inquiry from ${inquiry.companyName}`,
+        description: `Deleted lead ${inquiry.leadNo || inquiry.inquiryCode}`,
         req
     });
 
-    res.json({ success: true, message: 'Inquiry deleted' });
+    res.json({ success: true, message: 'Lead deleted successfully' });
 });

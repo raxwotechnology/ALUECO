@@ -704,17 +704,37 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         createdBy: req.user._id
     });
     
-    // Auto-create/integrate Lead into Sales Pipeline
+    // Auto-create/integrate Lead into Sales Pipeline / Lead Follow-up Dashboard
     try {
         const { default: Inquiry } = await import('../models/Inquiry.js');
+        const quoteVal = quotation.finalSellingPrice || quotation.calculatedSellingPrice || 0;
+        const officerName = req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer';
+        const followDate = quotation.validTill || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
         await Inquiry.create({
+            customerName: customerName,
             companyName: customerName,
             contactPerson: customerName,
-            projectLocation: location || projectName,
-            source: 'Quotation System',
-            status: 'Quotation Pending',
-            notes: `Auto-generated lead from Aluminium Quotation #${quotation.quoteNumber}`,
-            createdBy: req.user._id
+            projectLocation: location || projectName || 'Colombo',
+            requirement: `Aluminium Works - ${projectName || 'Custom Openings'}`,
+            inquirySource: 'Direct',
+            source: 'Direct',
+            quotationNo: quotation.quoteNumber,
+            quotationValue: quoteVal,
+            aluQuotations: [quotation._id],
+            status: 'Quotation Sent',
+            result: 'Pending',
+            nextFollowUpDate: followDate,
+            followUpDate: followDate,
+            notes: `Aluminium Quotation #${quotation.quoteNumber} (${projectName || 'Custom Project'})`,
+            followUpHistory: [{
+                date: new Date(),
+                salesOfficer: officerName,
+                user: req.user?._id,
+                note: `Aluminium Quotation #${quotation.quoteNumber} generated directly (Quoted Value: Rs. ${quoteVal.toLocaleString()})`,
+                nextFollowUpDate: followDate
+            }],
+            createdBy: req.user?._id
         });
     } catch (inqErr) {
         console.warn('Failed to auto-create lead in pipeline:', inqErr.message);
