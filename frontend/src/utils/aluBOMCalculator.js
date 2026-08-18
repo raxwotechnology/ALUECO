@@ -36,36 +36,36 @@ export const calculateBOM = ({
     const panelWidth = Math.round((W + totalOverlaps) / P);
     const panelHeight = H_bottom - 70; // deduct outer frame header/sill thickness & track clearances
 
-    // Default Rate Snapshot if custom rates not provided
+    // Default Rate Snapshot if custom rates not provided (defaults to 0 when DB is empty)
     const profileRates = rates?.profiles || {
-        'OUTER_HEAD': { name: 'Outer Frame Header / Track Profile', ratePerM: 1450, code: 'ALU-OUT-01' },
-        'OUTER_SILL': { name: 'Outer Frame Bottom Sill Profile', ratePerM: 1550, code: 'ALU-OUT-02' },
-        'OUTER_JAMB': { name: 'Outer Frame Side Jamb Profile', ratePerM: 1350, code: 'ALU-OUT-03' },
-        'TRANSOM_BAR': { name: 'Transom Partition Bar Profile', ratePerM: 1600, code: 'ALU-TRN-01' },
-        'SASH_INTERLOCK': { name: 'Sliding Sash Interlock Stile Profile', ratePerM: 1250, code: 'ALU-SSH-01' },
-        'SASH_HOOK': { name: 'Sliding Sash Hook Stile Profile', ratePerM: 1250, code: 'ALU-SSH-02' },
-        'SASH_RAIL': { name: 'Sliding Sash Top/Bottom Rail Profile', ratePerM: 1150, code: 'ALU-SSH-03' },
-        'AWNING_FRAME': { name: 'Awning Top-Hung Outer Frame', ratePerM: 1400, code: 'ALU-AWN-01' },
-        'AWNING_SASH': { name: 'Awning Top-Hung Vent Sash', ratePerM: 1300, code: 'ALU-AWN-02' },
-        'LOUVER_FRAME': { name: 'Louver Channel Side Stile Frame', ratePerM: 1100, code: 'ALU-LOU-01' }
+        'OUTER_HEAD': { name: 'Outer Frame Header / Track Profile', ratePerM: 0, code: 'ALU-OUT-01' },
+        'OUTER_SILL': { name: 'Outer Frame Bottom Sill Profile', ratePerM: 0, code: 'ALU-OUT-02' },
+        'OUTER_JAMB': { name: 'Outer Frame Side Jamb Profile', ratePerM: 0, code: 'ALU-OUT-03' },
+        'TRANSOM_BAR': { name: 'Transom Partition Bar Profile', ratePerM: 0, code: 'ALU-TRN-01' },
+        'SASH_INTERLOCK': { name: 'Sliding Sash Interlock Stile Profile', ratePerM: 0, code: 'ALU-SSH-01' },
+        'SASH_HOOK': { name: 'Sliding Sash Hook Stile Profile', ratePerM: 0, code: 'ALU-SSH-02' },
+        'SASH_RAIL': { name: 'Sliding Sash Top/Bottom Rail Profile', ratePerM: 0, code: 'ALU-SSH-03' },
+        'AWNING_FRAME': { name: 'Awning Top-Hung Outer Frame', ratePerM: 0, code: 'ALU-AWN-01' },
+        'AWNING_SASH': { name: 'Awning Top-Hung Vent Sash', ratePerM: 0, code: 'ALU-AWN-02' },
+        'LOUVER_FRAME': { name: 'Louver Channel Side Stile Frame', ratePerM: 0, code: 'ALU-LOU-01' }
     };
 
     const glassRates = rates?.glass || {
-        'CLEAR_5MM': { name: '5mm Clear Floating Glass', ratePerSqFt: 380, ratePerSqM: 4090 },
-        'TINTED_6MM': { name: '6mm Dark Grey Tinted Glass', ratePerSqFt: 480, ratePerSqM: 5165 },
-        'TEMPERED_6MM': { name: '6mm Clear Tempered Safety Glass', ratePerSqFt: 620, ratePerSqM: 6670 }
+        'CLEAR_5MM': { name: '5mm Clear Floating Glass', ratePerSqFt: 0, ratePerSqM: 0 },
+        'TINTED_6MM': { name: '6mm Dark Grey Tinted Glass', ratePerSqFt: 0, ratePerSqM: 0 },
+        'TEMPERED_6MM': { name: '6mm Clear Tempered Safety Glass', ratePerSqFt: 0, ratePerSqM: 0 }
     };
 
     const accessoryRates = rates?.accessories || {
-        'ROLLER_HEAVY': { name: 'Heavy Duty Bearing Roller Wheels', unitRate: 450, unit: 'pcs' },
-        'TOUCH_LOCK': { name: 'Flush Touch Lock Set with Key', unitRate: 850, unit: 'pcs' },
-        'INTERLOCK_BLOCK': { name: 'Weather Seal Interlock Block', unitRate: 120, unit: 'pcs' },
-        'AWNING_STAY': { name: '12" Stainless Friction Stay Hinges (Pair)', unitRate: 1850, unit: 'pair' },
-        'AWNING_HANDLE': { name: 'Awning Cockspur Locking Handle', unitRate: 650, unit: 'pcs' },
-        'LOUVER_CLIP': { name: 'Louver Clip Kit (4" Slats, Pair)', unitRate: 950, unit: 'pair' },
-        'CORNER_CLEAT': { name: 'Heavy Aluminium Corner Cleat Joint', unitRate: 90, unit: 'pcs' },
-        'RUBBER_EPDM': { name: 'EPDM Rubber Glass Gasket Strip', unitRate: 45, unit: 'm' },
-        'WOOLPILE': { name: 'Silicone Weatherstrip Woolpile Seal', unitRate: 35, unit: 'm' }
+        'ROLLER_HEAVY': { name: 'Heavy Duty Bearing Roller Wheels', unitRate: 0, unit: 'pcs' },
+        'TOUCH_LOCK': { name: 'Flush Touch Lock Set with Key', unitRate: 0, unit: 'pcs' },
+        'INTERLOCK_BLOCK': { name: 'Weather Seal Interlock Block', unitRate: 0, unit: 'pcs' },
+        'AWNING_STAY': { name: '12" Stainless Friction Stay Hinges (Pair)', unitRate: 0, unit: 'pair' },
+        'AWNING_HANDLE': { name: 'Awning Cockspur Locking Handle', unitRate: 0, unit: 'pcs' },
+        'LOUVER_CLIP': { name: 'Louver Clip Kit (4" Slats, Pair)', unitRate: 0, unit: 'pair' },
+        'CORNER_CLEAT': { name: 'Heavy Aluminium Corner Cleat Joint', unitRate: 0, unit: 'pcs' },
+        'RUBBER_EPDM': { name: 'EPDM Rubber Glass Gasket Strip', unitRate: 0, unit: 'm' },
+        'WOOLPILE': { name: 'Silicone Weatherstrip Woolpile Seal', unitRate: 0, unit: 'm' }
     };
 
     // ----------------------------------------------------

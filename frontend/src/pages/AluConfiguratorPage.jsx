@@ -39,10 +39,54 @@ const AluConfiguratorPage = () => {
     });
 
     // Profit Margin % State
-    const [profitMarginPercent, setProfitMarginPercent] = useState(20);
+    const [profitMarginPercent, setProfitMarginPercent] = useState(0);
 
-    // Active BOM View Tab State
-    const [activeTab, setActiveTab] = useState('profiles'); // 'profiles' | 'glass' | 'accessories' | 'summary'
+    // Dynamic Database Rates State
+    const [dbRates, setDbRates] = useState(null);
+
+    // Fetch real-time rates from Database (defaults to 0 if database is empty)
+    useEffect(() => {
+        const fetchRates = async () => {
+            try {
+                const [pRes, gRes, aRes] = await Promise.all([
+                    api.get('/alu/profiles').catch(() => ({ data: { data: [] } })),
+                    api.get('/alu/glass').catch(() => ({ data: { data: [] } })),
+                    api.get('/alu/accessories').catch(() => ({ data: { data: [] } }))
+                ]);
+
+                const profiles = pRes.data?.data || [];
+                const glass = gRes.data?.data || [];
+                const accessories = aRes.data?.data || [];
+
+                const profMap = {};
+                profiles.forEach(p => {
+                    const pricePerM = p.standardLengths?.length > 0
+                        ? (p.standardLengths[0].price / (p.standardLengths[0].lengthMm / 1000))
+                        : 0;
+                    profMap[p.profileCode] = { name: p.description, ratePerM: pricePerM, code: p.profileCode };
+                });
+
+                const glassMap = {};
+                glass.forEach(g => {
+                    glassMap[g.typeName] = { name: g.typeName, ratePerSqFt: g.ratePerSqFt || 0, ratePerSqM: g.ratePerSqM || 0 };
+                });
+
+                const accMap = {};
+                accessories.forEach(a => {
+                    accMap[a.code] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
+                });
+
+                setDbRates({
+                    profiles: profMap,
+                    glass: glassMap,
+                    accessories: accMap
+                });
+            } catch (err) {
+                console.log('Error fetching DB rates:', err);
+            }
+        };
+        fetchRates();
+    }, []);
 
     // Update panel arrangement array when panelCount changes or preset selection
     const applyPresetConfiguration = (presetKey, pCount = panelCount, tSys = trackSystem) => {
@@ -151,10 +195,11 @@ const AluConfiguratorPage = () => {
             panelArrangement,
             topSection,
             quantity: Number(quantity) || 1,
-            profitMarginPercent: Number(profitMarginPercent) || 20,
+            profitMarginPercent: Number(profitMarginPercent) || 0,
+            rates: dbRates,
             customAddons
         });
-    }, [width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, customAddons]);
+    }, [width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, dbRates, customAddons]);
 
     // Handle "Add to New Quotation"
     const handleAddToQuotation = () => {
@@ -174,6 +219,33 @@ const AluConfiguratorPage = () => {
                 }]
             }
         });
+    };
+
+    // Dynamic handler for Application Type selection (Sliding Door vs Sliding Window)
+    const handleAppTypeSelect = (cat) => {
+        setAppType(cat);
+        if (cat === 'Sliding Window') {
+            setWidth(1500);
+            setHeight(1200);
+        } else if (cat === 'Sliding Door') {
+            setWidth(2400);
+            setHeight(2100);
+        }
+    };
+
+    // Dynamic handler for Multi-Track System selection (2-Track, 3-Track, 4-Track)
+    const handleTrackSystemSelect = (t) => {
+        setTrackSystem(t);
+        if (t === '3-Track') {
+            setPanelCount(3);
+            applyPresetConfiguration('3panel_3track', 3, '3-Track');
+        } else if (t === '4-Track') {
+            setPanelCount(4);
+            applyPresetConfiguration('4panel_center_slide', 4, '4-Track');
+        } else if (t === '2-Track') {
+            setPanelCount(2);
+            applyPresetConfiguration('2panel_standard', 2, '2-Track');
+        }
     };
 
     return (
@@ -217,7 +289,7 @@ const AluConfiguratorPage = () => {
                             {['Sliding Door', 'Sliding Window'].map(cat => (
                                 <button
                                     key={cat}
-                                    onClick={() => setAppType(cat)}
+                                    onClick={() => handleAppTypeSelect(cat)}
                                     className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${appType === cat ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                                 >
                                     {cat}
@@ -232,7 +304,7 @@ const AluConfiguratorPage = () => {
                                 {['2-Track', '3-Track', '4-Track'].map(t => (
                                     <button
                                         key={t}
-                                        onClick={() => setTrackSystem(t)}
+                                        onClick={() => handleTrackSystemSelect(t)}
                                         className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${trackSystem === t ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                                     >
                                         {t}
@@ -475,32 +547,32 @@ const AluConfiguratorPage = () => {
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Preset Add-ons</label>
                             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                                 <button
-                                    onClick={() => handleAddPresetAddon('Insect Flyscreen Mesh Door', 8500)}
+                                    onClick={() => handleAddPresetAddon('Insect Flyscreen Mesh Door', 0)}
                                     className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
                                 >
                                     <span>+ Flyscreen Mesh</span>
-                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 8,500</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 0</span>
                                 </button>
                                 <button
-                                    onClick={() => handleAddPresetAddon('Multi-Point Gear Lock System', 6500)}
+                                    onClick={() => handleAddPresetAddon('Multi-Point Gear Lock System', 0)}
                                     className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
                                 >
                                     <span>+ Multi-Point Lock</span>
-                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 6,500</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 0</span>
                                 </button>
                                 <button
-                                    onClick={() => handleAddPresetAddon('Sub-Frame Equal Angle Flange', 4500)}
+                                    onClick={() => handleAddPresetAddon('Sub-Frame Equal Angle Flange', 0)}
                                     className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
                                 >
                                     <span>+ Sub-Frame Angle</span>
-                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 4,500</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 0</span>
                                 </button>
                                 <button
-                                    onClick={() => handleAddPresetAddon('Wood Finish Powder Coat Surcharge', 12000)}
+                                    onClick={() => handleAddPresetAddon('Wood Finish Powder Coat Surcharge', 0)}
                                     className="p-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 font-bold text-left transition flex justify-between items-center"
                                 >
                                     <span>+ Wood Powder Coat</span>
-                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 12,000</span>
+                                    <span className="text-emerald-600 font-mono text-[10px]">LKR 0</span>
                                 </button>
                             </div>
                         </div>
