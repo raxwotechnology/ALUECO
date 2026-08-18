@@ -357,36 +357,9 @@ const seedAluDefaults = async () => {
 
 export const seedDefaults = async () => {
     try {
-        const uomCount = await UnitOfMeasure.countDocuments();
-        if (uomCount === 0) {
-            await UnitOfMeasure.insertMany(defaultUoms);
-            console.log(`✓ Seeded ${defaultUoms.length} Units of Measure`);
-        }
-
-        const catCount = await Category.countDocuments();
-        if (catCount === 0) {
-            await Category.insertMany(defaultCategories);
-            console.log(`✓ Seeded ${defaultCategories.length} default Categories`);
-        }
-
-        // ADD THIS BLOCK:
-        const groupCount = await CustomerGroup.countDocuments();
-        if (groupCount === 0) {
-            await CustomerGroup.insertMany(defaultCustomerGroups);
-            console.log(`✓ Seeded ${defaultCustomerGroups.length} Customer Groups`);
-        }
-
-        const warehouseCount = await Warehouse.countDocuments();
-        if (warehouseCount === 0) {
-            await Warehouse.create(defaultWarehouse);
-            console.log(`✓ Seeded default Warehouse (MAIN)`);
-        }
-
         await seedAdminUser();
-        await seedSriLankaHolidays();
         await seedPermissions();
-        await seedAluDefaults();
-
+        // Auto-seeding of defaults disabled to preserve a clean 0-state database as requested
     } catch (error) {
         console.error('Seed error:', error.message);
     }
