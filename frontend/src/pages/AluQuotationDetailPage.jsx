@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings as SettingsIcon, Users, Truck, DollarSign, Edit } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings as SettingsIcon, Users, Truck, DollarSign, Edit, Receipt, CreditCard, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import Button from '../components/ui/Button';
@@ -20,12 +20,42 @@ const AluQuotationDetailPage = () => {
     
     const [quotation, setQuotation] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [converting, setConverting] = useState(false);
     const [selectedProfileCode, setSelectedProfileCode] = useState(null);
     const [selectedGlassType, setSelectedGlassType] = useState(null);
     const [viewMode, setViewMode] = useState('customer'); // 'customer' or 'internal'
     const [includeVat, setIncludeVat] = useState(true);
     const [distributeTransportCost, setDistributeTransportCost] = useState(false);
     const [customTerms, setCustomTerms] = useState('');
+
+    const handleConvertToOrder = async () => {
+        if (!quotation) return;
+        if (quotation.status === 'converted') {
+            toast.info('This quotation is already converted to an invoice.');
+            navigate('/invoices');
+            return;
+        }
+
+        if (!window.confirm(`Convert Quotation ${quotation.quoteNumber} to an Official Commercial Invoice? This will allow recording advance and partial installment payments.`)) {
+            return;
+        }
+
+        setConverting(true);
+        try {
+            const { data } = await api.post(`/alu/quotations/${quotation._id}/convert-to-order`);
+            toast.success('Converted to Commercial Invoice & Production Job Card successfully!');
+            setQuotation(prev => ({ ...prev, status: 'converted' }));
+            if (data.data?.invoiceId) {
+                navigate(`/invoices/${data.data.invoiceId}`);
+            } else {
+                navigate('/invoices');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to convert quotation to invoice');
+        } finally {
+            setConverting(false);
+        }
+    };
 
     useEffect(() => {
         const fetchQuotation = async () => {
@@ -369,6 +399,22 @@ const AluQuotationDetailPage = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                    {quotation.status === 'converted' ? (
+                        <Button 
+                            onClick={() => navigate('/invoices')} 
+                            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition"
+                        >
+                            <CreditCard size={14} /> View Invoice &amp; Track Payments
+                        </Button>
+                    ) : (
+                        <Button 
+                            onClick={handleConvertToOrder} 
+                            disabled={converting}
+                            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2 px-4 rounded-xl text-xs shadow-sm transition"
+                        >
+                            <Receipt size={14} /> {converting ? 'Converting...' : '⚡ Convert to Invoice &amp; Track Payments'}
+                        </Button>
+                    )}
                     <Button onClick={handleDownloadInternalPDF} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
                         <FileSpreadsheet size={14} /> Export Internal Costing
                     </Button>
@@ -383,15 +429,17 @@ const AluQuotationDetailPage = () => {
 
             {/* CONDITIONAL VIEW RENDER */}
             {viewMode === 'customer' ? (
-                <CustomerQuotationView 
-                    quotation={quotation} 
-                    settings={settings} 
-                    options={{
-                        includeVat,
-                        distributeTransportCost,
-                        customTerms
-                    }}
-                />
+                <div className="w-full overflow-x-auto pb-6">
+                    <CustomerQuotationView 
+                        quotation={quotation} 
+                        settings={settings} 
+                        options={{
+                            includeVat,
+                            distributeTransportCost,
+                            customTerms
+                        }}
+                    />
+                </div>
             ) : (
                 <>
                     {/* Quotation Metadata Panel */}

@@ -177,15 +177,22 @@ export default function CustomerQuotationView({
                 {/* ── 1. HEADER SECTION (BALANCED DUAL LOGO HEADER) ───────────── */}
             <div className="p-3 px-4 border-b border-slate-200 flex flex-row justify-between items-start gap-4 bg-white">
                 
-                {/* Left: Primary Brand Identity */}
-                <div className="flex items-start gap-3">
-                    {companyLogo ? (
-                        <img src={companyLogo} alt="Company Logo" className="h-12 w-auto object-contain max-w-[120px]" />
-                    ) : (
-                        <div className="w-12 h-12 bg-[#064E3B] text-white rounded-lg flex items-center justify-center font-black text-lg tracking-tighter shadow-sm">
-                            A
-                        </div>
-                    )}
+                {/* Left: Primary & Secondary Brand Identity Logos together */}
+                <div className="flex items-start gap-3.5">
+                    <div className="flex items-center gap-2.5 flex-shrink-0">
+                        {companyLogo ? (
+                            <img src={companyLogo} alt="Company Logo" className="h-12 w-auto object-contain max-w-[120px]" />
+                        ) : (
+                            <div className="w-12 h-12 bg-[#064E3B] text-white rounded-lg flex items-center justify-center font-black text-lg tracking-tighter shadow-sm">
+                                A
+                            </div>
+                        )}
+                        {secondaryLogo && (
+                            <div className="pl-2 border-l border-slate-200 flex items-center justify-center h-12">
+                                <img src={secondaryLogo} alt="Secondary Logo" className="h-11 w-auto object-contain max-w-[80px]" />
+                            </div>
+                        )}
+                    </div>
                     <div>
                         <h1 className="text-base font-black text-[#064E3B] tracking-tight uppercase">
                             {companyName}
@@ -213,29 +220,22 @@ export default function CustomerQuotationView({
                     </div>
                 </div>
 
-                {/* Right: Document Banner & Secondary Logo Alignment */}
-                <div className="flex items-start gap-3">
-                    {secondaryLogo && (
-                        <div className="pr-2 border-r border-slate-200 flex items-center justify-center h-12">
-                            <img src={secondaryLogo} alt="Secondary Logo" className="h-10 w-auto object-contain max-w-[90px]" />
-                        </div>
-                    )}
-                    <div className="flex flex-col items-end">
-                        <table style={{ display: 'inline-table', borderCollapse: 'collapse', margin: 0, padding: 0 }}>
-                            <tbody>
-                                <tr>
-                                    <td data-pdf-badge="main" style={{ backgroundColor: '#064E3B', color: '#ffffff', borderRadius: '6px', fontWeight: 900, fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', padding: '3px 16px', textAlign: 'center', verticalAlign: 'middle', height: '24px', whiteSpace: 'nowrap' }}>
-                                        {docType}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div className="mt-2 text-[10px] space-y-0.5 text-right font-medium text-slate-700">
-                            <p><span className="text-slate-400">{isInvoice ? 'Invoice No :' : 'Quote No :'}</span> <strong className="text-slate-900 font-bold">{docNumber}</strong></p>
-                            <p><span className="text-slate-400">{isInvoice ? 'Invoice Date :' : 'Quote Date :'}</span> <strong>{docDateStr}</strong></p>
-                            <p><span className="text-slate-400">{isInvoice ? 'Due Date :' : 'Valid Till :'}</span> <strong>{expireDateStr}</strong></p>
-                            <p><span className="text-slate-400">Prepared By :</span> <strong>{preparedBy}</strong></p>
-                        </div>
+                {/* Right: Document Banner */}
+                <div className="flex flex-col items-end">
+                    <table style={{ display: 'inline-table', borderCollapse: 'collapse', margin: 0, padding: 0 }}>
+                        <tbody>
+                            <tr>
+                                <td data-pdf-badge="main" style={{ backgroundColor: '#064E3B', color: '#ffffff', borderRadius: '6px', fontWeight: 900, fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', padding: '3px 16px', textAlign: 'center', verticalAlign: 'middle', height: '24px', whiteSpace: 'nowrap' }}>
+                                    {docType}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div className="mt-2 text-[10px] space-y-0.5 text-right font-medium text-slate-700">
+                        <p><span className="text-slate-400">{isInvoice ? 'Invoice No :' : 'Quote No :'}</span> <strong className="text-slate-900 font-bold">{docNumber}</strong></p>
+                        <p><span className="text-slate-400">{isInvoice ? 'Invoice Date :' : 'Quote Date :'}</span> <strong>{docDateStr}</strong></p>
+                        <p><span className="text-slate-400">{isInvoice ? 'Due Date :' : 'Valid Till :'}</span> <strong>{expireDateStr}</strong></p>
+                        <p><span className="text-slate-400">Prepared By :</span> <strong>{preparedBy}</strong></p>
                     </div>
                 </div>
             </div>
@@ -278,6 +278,9 @@ export default function CustomerQuotationView({
                     <div className="space-y-1 text-[10px]">
                         <div className="flex"><span className="w-24 text-slate-400 font-medium">Project Name :</span><strong className="text-slate-900">{projectName}</strong></div>
                         <div className="flex"><span className="w-24 text-slate-400 font-medium">Location :</span><span className="text-slate-800">{location}</span></div>
+                        {doc.description && (
+                            <div className="flex"><span className="w-24 text-slate-400 font-medium">Scope/Notes :</span><span className="text-slate-800 font-medium">{doc.description}</span></div>
+                        )}
                         <div className="flex"><span className="w-24 text-slate-400 font-medium">Requirement :</span><span className="text-slate-800">Aluminium Doors &amp; Windows</span></div>
                         <div className="flex"><span className="w-24 text-slate-400 font-medium">Payment Terms :</span><span className="text-slate-800 font-semibold text-emerald-700">60% Advance / 40% Completion</span></div>
                         <div className="flex"><span className="w-24 text-slate-400 font-medium">Delivery :</span><span className="text-slate-800">To be Advised</span></div>
@@ -308,35 +311,33 @@ export default function CustomerQuotationView({
                 <div className="border border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <table className="w-full text-left text-[10px] border-collapse">
                         <thead>
-                            <tr className="bg-[#0F172A] text-white font-bold uppercase text-[9px] tracking-wider border-b border-slate-800">
-                                <th className="p-2 text-center w-8 border-r border-slate-700">No.</th>
-                                <th className="p-2 text-center w-24 border-r border-slate-700">Application</th>
-                                <th className="p-2 border-r border-slate-700">Description &amp; Specifications</th>
-                                <th className="p-2 text-center w-24 border-r border-slate-700">
-                                    Size (mm)<br />
-                                    <span className="text-[7.5px] text-slate-300 font-normal">Width &times; Height</span>
-                                </th>
-                                <th className="p-2 text-center w-12 border-r border-slate-700">Qty</th>
-                                <th className="p-2 text-right w-24 border-r border-slate-700">Unit Rate (LKR)</th>
-                                <th className="p-2 text-right w-28">Total (LKR)</th>
+                            <tr className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white font-extrabold border-b border-slate-800 text-[10px] tracking-wide">
+                                <th className="p-2 w-7 text-center">#</th>
+                                <th className="p-2 w-16 text-center">Sketch</th>
+                                <th className="p-2 min-w-[190px]">Description &amp; Specifications</th>
+                                <th className="p-2 w-20 text-center">Size (W&times;H mm)</th>
+                                <th className="p-2 w-10 text-center">Qty</th>
+                                <th className="p-2 w-24 text-right">Unit Rate (LKR)</th>
+                                <th className="p-2 w-24 text-right">Total (LKR)</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">
-                            {processedItems.map((item, idx) => {
-                                const appType = item.applicationType || item.productName || 'Aluminium Opening';
-                                const config = item.configuration || item.productCode || 'Standard Profile';
-                                const itemWidth = item.width || '—';
-                                const itemHeight = item.height || '—';
+                        <tbody className="divide-y divide-slate-200">
+                            {processedItems.map((item, index) => {
+                                const appType = item.applicationType || 'Sliding Window System';
+                                const config = item.configuration || 'Standard Profile';
+                                const itemWidth = item.width || 0;
+                                const itemHeight = item.height || 0;
 
                                 return (
-                                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="p-2 text-center font-bold text-slate-600 border-r border-slate-200">
-                                            {String(idx + 1).padStart(2, '0')}
+                                    <tr key={index} className={index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}>
+                                        <td className="p-2 text-center font-bold text-slate-700 border-r border-slate-200">
+                                            {index + 1}
                                         </td>
-                                        <td className="p-2 text-center border-r border-slate-200 flex justify-center items-center">
+                                        <td className="p-1 text-center border-r border-slate-200 bg-slate-900/5">
                                             <ApplicationSketchDiagram
                                                 type={appType}
                                                 configuration={config}
+                                                className="w-14 h-14 mx-auto rounded bg-slate-950 p-0.5 border border-slate-300 shadow-xs"
                                             />
                                         </td>
                                         <td className="p-2 border-r border-slate-200 space-y-0.5">
@@ -346,11 +347,16 @@ export default function CustomerQuotationView({
                                             <p className="text-slate-600 font-semibold text-[9.5px]">
                                                 {config}
                                             </p>
+                                            {item.description && (
+                                                <p className="text-emerald-950 font-medium text-[9.5px] bg-slate-50 p-1 rounded border border-slate-100 italic">
+                                                    {item.description}
+                                                </p>
+                                            )}
                                             <div className="mt-1 pt-1 border-t border-slate-100 text-[9px] text-slate-600 space-y-0.5 font-normal">
-                                                <p>• <strong>Profile:</strong> Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)</p>
-                                                <p>• <strong>Glass:</strong> 5mm Single Tempered Clear Glass</p>
-                                                <p>• <strong>Hardware:</strong> Kinlong / 3H Heavy Duty Touch Locks, Rollers &amp; Seals</p>
-                                                <p>• <strong>Scope:</strong> Fabrication, Delivery &amp; Installation Inclusive</p>
+                                                <p>• <strong>Profile:</strong> {item.profileSpec || item.profile || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)'}</p>
+                                                <p>• <strong>Glass:</strong> {item.glassSpec || item.glass || '5mm Single Tempered Clear Glass'}</p>
+                                                <p>• <strong>Hardware:</strong> {item.hardwareSpec || item.hardware || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals'}</p>
+                                                <p>• <strong>Scope:</strong> {item.scopeSpec || item.scope || 'Fabrication, Delivery & Installation Inclusive'}</p>
                                             </div>
                                         </td>
                                         <td className="p-2 text-center border-r border-slate-200 font-mono font-bold text-slate-800">
@@ -515,10 +521,16 @@ export default function CustomerQuotationView({
                         </div>
                     </div>
 
-                    {/* Thank You Note */}
-                    <div className="text-center py-1">
-                        <p className="font-serif italic text-emerald-700 font-bold text-xs leading-normal tracking-wide overflow-visible pb-1">
-                            Thank you for your business.
+                    {/* Thank You Note & Company Slogan */}
+                    <div className="text-center py-0.5 space-y-0.5 max-w-[240px]">
+                        <p className="font-bold text-slate-800 text-[10.5px] leading-tight">
+                            Thank you for Choosing ALUECO
+                        </p>
+                        <p className="italic text-emerald-800 font-semibold text-[9.5px] leading-tight font-serif">
+                            Shaping a Greener Tomorrow Today....
+                        </p>
+                        <p className="font-black text-slate-900 text-[9.5px] uppercase tracking-wider leading-tight">
+                            LUXO CONSTRUCTION PRIVATE LIMITED
                         </p>
                     </div>
 

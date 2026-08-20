@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -8,9 +8,17 @@ import { useSettings } from '../../features/settings/useSettings';
 
 export default function AppLayout() {
     const { user } = useAuthStore();
+    const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
     const { data: settingsData } = useSettings();
     const settings = settingsData?.data;
+
+    // Auto-close sidebar on mobile on route navigation
+    useEffect(() => {
+        if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
+    }, [location.pathname]);
 
     // Dynamically update page title and favicon based on system settings
     useEffect(() => {
@@ -40,7 +48,7 @@ export default function AppLayout() {
             />
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 <Header onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-                <main className="flex-1 overflow-y-auto p-6">
+                <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 min-w-0">
                     <Outlet />
                 </main>
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, BarChart3, Package, ShoppingCart, Users, Settings, Navigation,
     FolderTree, Award, UserCircle, Tags, Warehouse, Boxes, Truck,
@@ -8,8 +8,11 @@ import {
     ClipboardList, UserPlus, Ship, Layers, History, FileSpreadsheet,
     ChevronDown, ChevronRight, CheckSquare, ClipboardCheck, BadgeCheck,
     PackageCheck, CreditCard, Tag, Mail, Sparkles, Home, Search, Scale,
-    Plus, ArrowLeftRight, Sliders, LineChart, PieChart, TrendingUp, UserCheck, Share2, Cpu
+    Plus, ArrowLeftRight, Sliders, LineChart, PieChart, TrendingUp, UserCheck, Share2, Cpu, LogOut
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useAuthStore } from '../../store/authStore';
+import { authApi } from '../../features/auth/authApi';
 import { usePermission } from '../../hooks/usePermission';
 import { useSettings } from '../../features/settings/useSettings';
 
@@ -405,6 +408,17 @@ export default function Sidebar({ isOpen, onClose }) {
     const { hasPermission, hasAnyPermission, isAdmin, user } = usePermission();
     const { data: settingsData } = useSettings();
     const settings = settingsData?.data;
+    const { logout } = useAuthStore();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        try {
+            await authApi.logout();
+        } catch (err) {}
+        logout();
+        toast.success('Logged out successfully');
+        navigate('/login');
+    };
 
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -513,7 +527,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     transition: 'width 0.25s ease, min-width 0.25s ease',
                     flexShrink: 0,
                 }}
-                className="h-screen bg-[#0B192C] border-r border-slate-900 flex flex-col z-40 relative text-slate-100"
+                className="h-screen bg-[#0B192C] border-r border-slate-900 flex flex-col z-40 fixed inset-y-0 left-0 lg:relative text-slate-100 shadow-2xl lg:shadow-none"
             >
                 <div className="w-64 flex flex-col h-full">
 
@@ -665,9 +679,20 @@ export default function Sidebar({ isOpen, onClose }) {
 
                     </nav>
 
-                    {/* ── Footer ── */}
-                    <div className="p-4 border-t border-slate-900 flex-shrink-0">
-                        <p className="text-xs text-slate-500">v1.0.0 · MVP</p>
+                    {/* ── Footer with User Profile & Logout Button ── */}
+                    <div className="p-3.5 border-t border-slate-900 flex-shrink-0 space-y-2.5 bg-[#081220]">
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 rounded-xl transition shadow-xs hover:text-white"
+                        >
+                            <LogOut size={15} />
+                            <span>Log Out System</span>
+                        </button>
+                        <div className="flex justify-between items-center px-1 text-[10px] text-slate-500 font-mono">
+                            <span>ALUECO ERP</span>
+                            <span>v1.0.0</span>
+                        </div>
                     </div>
                 </div>
             </aside>

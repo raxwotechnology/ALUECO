@@ -3,6 +3,7 @@ import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Download, Lock, MoveLeft, MoveRi
 import toast from 'react-hot-toast';
 
 export default function Alu2DInteractiveCanvas({
+    appType = 'Sliding Door',
     width = 2400,
     height = 2100,
     trackSystem = '2-Track',
@@ -20,7 +21,7 @@ export default function Alu2DInteractiveCanvas({
     // Sanitize dimension values
     const W = Math.max(300, Number(width) || 2400);
     const H_total = Math.max(400, Number(height) || 2100);
-    const P = Math.max(1, Number(panelCount) || 2);
+    const P = Math.max(1, Number(panelCount) || 1);
     
     const hasTop = topSection && topSection.enabled && Number(topSection.height) > 0 && Number(topSection.height) < H_total;
     const H_top = hasTop ? Math.min(H_total - 300, Math.max(200, Number(topSection.height))) : 0;
@@ -48,9 +49,16 @@ export default function Alu2DInteractiveCanvas({
     const topFrameH = frameH * topRatio;
     const bottomFrameH = frameH - topFrameH;
 
-    const outerThick = Math.max(6, Math.min(12, 80 * scale));
-    const sashThick = Math.max(4, Math.min(8, 50 * scale));
+    // Frame Profile Stroke Thickness (in CAD px)
+    const outerThick = 7;
+    const sashThick = 4.5;
     const panelFrameW = (frameW - outerThick * 2) / P;
+
+    const isFixedProduct = appType.toLowerCase().includes('fixed');
+    const isCasementProduct = appType.toLowerCase().includes('casement');
+    const isAwningProduct = appType.toLowerCase().includes('awning') || appType.toLowerCase().includes('hung');
+    const isLouverProduct = appType.toLowerCase().includes('louver');
+    const isFoldingProduct = appType.toLowerCase().includes('fold');
 
     // Handle SVG Export / Download
     const handleDownloadSVG = () => {
@@ -78,7 +86,7 @@ export default function Alu2DInteractiveCanvas({
                             <Eye size={14} /> 2D Interactive CAD Canvas
                         </h4>
                         <p className="text-[10px] text-slate-400 font-sans">
-                            {W} × {H_total} mm • {trackSystem} • {P} Panels {hasTop ? `• Transom (${H_top}mm ${topType})` : ''}
+                            <span className="text-amber-300 font-bold font-mono">[{appType.toUpperCase()}]</span> • {W} × {H_total} mm • {P} {P === 1 ? 'Panel' : 'Panels'} {hasTop ? `• Transom (${H_top}mm ${topType})` : ''}
                         </p>
                     </div>
                 </div>
@@ -137,47 +145,32 @@ export default function Alu2DInteractiveCanvas({
                         className="overflow-visible"
                     >
                         <defs>
-                            {/* Glass Surface Gradient */}
                             <linearGradient id="glassGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                                 <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.30" />
                                 <stop offset="40%" stopColor="#0284c7" stopOpacity="0.12" />
                                 <stop offset="70%" stopColor="#0369a1" stopOpacity="0.08" />
                                 <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.25" />
                             </linearGradient>
-
-                            {/* Awning Glass Tint */}
                             <linearGradient id="awningGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                                 <stop offset="0%" stopColor="#818cf8" stopOpacity="0.35" />
                                 <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.15" />
                             </linearGradient>
-
-                            {/* Aluminium Metallic Gradient */}
                             <linearGradient id="aluFrame" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stopColor="#475569" />
                                 <stop offset="30%" stopColor="#94a3b8" />
                                 <stop offset="70%" stopColor="#cbd5e1" />
                                 <stop offset="100%" stopColor="#334155" />
                             </linearGradient>
-
-                            {/* Transom Bar Gradient */}
                             <linearGradient id="transomGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                                 <stop offset="0%" stopColor="#64748b" />
                                 <stop offset="50%" stopColor="#cbd5e1" />
                                 <stop offset="100%" stopColor="#334155" />
                             </linearGradient>
-
-                            {/* Technical Grid Pattern */}
                             <pattern id="cadGridBg" width="20" height="20" patternUnits="userSpaceOnUse">
                                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2,2" />
                             </pattern>
-
-                            {/* Flyscreen Mesh Net Pattern */}
-                            <pattern id="flyscreenMeshBg" width="8" height="8" patternUnits="userSpaceOnUse">
-                                <path d="M 8 0 L 0 8 M 0 0 L 8 8" fill="none" stroke="#38bdf8" strokeWidth="0.4" opacity="0.35" />
-                            </pattern>
                         </defs>
 
-                        {/* Background Grid */}
                         <rect x="0" y="0" width={containerW} height={containerH} fill="url(#cadGridBg)" />
 
                         {/* 1. OUTER ALUMINIUM FRAME */}
@@ -191,20 +184,10 @@ export default function Alu2DInteractiveCanvas({
                             strokeWidth={outerThick}
                             rx="2"
                         />
-                        <rect
-                            x={frameX + outerThick / 2}
-                            y={frameY + outerThick / 2}
-                            width={frameW - outerThick}
-                            height={frameH - outerThick}
-                            fill="none"
-                            stroke="#0f172a"
-                            strokeWidth="1"
-                        />
 
                         {/* 2. TOP FANLIGHT SECTION (IF ENABLED) */}
                         {hasTop && (
                             <g>
-                                {/* Transom Bar Separator */}
                                 <rect
                                     x={frameX}
                                     y={frameY + topFrameH - outerThick / 2}
@@ -214,8 +197,6 @@ export default function Alu2DInteractiveCanvas({
                                     stroke="#0f172a"
                                     strokeWidth="0.5"
                                 />
-
-                                {/* Top Section Fill */}
                                 {topType === 'fixed' && (
                                     <g>
                                         <rect
@@ -227,7 +208,6 @@ export default function Alu2DInteractiveCanvas({
                                             stroke="#38bdf8"
                                             strokeWidth="0.75"
                                         />
-                                        {/* Standard Architectural "X" Cross Markings for Fixed Glass */}
                                         <line
                                             x1={frameX + outerThick + 4}
                                             y1={frameY + outerThick + 4}
@@ -248,23 +228,10 @@ export default function Alu2DInteractiveCanvas({
                                             strokeDasharray="4,4"
                                             opacity="0.75"
                                         />
-                                        <text
-                                            x={frameX + frameW / 2}
-                                            y={frameY + topFrameH / 2 + 3}
-                                            fill="#38bdf8"
-                                            fontSize="9"
-                                            textAnchor="middle"
-                                            fontWeight="bold"
-                                            opacity="0.85"
-                                        >
-                                            TOP FIXED (X)
-                                        </text>
                                     </g>
                                 )}
-
                                 {topType === 'awning' && (
                                     <g>
-                                        {/* Awning Sash Frame */}
                                         <rect
                                             x={frameX + outerThick + 3}
                                             y={frameY + outerThick + 3}
@@ -275,36 +242,26 @@ export default function Alu2DInteractiveCanvas({
                                             strokeWidth={sashThick}
                                             rx="1"
                                         />
-                                        {/* Triangular opening vector lines (Top hinged -> bottom latch) */}
                                         <path
-                                            d={`M ${frameX + outerThick + 8} ${frameY + outerThick + 8} L ${frameX + frameW / 2} ${frameY + topFrameH - 8} L ${frameX + frameW - outerThick - 8} ${frameY + outerThick + 8}`}
+                                            d={`M ${frameX + outerThick + 6} ${frameY + topFrameH - 12} L ${frameX + frameW / 2} ${frameY + outerThick + 6} L ${frameX + frameW - outerThick - 6} ${frameY + topFrameH - 12}`}
                                             fill="none"
-                                            stroke="#a5b4fc"
-                                            strokeWidth="1.2"
+                                            stroke="#818cf8"
+                                            strokeWidth="1.5"
                                             strokeDasharray="4,4"
-                                        />
-                                        {/* Handle Icon */}
-                                        <rect
-                                            x={frameX + frameW / 2 - 8}
-                                            y={frameY + topFrameH - 14}
-                                            width="16"
-                                            height="4"
-                                            fill="#e2e8f0"
-                                            rx="1"
                                         />
                                         <text
                                             x={frameX + frameW / 2}
-                                            y={frameY + topFrameH / 2}
+                                            y={frameY + topFrameH / 2 + 3}
                                             fill="#c7d2fe"
-                                            fontSize="8"
+                                            fontSize="9"
                                             textAnchor="middle"
                                             fontWeight="bold"
+                                            opacity="0.9"
                                         >
-                                            TOP-HUNG AWNING
+                                            TOP AWNING (▲)
                                         </text>
                                     </g>
                                 )}
-
                                 {topType === 'louver' && (
                                     <g>
                                         <rect
@@ -312,47 +269,42 @@ export default function Alu2DInteractiveCanvas({
                                             y={frameY + outerThick}
                                             width={frameW - outerThick * 2}
                                             height={topFrameH - outerThick * 1.5}
-                                            fill="#0284c7"
-                                            fillOpacity="0.05"
+                                            fill="#0f172a"
                                             stroke="#38bdf8"
-                                            strokeWidth="0.5"
+                                            strokeWidth="0.75"
                                         />
-                                        {/* Louver horizontal blade slats */}
-                                        {Array.from({ length: Math.max(3, Math.floor(topFrameH / 14)) }).map((_, lIdx, arr) => {
-                                            const sy = frameY + outerThick + 6 + lIdx * ((topFrameH - outerThick * 2 - 12) / (arr.length - 1 || 1));
+                                        {Array.from({ length: 4 }).map((_, lIdx) => {
+                                            const slatY = frameY + outerThick + 8 + lIdx * ((topFrameH - outerThick * 2) / 4);
                                             return (
                                                 <g key={lIdx}>
                                                     <line
                                                         x1={frameX + outerThick + 4}
-                                                        y1={sy}
+                                                        y1={slatY}
                                                         x2={frameX + frameW - outerThick - 4}
-                                                        y2={sy + 3}
-                                                        stroke="#cbd5e1"
-                                                        strokeWidth="2.5"
+                                                        y2={slatY + 5}
+                                                        stroke="#38bdf8"
+                                                        strokeWidth="2"
+                                                        opacity="0.8"
                                                     />
-                                                    {/* Side louver clips */}
-                                                    <rect x={frameX + outerThick + 2} y={sy - 2} width="4" height="6" fill="#94a3b8" rx="0.5" />
-                                                    <rect x={frameX + frameW - outerThick - 6} y={sy - 2} width="4" height="6" fill="#94a3b8" rx="0.5" />
                                                 </g>
                                             );
                                         })}
                                         <text
                                             x={frameX + frameW / 2}
-                                            y={frameY + topFrameH / 2 + 3}
+                                            y={frameY + topFrameH / 2}
                                             fill="#e0f2fe"
                                             fontSize="8"
                                             textAnchor="middle"
                                             fontWeight="black"
-                                            opacity="0.9"
                                         >
-                                            LOUVER BLADES
+                                            LOUVER
                                         </text>
                                     </g>
                                 )}
                             </g>
                         )}
 
-                        {/* 3. BOTTOM SLIDING PANELS SYSTEM */}
+                        {/* 3. MAIN PANELS SYSTEM */}
                         {Array.from({ length: P }).map((_, idx) => {
                             const px = frameX + outerThick + idx * panelFrameW;
                             const py = frameY + topFrameH + (hasTop ? outerThick / 2 : outerThick);
@@ -360,12 +312,19 @@ export default function Alu2DInteractiveCanvas({
                             const ph = bottomFrameH - outerThick * 1.5;
 
                             const arrObj = panelArrangement[idx] || {};
-                            const action = arrObj.action || (idx === 0 || idx === P - 1 ? 'slide_right' : 'fixed');
-                            const isSelected = selectedPanelIndex === idx;
+                            let action = arrObj.action;
+                            if (!action) {
+                                if (isFixedProduct) action = 'fixed';
+                                else if (isCasementProduct) action = idx === 0 ? 'casement_left' : 'casement_right';
+                                else if (isAwningProduct) action = 'awning_top';
+                                else if (isLouverProduct) action = 'louver';
+                                else if (isFoldingProduct) action = 'fold_left';
+                                else action = (idx === 0 || idx === P - 1) ? 'slide_right' : 'fixed';
+                            }
 
-                            // Multi-track depth offset rendering (Track 1 vs Track 2 offset)
-                            const isTrackOffset = idx % 2 === 1;
-                            const offsetPx = isTrackOffset ? 2 : -1;
+                            const isSelected = selectedPanelIndex === idx;
+                            const isTrackOffset = idx % 2 === 1 && !isFixedProduct && !isCasementProduct;
+                            const offsetPx = isTrackOffset ? 2 : 0;
 
                             return (
                                 <g
@@ -373,20 +332,18 @@ export default function Alu2DInteractiveCanvas({
                                     onClick={() => onSelectPanel(idx)}
                                     className="cursor-pointer group"
                                 >
-                                    {/* Panel Container / Sash Frame */}
                                     <rect
                                         x={px + 2 + offsetPx}
                                         y={py + 2}
                                         width={pw - 4}
                                         height={ph - 4}
                                         fill="url(#glassGradient)"
-                                        stroke={isSelected ? '#10b981' : '#94a3b8'}
+                                        stroke={isSelected ? '#10b981' : (isFixedProduct ? '#38bdf8' : '#94a3b8')}
                                         strokeWidth={isSelected ? sashThick + 2 : sashThick}
                                         rx="1"
                                         className="transition-all duration-150"
                                     />
 
-                                    {/* Selected Panel Highlight Ring */}
                                     {isSelected && (
                                         <rect
                                             x={px + 1}
@@ -400,7 +357,7 @@ export default function Alu2DInteractiveCanvas({
                                         />
                                     )}
 
-                                    {/* Architectural "X" Cross Markings for Fixed Panel */}
+                                    {/* 1. FIXED GLASS X-CROSS MARKINGS */}
                                     {action === 'fixed' && (
                                         <g stroke="#38bdf8" strokeWidth="0.75" strokeDasharray="4,4" opacity="0.65">
                                             <line x1={px + 6} y1={py + 6} x2={px + pw - 6} y2={py + ph - 6} />
@@ -408,7 +365,73 @@ export default function Alu2DInteractiveCanvas({
                                         </g>
                                     )}
 
-                                    {/* Panel Badge & Arrow Indicator */}
+                                    {/* 2. CASEMENT OPENING SYMBOLS */}
+                                    {action === 'casement_left' && (
+                                        <g>
+                                            <path
+                                                d={`M ${px + pw - 6} ${py + ph / 2} L ${px + 6} ${py + 6} M ${px + pw - 6} ${py + ph / 2} L ${px + 6} ${py + ph - 6}`}
+                                                fill="none"
+                                                stroke="#38bdf8"
+                                                strokeWidth="1.5"
+                                                strokeDasharray="4,3"
+                                            />
+                                            <rect x={px + 2} y={py + 12} width="4" height="10" fill="#94a3b8" rx="1" />
+                                            <rect x={px + 2} y={py + ph - 22} width="4" height="10" fill="#94a3b8" rx="1" />
+                                            <rect x={px + pw - 7} y={py + ph / 2 - 8} width="4" height="16" fill="#f59e0b" rx="1" />
+                                        </g>
+                                    )}
+
+                                    {action === 'casement_right' && (
+                                        <g>
+                                            <path
+                                                d={`M ${px + 6} ${py + ph / 2} L ${px + pw - 6} ${py + 6} M ${px + 6} ${py + ph / 2} L ${px + pw - 6} ${py + ph - 6}`}
+                                                fill="none"
+                                                stroke="#38bdf8"
+                                                strokeWidth="1.5"
+                                                strokeDasharray="4,3"
+                                            />
+                                            <rect x={px + pw - 6} y={py + 12} width="4" height="10" fill="#94a3b8" rx="1" />
+                                            <rect x={px + pw - 6} y={py + ph - 22} width="4" height="10" fill="#94a3b8" rx="1" />
+                                            <rect x={px + 3} y={py + ph / 2 - 8} width="4" height="16" fill="#f59e0b" rx="1" />
+                                        </g>
+                                    )}
+
+                                    {/* 3. AWNING OPENING SYMBOL */}
+                                    {action === 'awning_top' && (
+                                        <g>
+                                            <path
+                                                d={`M ${px + pw / 2} ${py + ph - 6} L ${px + 6} ${py + 6} M ${px + pw / 2} ${py + ph - 6} L ${px + pw - 6} ${py + 6}`}
+                                                fill="none"
+                                                stroke="#818cf8"
+                                                strokeWidth="1.5"
+                                                strokeDasharray="4,3"
+                                            />
+                                            <rect x={px + pw / 2 - 6} y={py + ph - 9} width="12" height="4" fill="#f59e0b" rx="1" />
+                                        </g>
+                                    )}
+
+                                    {/* 4. LOUVER SLATS */}
+                                    {action === 'louver' && (
+                                        <g>
+                                            {Array.from({ length: 6 }).map((_, lIdx) => {
+                                                const slatY = py + 12 + lIdx * ((ph - 24) / 6);
+                                                return (
+                                                    <line
+                                                        key={lIdx}
+                                                        x1={px + 6}
+                                                        y1={slatY}
+                                                        x2={px + pw - 6}
+                                                        y2={slatY + 6}
+                                                        stroke="#38bdf8"
+                                                        strokeWidth="2"
+                                                        opacity="0.85"
+                                                    />
+                                                );
+                                            })}
+                                        </g>
+                                    )}
+
+                                    {/* 5. SLIDING ARROWS */}
                                     <g transform={`translate(${px + pw / 2}, ${py + ph / 2})`}>
                                         {action === 'fixed' && (
                                             <g className="text-slate-400">
@@ -416,57 +439,60 @@ export default function Alu2DInteractiveCanvas({
                                                 <path d="M-4 -2 L4 -2 L4 4 L-4 4 Z M-2 -2 L-2 -5 C-2 -7 2 -7 2 -5 L2 -2" fill="none" stroke="#94a3b8" strokeWidth="1.2" />
                                             </g>
                                         )}
-
                                         {action === 'slide_left' && (
                                             <g stroke="#38bdf8" strokeWidth="2" fill="none">
                                                 <circle r="14" fill="#0f172a" fillOpacity="0.8" stroke="#0284c7" strokeWidth="1" />
                                                 <path d="M 6 0 L -6 0 M -2 -5 L -7 0 L -2 5" />
                                             </g>
                                         )}
-
                                         {action === 'slide_right' && (
                                             <g stroke="#38bdf8" strokeWidth="2" fill="none">
                                                 <circle r="14" fill="#0f172a" fillOpacity="0.8" stroke="#0284c7" strokeWidth="1" />
                                                 <path d="M -6 0 L 6 0 M 2 -5 L 7 0 L 2 5" />
                                             </g>
                                         )}
-
                                         {action === 'slide_both' && (
                                             <g stroke="#38bdf8" strokeWidth="2" fill="none">
                                                 <circle r="14" fill="#0f172a" fillOpacity="0.8" stroke="#0284c7" strokeWidth="1" />
                                                 <path d="M -7 0 L 7 0 M -3 -4 L -7 0 L -3 4 M 3 -4 L 7 0 L 3 4" />
                                             </g>
                                         )}
+                                        {action === 'fold_left' && (
+                                            <g stroke="#f59e0b" strokeWidth="1.75" fill="none">
+                                                <circle r="14" fill="#0f172a" fillOpacity="0.8" stroke="#d97706" strokeWidth="1" />
+                                                <path d="M 5 -4 L -2 0 L 5 4 M -2 -4 L -7 0 L -2 4" />
+                                            </g>
+                                        )}
                                     </g>
 
-                                    {/* Panel Index Label (High Contrast Pill Badge) */}
+                                    {/* Panel Index Label */}
                                     <g transform={`translate(${px + pw / 2}, ${py + ph - 14})`}>
                                         <rect
-                                            x="-36"
+                                            x="-42"
                                             y="-8"
-                                            width="72"
-                                            height="14"
+                                            width="84"
+                                            height="15"
                                             fill="#0f172a"
                                             fillOpacity="0.9"
-                                            stroke="#38bdf8"
+                                            stroke={isSelected ? '#10b981' : '#38bdf8'}
                                             strokeWidth="0.75"
                                             rx="4"
                                         />
                                         <text
                                             x="0"
                                             y="2.5"
-                                            fill="#38bdf8"
-                                            fontSize="9"
+                                            fill={isSelected ? '#10b981' : '#38bdf8'}
+                                            fontSize="8"
                                             textAnchor="middle"
                                             fontWeight="900"
-                                            className="font-mono tracking-wider"
+                                            className="font-mono tracking-wider uppercase"
                                         >
-                                            P{idx + 1} ({action === 'fixed' ? 'FIXED' : 'SLIDE'})
+                                            {P === 1 ? '1-PANEL' : `P${idx + 1}`} ({action.replace('slide_', '').replace('casement_', 'CASE-').replace('_', ' ')})
                                         </text>
                                     </g>
 
-                                    {/* Roller Wheel Representation at Bottom */}
-                                    {action !== 'fixed' && (
+                                    {/* Roller Wheels */}
+                                    {(action === 'slide_left' || action === 'slide_right' || action === 'slide_both') && (
                                         <g>
                                             <circle cx={px + 15} cy={py + ph - 4} r="3" fill="#cbd5e1" stroke="#334155" strokeWidth="1" />
                                             <circle cx={px + pw - 15} cy={py + ph - 4} r="3" fill="#cbd5e1" stroke="#334155" strokeWidth="1" />
@@ -477,8 +503,6 @@ export default function Alu2DInteractiveCanvas({
                         })}
 
                         {/* 4. TECHNICAL CAD DIMENSION LINES & ANNOTATIONS */}
-                        
-                        {/* Width Dimension Line (Bottom) */}
                         <g stroke="#38bdf8" strokeWidth="1" opacity="0.85">
                             <line x1={frameX} y1={frameY + frameH + 14} x2={frameX + frameW} y2={frameY + frameH + 14} />
                             <line x1={frameX} y1={frameY + frameH + 9} x2={frameX} y2={frameY + frameH + 19} />

@@ -1199,7 +1199,16 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         req
     });
     
-    res.status(201).json({ success: true, data: salesOrder });
+    res.status(201).json({ 
+        success: true, 
+        data: { 
+            salesOrder, 
+            invoice, 
+            invoiceId: invoice._id, 
+            invoiceNumber: invoice.invoiceNumber,
+            jobCardNumber 
+        } 
+    });
 });
 
 // Export CNC Double-Head Saw G-Code list

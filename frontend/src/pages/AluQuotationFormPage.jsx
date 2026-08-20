@@ -18,9 +18,21 @@ const AluQuotationFormPage = () => {
     const [formData, setFormData] = useState({
         customerName: '',
         projectName: '',
+        description: '',
         location: '',
         validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        items: [{ applicationType: '', configuration: '', width: 2400, height: 2100, quantity: 1 }],
+        items: [{
+            applicationType: '',
+            configuration: '',
+            description: '',
+            width: 2400,
+            height: 2100,
+            quantity: 1,
+            profileSpec: 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+            glassSpec: '5mm Single Tempered Clear Glass',
+            hardwareSpec: 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+            scopeSpec: 'Fabrication, Delivery & Installation Inclusive'
+        }],
         transportCost: 0,
         includeVat: true,
         distributeTransportCost: false,
@@ -43,6 +55,12 @@ const AluQuotationFormPage = () => {
         ]
     });
 
+    const [expandedSpecs, setExpandedSpecs] = useState({});
+
+    const toggleSpecs = (idx) => {
+        setExpandedSpecs(prev => ({ ...prev, [idx]: !prev[idx] }));
+    };
+
     useEffect(() => {
         const fetchTemplatesAndQuote = async () => {
             try {
@@ -63,14 +81,20 @@ const AluQuotationFormPage = () => {
                     setFormData({
                         customerName: q.customerName || '',
                         projectName: q.projectName || '',
+                        description: q.description || '',
                         location: q.location || '',
                         validTill: q.validTill ? new Date(q.validTill).toISOString().split('T')[0] : '',
                         items: q.items.map(item => ({
                             applicationType: item.applicationType,
                             configuration: item.configuration,
+                            description: item.description || '',
                             width: item.width,
                             height: item.height,
                             quantity: item.quantity,
+                            profileSpec: item.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+                            glassSpec: item.glassSpec || '5mm Single Tempered Clear Glass',
+                            hardwareSpec: item.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+                            scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
                             trackSystem: item.trackSystem,
                             topSection: item.topSection,
                             panelArrangement: item.panelArrangement
@@ -92,6 +116,7 @@ const AluQuotationFormPage = () => {
                         ...prev,
                         customerName: s.customerName || '',
                         projectName: s.projectName || '',
+                        description: s.description || '',
                         items: s.items && s.items.length > 0 ? s.items : prev.items
                     }));
                 }
@@ -104,33 +129,68 @@ const AluQuotationFormPage = () => {
         fetchTemplatesAndQuote();
     }, [id]);
 
-    // Unique application types (e.g. Sliding Door, Fixed Glass)
-    const availableTypes = [...new Set(templates.map(t => t.type))];
+    // Default standard application types & configurations if DB templates are clean/empty
+    const DEFAULT_TYPES_CONFIGS = {
+        'Sliding Door': ['2 Panel', '3 Panel - 2 Track', '3 Panel - 3 Track', '4 Panel - 2 Track', '1 Panel Single Slide', 'Custom 2-Track / 3-Track'],
+        'Sliding Window': ['2 Panel', '3 Panel - 2 Track', '3 Panel - 3 Track', '4 Panel - 2 Track', '1 Panel Single Slide'],
+        'Casement Door': ['Single Sash (1 Panel)', 'Double Sash (French Door)', 'Single Sash with Fixed Fanlight'],
+        'Casement Window': ['1 Panel Side-Hung', '2 Panel Double Vent', '3 Panel Casement', '4 Panel Casement'],
+        'Awning / Top-Hung Window': ['1 Panel Top-Hung', '2 Panel Top-Hung', '3 Panel Top-Hung'],
+        'Fixed Glass Partition': ['1 Panel Fixed', '2 Panel Fixed Grid', '3 Panel Fixed Partition', 'Custom Fixed Channel'],
+        'Louver Window': ['Single Bay (1 Slat Column)', 'Double Bay (2 Columns)', 'Triple Bay'],
+        'Folding / Bi-fold Door': ['3 Panel Bi-Fold', '4 Panel Bi-Fold', '5 Panel Bi-Fold', '6 Panel Bi-Fold'],
+        'Custom Project': ['Custom Ad-Hoc Design', 'Architectural Specialized Frame', 'Custom Section Profile']
+    };
 
-    // Filter configurations for a selected type
-    const getConfigurationsForType = (type) => {
-        return templates.filter(t => t.type === type).map(t => t.configuration);
+    // Unique application types (e.g. Sliding Door, Fixed Glass)
+    const availableTypes = Array.from(
+        new Set([
+            ...Object.keys(DEFAULT_TYPES_CONFIGS),
+            ...templates.map(t => t.type).filter(Boolean)
+        ])
+    );
+
+    // Filter configurations for a selected type with robust defaults
+    const getConfigurationsForType = (type, currentConfig = '') => {
+        const defaultList = DEFAULT_TYPES_CONFIGS[type] || ['Standard Opening', 'Custom Configuration'];
+        const dbList = templates.filter(t => t.type === type).map(t => t.configuration).filter(Boolean);
+        const set = new Set([...defaultList, ...dbList]);
+        if (currentConfig && !set.has(currentConfig)) {
+            set.add(currentConfig);
+        }
+        return Array.from(set);
     };
 
     const handleItemChange = (index, field, value) => {
         const newItems = [...formData.items];
         newItems[index][field] = value;
         
-        // If type changes, auto-set configuration to the first available for that type
+        // If applicationType changed, update configuration options
         if (field === 'applicationType') {
             const configs = getConfigurationsForType(value);
-            newItems[index].configuration = configs[0] || '';
+            newItems[index].configuration = configs[0] || 'Standard Opening';
         }
         
         setFormData({ ...formData, items: newItems });
     };
 
     const addOpening = () => {
-        const firstType = availableTypes[0] || '';
+        const firstType = availableTypes[0] || 'Sliding Door';
         const configs = getConfigurationsForType(firstType);
         setFormData({
             ...formData,
-            items: [...formData.items, { applicationType: firstType, configuration: configs[0] || '', width: 2400, height: 2100, quantity: 1 }]
+            items: [...formData.items, {
+                applicationType: firstType,
+                configuration: configs[0] || '2 Panel',
+                description: '',
+                width: 2400,
+                height: 2100,
+                quantity: 1,
+                profileSpec: 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+                glassSpec: '5mm Single Tempered Clear Glass',
+                hardwareSpec: 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+                scopeSpec: 'Fabrication, Delivery & Installation Inclusive'
+            }]
         });
     };
 
@@ -253,12 +313,23 @@ const AluQuotationFormPage = () => {
                         <input type="date" value={formData.validTill} onChange={e => setFormData({ ...formData, validTill: e.target.value })} required className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-indigo-600" />
                     </div>
                 </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">General Quotation Scope / Work Description (Optional)</label>
+                    <input
+                        type="text"
+                        placeholder="e.g. Supply and installation of aluminium sliding doors, casement windows and fixed glass partitions as per BOQ specifications"
+                        value={formData.description}
+                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-indigo-600"
+                    />
+                </div>
             </div>
 
             {/* Opening Dimensions Input */}
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-slate-800">2. Openings Dimension Entries</h3>
+                    <h3 className="text-lg font-bold text-slate-800">2. Openings Dimension &amp; Description Entries</h3>
                     <button type="button" onClick={addOpening} className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
                         <PlusCircle size={16} /> Add Opening Item
                     </button>
@@ -266,58 +337,126 @@ const AluQuotationFormPage = () => {
                 
                 <div className="space-y-4 divide-y divide-slate-100">
                     {formData.items.map((item, idx) => (
-                        <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-4 items-end">
-                            <div className="md:col-span-3">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Application Type</label>
-                                <select
-                                    value={item.applicationType}
-                                    onChange={e => handleItemChange(idx, 'applicationType', e.target.value)}
-                                    required
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 bg-white"
-                                >
-                                    <option value="" disabled>Select Application</option>
-                                    {availableTypes.map(type => (
-                                        <option key={type} value={type}>{type}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div className="md:col-span-3">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Configuration</label>
-                                <select
-                                    value={item.configuration}
-                                    onChange={e => handleItemChange(idx, 'configuration', e.target.value)}
-                                    required
-                                    disabled={!item.applicationType}
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 bg-white"
-                                >
-                                    <option value="" disabled>Select Config</option>
-                                    {getConfigurationsForType(item.applicationType).map(config => (
-                                        <option key={config} value={config}>{config}</option>
-                                    ))}
-                                </select>
+                        <div key={idx} className="space-y-2 pt-4">
+                            {/* Main Dimension Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Application Type</label>
+                                    <select
+                                        value={item.applicationType}
+                                        onChange={e => handleItemChange(idx, 'applicationType', e.target.value)}
+                                        required
+                                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 bg-white"
+                                    >
+                                        <option value="" disabled>Select Application</option>
+                                        {availableTypes.map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                <div className="md:col-span-3">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Configuration</label>
+                                    <select
+                                        value={item.configuration}
+                                        onChange={e => handleItemChange(idx, 'configuration', e.target.value)}
+                                        required
+                                        disabled={!item.applicationType}
+                                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 bg-white"
+                                    >
+                                        <option value="">Select Config</option>
+                                        {getConfigurationsForType(item.applicationType, item.configuration).map(config => (
+                                            <option key={config} value={config}>{config}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Width (mm)</label>
+                                    <input type="number" placeholder="2400" value={item.width} onChange={e => handleItemChange(idx, 'width', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Height (mm)</label>
+                                    <input type="number" placeholder="2100" value={item.height} onChange={e => handleItemChange(idx, 'height', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
+                                </div>
+
+                                <div className="md:col-span-1">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Qty (Nos)</label>
+                                    <input type="number" placeholder="1" value={item.quantity} onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
+                                </div>
+
+                                <div className="md:col-span-1 text-right">
+                                    <button type="button" onClick={() => removeOpening(idx)} className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Width (mm)</label>
-                                <input type="number" placeholder="2400" value={item.width} onChange={e => handleItemChange(idx, 'width', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
+                            {/* Item Description and Specs Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                                <div className="md:col-span-8">
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Item Description / Special Location Remark (Manual)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Master Bedroom Balcony Door, Living Area Window, Toilet Louver"
+                                        value={item.description || ''}
+                                        onChange={e => handleItemChange(idx, 'description', e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div className="md:col-span-4 text-right">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleSpecs(idx)}
+                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs transition"
+                                    >
+                                        {expandedSpecs[idx] ? '▲ Hide Specifications' : '⚙️ Custom Specifications'}
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Height (mm)</label>
-                                <input type="number" placeholder="2100" value={item.height} onChange={e => handleItemChange(idx, 'height', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
-                            </div>
-
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Qty (Nos)</label>
-                                <input type="number" placeholder="1" value={item.quantity} onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value))} required className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600" />
-                            </div>
-
-                            <div className="md:col-span-1 text-right">
-                                <button type="button" onClick={() => removeOpening(idx)} className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors">
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
+                            {/* Expandable Specifications Editor */}
+                            {expandedSpecs[idx] && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-indigo-50/30 p-3 rounded-xl border border-indigo-100 text-xs">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Profile Spec</label>
+                                        <input
+                                            type="text"
+                                            value={item.profileSpec || ''}
+                                            onChange={e => handleItemChange(idx, 'profileSpec', e.target.value)}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Glass Spec</label>
+                                        <input
+                                            type="text"
+                                            value={item.glassSpec || ''}
+                                            onChange={e => handleItemChange(idx, 'glassSpec', e.target.value)}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Hardware Spec</label>
+                                        <input
+                                            type="text"
+                                            value={item.hardwareSpec || ''}
+                                            onChange={e => handleItemChange(idx, 'hardwareSpec', e.target.value)}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Scope Spec</label>
+                                        <input
+                                            type="text"
+                                            value={item.scopeSpec || ''}
+                                            onChange={e => handleItemChange(idx, 'scopeSpec', e.target.value)}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

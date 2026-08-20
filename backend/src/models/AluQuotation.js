@@ -8,6 +8,11 @@ const aluQuotationItemSchema = new mongoose.Schema({
     quantity: { type: Number, required: true, default: 1 }, // number of openings
     
     trackSystem: { type: String },
+    description: { type: String, default: '' },
+    profileSpec: { type: String, default: 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)' },
+    glassSpec: { type: String, default: '5mm Single Tempered Clear Glass' },
+    hardwareSpec: { type: String, default: 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals' },
+    scopeSpec: { type: String, default: 'Fabrication, Delivery & Installation Inclusive' },
     topSection: {
         enabled: { type: Boolean, default: false },
         height: { type: Number, default: 0 },
@@ -55,6 +60,7 @@ const aluQuotationSchema = new mongoose.Schema({
     
     customerName: { type: String, required: true },
     projectName: { type: String, required: true },
+    description: { type: String, default: '' },
     location: { type: String, default: '' },
     date: { type: Date, required: true, default: Date.now },
     validTill: { type: Date, required: true },
