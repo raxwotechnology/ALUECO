@@ -305,9 +305,9 @@ export default function GrnsPage() {
     const columns = [
         { key: 'grnNumber', label: 'GRN No', render: (r) => <span className="font-bold text-gray-800">{r.grnNumber}</span> },
         { key: 'source', label: 'Source', render: (r) => r.sourceType === 'own_farm' ? <span className="flex items-center gap-1 text-green-700 font-semibold"><Home size={14} /> Own Farm</span> : <span className="flex items-center gap-1 text-blue-700 font-semibold"><Building size={14} /> Supplier</span> },
-        { key: 'sourceName', label: 'Source Name', render: (r) => r.sourceType === 'own_farm' ? r.farmName || r.farmId?.name || '—' : r.supplierName || r.supplierId?.displayName || '—' },
-        { key: 'poNumber', label: 'PO Ref', render: (r) => r.poNumber ? <Badge variant="default">{r.poNumber}</Badge> : <span className="text-gray-400 italic">Direct Receipt</span> },
-        { key: 'receiptDate', label: 'Receipt Date', render: (r) => new Date(r.receiptDate).toLocaleDateString() },
+        { key: 'sourceName', label: 'Source Name', hideOnMobile: true, render: (r) => r.sourceType === 'own_farm' ? r.farmName || r.farmId?.name || '—' : r.supplierName || r.supplierId?.displayName || '—' },
+        { key: 'poNumber', label: 'PO Ref', hideOnMobile: true, render: (r) => r.poNumber ? <Badge variant="default">{r.poNumber}</Badge> : <span className="text-gray-400 italic">Direct Receipt</span> },
+        { key: 'receiptDate', label: 'Receipt Date', hideOnMobile: true, render: (r) => new Date(r.receiptDate).toLocaleDateString() },
         {
             key: 'status',
             label: 'Status',
@@ -373,7 +373,7 @@ export default function GrnsPage() {
             >
                 {selectedGrn && (
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl text-sm border border-gray-150">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl text-sm border border-gray-150">
                             <div>
                                 <span className="text-gray-500 block text-xs font-semibold uppercase">Source Type</span>
                                 <span className="font-bold text-gray-800 uppercase">{selectedGrn.sourceType}</span>
@@ -453,7 +453,7 @@ export default function GrnsPage() {
                         </div>
 
                         {selectedGrn.status === 'approved' && (
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 text-sm grid grid-cols-3 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 text-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div>
                                     <span className="text-gray-500 block text-xs">Total Value (LKR)</span>
                                     <span className="font-bold text-gray-900 text-lg">Rs. {selectedGrn.totalPayableLKR?.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
@@ -625,7 +625,7 @@ export default function GrnsPage() {
                                 )}
 
                                 {paymentMethod === 'cheque' && (
-                                    <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-lg border">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border">
                                         <div className="col-span-1">
                                             <Input
                                                 label="Cheque Number *"

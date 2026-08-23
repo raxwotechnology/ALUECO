@@ -19,7 +19,7 @@ const Input = forwardRef(({
             <input
                 ref={ref}
                 type={type}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition ${error
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition text-base sm:text-sm min-h-[44px] ${error
                         ? 'border-red-500 focus:ring-red-200'
                         : 'border-gray-300 focus:border-primary-500 focus:ring-primary-200'
                     }`}

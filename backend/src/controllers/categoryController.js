@@ -9,9 +9,27 @@ export const createCategory = asyncHandler(async (req, res) => {
     res.status(201).json({ success: true, data: category });
 });
 
+const DEFAULT_CATEGORIES = [
+    { name: 'Aluminium Profiles', code: 'ALU', type: 'raw_material', displayOrder: 1 },
+    { name: 'Glass Sheets', code: 'GLS', type: 'raw_material', displayOrder: 2 },
+    { name: 'Accessories & Hardware', code: 'ACC', type: 'raw_material', displayOrder: 3 },
+    { name: 'Consumables & Seals', code: 'CNS', type: 'raw_material', displayOrder: 4 },
+    { name: 'Finished Doors & Windows', code: 'FIN', type: 'finished_good', displayOrder: 5 },
+    { name: 'General', code: 'GEN', type: 'both', displayOrder: 6 },
+];
+
 export const getCategories = asyncHandler(async (req, res) => {
     const { search, type, isActive, parentCategory } = req.query;
     const filter = {};
+
+    const count = await Category.countDocuments();
+    if (count === 0) {
+        try {
+            await Category.insertMany(DEFAULT_CATEGORIES, { ordered: false });
+        } catch (e) {
+            // Ignore race condition errors
+        }
+    }
 
     if (search) {
         filter.$or = [

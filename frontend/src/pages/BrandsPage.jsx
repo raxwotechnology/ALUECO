@@ -93,10 +93,11 @@ export default function BrandsPage() {
 
     const columns = [
         { key: 'name', label: 'Name' },
-        { key: 'code', label: 'Code', render: (r) => r.code || '—' },
+        { key: 'code', label: 'Code', hideOnMobile: true, render: (r) => r.code || '—' },
         {
             key: 'isOwnBrand',
             label: 'Type',
+            hideOnMobile: true,
             render: (r) => <Badge variant={r.isOwnBrand ? 'primary' : 'default'}>{r.isOwnBrand ? 'Own Brand' : 'Third-Party'}</Badge>,
         },
         {
@@ -152,13 +153,13 @@ export default function BrandsPage() {
                 size="md"
             >
                 <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 sm:p-6 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Input label="Name" required error={errors.name?.message} {...register('name')} />
                             <Input label="Code" error={errors.code?.message} {...register('code')} />
                         </div>
                         <Textarea label="Description" rows={2} error={errors.description?.message} {...register('description')} />
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="isOwnBrand" {...register('isOwnBrand')} />
                                 <label htmlFor="isOwnBrand" className="text-sm text-gray-700">Own brand (we manufacture)</label>
@@ -169,9 +170,9 @@ export default function BrandsPage() {
                             </div>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
-                        <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-                        <Button type="submit" variant="primary" loading={createMutation.isPending || updateMutation.isPending}>
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50">
+                        <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)} fullWidth className="sm:w-auto">Cancel</Button>
+                        <Button type="submit" variant="primary" loading={createMutation.isPending || updateMutation.isPending} fullWidth className="sm:w-auto">
                             {editing ? 'Update' : 'Create'}
                         </Button>
                     </div>

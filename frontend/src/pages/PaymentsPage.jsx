@@ -71,8 +71,8 @@ export default function PaymentsPage() {
                 </Button>} />
 
             <Card>
-                <div className="p-4 border-b flex flex-wrap gap-3">
-                    <div className="w-48">
+                <div className="p-3 sm:p-4 border-b flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <div className="w-full sm:w-48">
                         <Select placeholder="All Types"
                             options={[{ value: 'received', label: 'Received' }, { value: 'paid', label: 'Paid Out' }]}
                             value={filters.direction}

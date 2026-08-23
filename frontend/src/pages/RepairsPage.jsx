@@ -44,8 +44,8 @@ export default function RepairsPage() {
         <div>
             <PageHeader title="Repairs Workshop" description="Track items being repaired" />
             <Card>
-                <div className="p-4 border-b flex gap-3">
-                    <div className="w-48">
+                <div className="p-3 sm:p-4 border-b flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <div className="w-full sm:w-48">
                         <Select placeholder="All Statuses"
                             options={[
                                 { value: 'pending', label: 'Pending' }, { value: 'in_progress', label: 'In Progress' },

@@ -72,7 +72,7 @@ export default function DamagesPage() {
                     <Plus size={16} className="mr-1.5" /> Record Damage
                 </Button>} />
 
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <Card className="p-4"><p className="text-sm text-gray-600">Total Damages Recorded</p><p className="text-2xl font-semibold">{summary.totalCount}</p></Card>
                 <Card className="p-4"><p className="text-sm text-gray-600">Total Value Lost</p><p className="text-2xl font-semibold text-red-600">{fmt(summary.totalValue)}</p></Card>
                 <Card className="p-4 bg-amber-50 border-amber-200"><p className="text-sm text-amber-700">Top Source</p>

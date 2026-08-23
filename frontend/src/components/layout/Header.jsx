@@ -32,18 +32,18 @@ export default function Header({ onToggleSidebar }) {
     }[user?.role] || 'User';
 
     return (
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
-            <div className="flex items-center gap-3">
+        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {/* Hamburger toggle */}
                 <button
                     onClick={onToggleSidebar}
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition"
+                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition flex-shrink-0 min-h-[40px] min-w-[40px] flex items-center justify-center"
                     aria-label="Toggle sidebar"
                 >
                     <Menu size={20} />
                 </button>
-                
-                <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-gradient-to-r from-primary-50 to-blue-50/20 rounded-full border border-primary-100/50 shadow-sm transition hover:shadow duration-200">
+
+                <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 bg-gradient-to-r from-primary-50 to-blue-50/20 rounded-full border border-primary-100/50 shadow-sm transition hover:shadow duration-200">
                     <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 flex-shrink-0">
                         <Sparkles size={11} className="animate-pulse" />
                     </div>
@@ -51,14 +51,19 @@ export default function Header({ onToggleSidebar }) {
                         Welcome, <span className="font-bold text-primary-700">{user?.fullName || user?.firstName || 'User'}</span>
                     </span>
                 </div>
+
+                {/* Mobile: compact name only */}
+                <span className="sm:hidden text-sm font-semibold text-gray-700 truncate max-w-[100px]">
+                    {user?.firstName || 'User'}
+                </span>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-4">
                 <NotificationDropdown />
 
-                <div className="flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-1.5 bg-gray-50 rounded-lg">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <button onClick={() => navigate('/profile')}>
+                <div className="flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 py-1.5 bg-gray-50 rounded-lg">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <button onClick={() => navigate('/profile')} className="min-w-[28px] min-h-[28px] flex items-center justify-center">
                             <UserIcon className="w-4 h-4 text-primary-600" />
                         </button>
                     </div>
@@ -72,7 +77,7 @@ export default function Header({ onToggleSidebar }) {
 
                 <button
                     onClick={handleLogout}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                    className="flex items-center gap-1.5 px-2 sm:px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition min-h-[40px]"
                 >
                     <LogOut size={16} />
                     <span className="hidden sm:inline">Logout</span>

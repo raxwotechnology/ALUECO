@@ -128,6 +128,7 @@ export default function CustomersPage() {
         },
         {
             key: 'customerGroupId', label: 'Group',
+            hideOnMobile: true,
             render: (r) =>
                 r.customerGroupId ? (
                     <span
@@ -142,6 +143,7 @@ export default function CustomersPage() {
         },
         {
             key: 'contact', label: 'Contact',
+            hideOnMobile: true,
             render: (r) => (
                 <div className="text-xs">
                     {r.primaryContact?.name && <p>{r.primaryContact.name}</p>}
@@ -151,6 +153,7 @@ export default function CustomersPage() {
         },
         {
             key: 'paymentTerms', label: 'Terms',
+            hideOnMobile: true,
             render: (r) => {
                 const t = r.paymentTerms?.type;
                 if (t === 'credit') return <Badge variant="info">{r.paymentTerms.creditDays}d credit</Badge>;
@@ -160,6 +163,7 @@ export default function CustomersPage() {
         },
         {
             key: 'creditStatus', label: 'Outstanding',
+            hideOnMobile: true,
             render: (r) => {
                 const bal = r.creditStatus?.currentBalance || 0;
                 if (bal === 0) return <span className="text-gray-400 text-xs">—</span>;
@@ -251,18 +255,18 @@ export default function CustomersPage() {
             />
 
             <Card>
-                <div className="p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                <div className="p-3 sm:p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold w-full sm:w-auto">
                             <button
                                 onClick={() => setViewMode('list')}
-                                className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                className={`py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 flex-1 sm:flex-initial transition ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                             >
                                 <Users size={14} /> Directory View
                             </button>
                             <button
                                 onClick={() => setViewMode('financials')}
-                                className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition ${viewMode === 'financials' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                                className={`py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 flex-1 sm:flex-initial transition ${viewMode === 'financials' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'}`}
                             >
                                 <DollarSign size={14} /> Financial Summary View
                             </button>
@@ -270,8 +274,8 @@ export default function CustomersPage() {
                     </div>
 
                     {viewMode === 'list' && (
-                        <div className="flex flex-wrap items-center gap-3 flex-1 justify-end min-w-[200px]">
-                            <div className="relative flex-1 min-w-[200px] max-w-xs">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 flex-1 sm:justify-end">
+                            <div className="relative flex-1 sm:max-w-xs">
                                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="text"
@@ -281,7 +285,7 @@ export default function CustomersPage() {
                                     onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
                                 />
                             </div>
-                            <div className="w-44">
+                            <div className="w-full sm:w-44">
                                 <Select
                                     placeholder="All Groups"
                                     options={groupOptions}
@@ -289,7 +293,7 @@ export default function CustomersPage() {
                                     onChange={(e) => setFilters((f) => ({ ...f, customerGroupId: e.target.value, page: 1 }))}
                                 />
                             </div>
-                            <div className="w-36">
+                            <div className="w-full sm:w-36">
                                 <Select
                                     placeholder="All Statuses"
                                     options={[

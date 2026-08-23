@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import toast from 'react-hot-toast';
 
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
@@ -10,6 +11,29 @@ import Textarea from '../../components/ui/Textarea';
 import { productFormSchema } from './productSchemas';
 import { useCategories, useBrands, useUoms, useCreateProduct, useUpdateProduct } from './useProducts';
 import { productsApi } from './productsApi';
+
+const DEFAULT_UOMS = [
+    { value: 'pc', label: 'Piece (pc)' },
+    { value: 'pcs', label: 'Pieces (pcs)' },
+    { value: 'bar', label: 'Bar - Extrusion (bar)' },
+    { value: 'm', label: 'Meter (m)' },
+    { value: 'ft', label: 'Foot / Feet (ft)' },
+    { value: 'sqm', label: 'Square Meter (sqm)' },
+    { value: 'sqft', label: 'Square Feet (sqft)' },
+    { value: 'kg', label: 'Kilogram (kg)' },
+    { value: 'g', label: 'Gram (g)' },
+    { value: 'box', label: 'Box (box)' },
+    { value: 'ctn', label: 'Carton (ctn)' },
+    { value: 'bundle', label: 'Bundle (bundle)' },
+    { value: 'roll', label: 'Roll (roll)' },
+    { value: 'set', label: 'Set (set)' },
+    { value: 'pr', label: 'Pair (pr)' },
+    { value: 'pack', label: 'Pack (pack)' },
+    { value: 'sheet', label: 'Sheet (sheet)' },
+    { value: 'L', label: 'Liter (L)' },
+    { value: 'ml', label: 'Milliliter (ml)' },
+    { value: 'hr', label: 'Hour (hr)' },
+];
 
 const tabs = [
     { id: 'basic', label: 'Basic Info' },
@@ -47,6 +71,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
             sellable: true,
             allowBackorder: false,
             minimumOrderQuantity: 1,
+            unitOfMeasure: 'pcs',
             basePrice: 0,
         },
     });
@@ -104,6 +129,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                 minimumOrderQuantity: 1,
                 productType: forceProductType || 'finished_good',
                 categoryId: rawCat ? rawCat._id : '',
+                unitOfMeasure: 'pcs',
                 basePrice: 0,
             });
         }
@@ -210,10 +236,11 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
         value: b._id,
         label: b.name,
     }));
-    const uomOptions = (uomsData?.data || []).map((u) => ({
-        value: u.symbol,
-        label: `${u.name} (${u.symbol})`,
+    const fetchedUoms = (uomsData?.data || []).map((u) => ({
+        value: u.symbol || u.code || u.name,
+        label: `${u.name} (${u.symbol || u.code || u.name})`,
     }));
+    const uomOptions = fetchedUoms.length > 0 ? fetchedUoms : DEFAULT_UOMS;
 
     const isLoading = createProduct.isPending || updateProduct.isPending;
 
@@ -227,14 +254,14 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
             <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
                 {/* Tabs */}
                 <div className="border-b border-gray-200">
-                    <div className="flex gap-1 px-6">
+                    <div className="flex gap-1 px-3 sm:px-6 overflow-x-auto scrollbar-none">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-4 py-3 text-sm font-medium border-b-2 transition ${activeTab === tab.id
-                                    ? 'border-primary-600 text-primary-600'
+                                className={`px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition whitespace-nowrap flex-shrink-0 ${activeTab === tab.id
+                                    ? 'border-primary-600 text-primary-600 font-semibold'
                                     : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                             >
@@ -245,10 +272,10 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                 </div>
 
                 {/* Tab Content */}
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                     {activeTab === 'basic' && (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <Input
                                     label="Short Code (e.g. MOR, CLR)"
                                     maxLength={3}
@@ -274,7 +301,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                 />
                                 <Input label="Short Name / Model" placeholder="e.g. Outer Frame (1.2mm)" error={errors.shortName?.message} {...register('shortName')} />
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Input label="SKU / Manufacturer Code" placeholder="e.g. SWISSTEK-SD1001" error={errors.sku?.message} {...register('sku')} />
                                 <Input label="Barcode" placeholder="Scan if available" error={errors.barcode?.message} {...register('barcode')} />
                                 <Select
@@ -290,7 +317,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                     {...register('type')}
                                 />
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Select
                                     label="Material Category"
                                     required
@@ -320,7 +347,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                     {...register('productType')}
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Select
                                     label="Unit of Measure (UOM)"
                                     required
@@ -341,7 +368,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                     {...register('status')}
                                 />
                             </div>
-                            <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-2 border-t">
                                 <label className="flex items-center gap-2 text-sm">
                                     <input type="checkbox" {...register('canBeSold')} />
                                     Can be sold
@@ -362,7 +389,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
 
                     {activeTab === 'pricing' && (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
                                     label="Base Price (LKR)"
                                     type="number"
@@ -383,7 +410,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                 <input type="checkbox" id="taxable" {...register('taxable')} />
                                 <label htmlFor="taxable" className="text-sm text-gray-700">Taxable (VAT applicable)</label>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
                                     label="Tax Rate (%)"
                                     type="number"
@@ -399,7 +426,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                     {activeTab === 'stock' && (
                         <div className="space-y-4">
                             <h4 className="text-sm font-semibold text-gray-700">Stock Levels</h4>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Input
                                     label="Minimum Level"
                                     type="number"
@@ -420,7 +447,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                 />
                             </div>
                             <h4 className="text-sm font-semibold text-gray-700 pt-4">Packaging</h4>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
                                     label="Units per Carton"
                                     type="number"
@@ -458,11 +485,11 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                 </div>
 
                 {/* Footer */}
-                <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    <Button variant="outline" onClick={onClose} type="button" disabled={isLoading}>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+                    <Button variant="outline" onClick={onClose} type="button" disabled={isLoading} fullWidth className="sm:w-auto">
                         Cancel
                     </Button>
-                    <Button type="submit" variant="primary" loading={isLoading}>
+                    <Button type="submit" variant="primary" loading={isLoading} fullWidth className="sm:w-auto">
                         {isEdit ? 'Update Product' : 'Create Product'}
                     </Button>
                 </div>

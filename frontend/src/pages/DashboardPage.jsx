@@ -339,7 +339,7 @@ export default function DashboardPage() {
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <Card className="lg:col-span-2 p-6 space-y-6">
                                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-1.5"><Factory className="text-indigo-600" /> Aluminium Fabrication & Output status</h3>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-indigo-900">
                                             <p className="text-[10px] font-bold uppercase text-indigo-600">Active Fabrication Jobs</p>
                                             <p className="text-2xl font-black mt-1">{deptData?.operations?.activeProduction}</p>
@@ -419,7 +419,7 @@ export default function DashboardPage() {
                                 <Card className="lg:col-span-2 p-6 space-y-6">
                                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-1.5"><Landmark className="text-indigo-600" /> Cash Pool & Bank Balances</h3>
                                     
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="bg-primary-600 text-white rounded-xl p-5 shadow relative overflow-hidden flex flex-col justify-between min-h-[140px]">
                                             <Wallet className="absolute right-[-10px] top-[-10px] w-20 h-20 text-white/10" />
                                             <div>
@@ -829,8 +829,8 @@ function EmployeeDashboard() {
             </div>
 
             <Modal isOpen={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} title="New Leave Request" size="md">
-                <div className="p-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 sm:p-6 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Select label="Leave Type"
                             options={[
                                 { value: 'annual', label: 'Annual' },
@@ -849,7 +849,7 @@ function EmployeeDashboard() {
                             </label>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input label="From Date" required type="date" value={form.fromDate}
                             onChange={(e) => setForm((f) => ({ ...f, fromDate: e.target.value }))} />
                         <Input label="To Date" required type="date" value={form.toDate}
@@ -858,9 +858,9 @@ function EmployeeDashboard() {
                     <Textarea label="Reason" required rows={3} value={form.reason}
                         onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
                 </div>
-                <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
-                    <Button variant="outline" onClick={() => setIsLeaveModalOpen(false)}>Cancel</Button>
-                    <Button variant="primary" onClick={submitLeave} loading={createLeaveM.isPending}>Submit</Button>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50">
+                    <Button variant="outline" onClick={() => setIsLeaveModalOpen(false)} fullWidth className="sm:w-auto">Cancel</Button>
+                    <Button variant="primary" onClick={submitLeave} loading={createLeaveM.isPending} fullWidth className="sm:w-auto">Submit</Button>
                 </div>
             </Modal>
         </div>

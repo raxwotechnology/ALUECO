@@ -8,6 +8,29 @@ import Select from '../../components/ui/Select';
 import { useCreateProduct } from './useProducts';
 import { useCategories, useUoms } from './useProducts';
 
+const DEFAULT_UOMS = [
+    { value: 'pc', label: 'Piece (pc)' },
+    { value: 'pcs', label: 'Pieces (pcs)' },
+    { value: 'bar', label: 'Bar - Extrusion (bar)' },
+    { value: 'm', label: 'Meter (m)' },
+    { value: 'ft', label: 'Foot / Feet (ft)' },
+    { value: 'sqm', label: 'Square Meter (sqm)' },
+    { value: 'sqft', label: 'Square Feet (sqft)' },
+    { value: 'kg', label: 'Kilogram (kg)' },
+    { value: 'g', label: 'Gram (g)' },
+    { value: 'box', label: 'Box (box)' },
+    { value: 'ctn', label: 'Carton (ctn)' },
+    { value: 'bundle', label: 'Bundle (bundle)' },
+    { value: 'roll', label: 'Roll (roll)' },
+    { value: 'set', label: 'Set (set)' },
+    { value: 'pr', label: 'Pair (pr)' },
+    { value: 'pack', label: 'Pack (pack)' },
+    { value: 'sheet', label: 'Sheet (sheet)' },
+    { value: 'L', label: 'Liter (L)' },
+    { value: 'ml', label: 'Milliliter (ml)' },
+    { value: 'hr', label: 'Hour (hr)' },
+];
+
 /**
  * Quick modal for creating a product on the fly during PO/SO creation.
  * Captures only essentials. Full edit later.
@@ -32,7 +55,11 @@ export default function QuickCreateProductModal({
     const { data: uomsData } = useUoms();
 
     const categoryOptions = (categoriesData?.data || []).map((c) => ({ value: c._id, label: c.name }));
-    const uomOptions = (uomsData?.data || []).map((u) => ({ value: u.code, label: `${u.name} (${u.code})` }));
+    const fetchedUoms = (uomsData?.data || []).map((u) => ({
+        value: u.symbol || u.code || u.name,
+        label: `${u.name} (${u.symbol || u.code || u.name})`
+    }));
+    const uomOptions = fetchedUoms.length > 0 ? fetchedUoms : DEFAULT_UOMS;
 
     const submit = async () => {
         if (!form.name) { toast.error('Product name required'); return; }

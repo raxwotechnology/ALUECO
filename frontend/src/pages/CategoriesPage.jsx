@@ -118,10 +118,11 @@ export default function CategoriesPage() {
     const columns = [
         { key: 'code', label: 'Code', width: '100px', render: (r) => <span className="font-mono text-xs">{r.code}</span> },
         { key: 'name', label: 'Name' },
-        { key: 'parentCategory', label: 'Parent', render: (r) => r.parentCategory?.name || '—' },
+        { key: 'parentCategory', label: 'Parent', hideOnMobile: true, render: (r) => r.parentCategory?.name || '—' },
         {
             key: 'type',
             label: 'Type',
+            hideOnMobile: true,
             render: (r) => <Badge>{r.type}</Badge>,
         },
         {
@@ -190,8 +191,8 @@ export default function CategoriesPage() {
                 size="md"
             >
                 <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 sm:p-6 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Input label="Name" required error={errors.name?.message} {...register('name')} />
                             <Input label="Code" required error={errors.code?.message} {...register('code')} />
                         </div>
@@ -217,9 +218,9 @@ export default function CategoriesPage() {
                             <label htmlFor="isActive" className="text-sm text-gray-700">Active</label>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
-                        <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-                        <Button type="submit" variant="primary" loading={createMutation.isPending || updateMutation.isPending}>
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50">
+                        <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)} fullWidth className="sm:w-auto">Cancel</Button>
+                        <Button type="submit" variant="primary" loading={createMutation.isPending || updateMutation.isPending} fullWidth className="sm:w-auto">
                             {editing ? 'Update' : 'Create'}
                         </Button>
                     </div>

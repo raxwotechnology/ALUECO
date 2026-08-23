@@ -132,8 +132,8 @@ export default function InvoicesPage() {
             </div>
 
             <Card>
-                <div className="p-4 border-b border-gray-200 flex flex-wrap gap-3">
-                    <div className="relative flex-1 min-w-[200px]">
+                <div className="p-3 sm:p-4 border-b border-gray-200 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search by invoice # or customer..."
                             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
