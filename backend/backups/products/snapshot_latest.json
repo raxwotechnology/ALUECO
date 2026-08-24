@@ -1,211 +1,140 @@
 [
   {
-    "_id": "6a33c2637f598b6fed85eaaa",
-    "name": "curry leaves",
+    "_id": "6a8ba84acad8449ce69ea689",
+    "productCode": "P-ALU-MOR-26236-01",
+    "sku": "SWISTECH -002",
+    "barcode": "232222",
+    "name": "SD002",
     "productType": "raw_material",
     "canBeManufactured": false,
     "canBePurchased": true,
     "canBeSold": false,
+    "shortName": "outer frame",
+    "description": "god",
     "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
+      "_id": "6a8b3bbcca24cca2ba1b4eb3",
+      "name": "Aluminium Profiles"
     },
     "tags": [],
     "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 120,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 120,
-      "averageCost": 120,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T10:03:15.517Z",
-    "updatedAt": "2026-06-26T04:44:55.934Z",
-    "productCode": "P-RAW-PRD-26169-14",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a33c4f5d989fc27892bbcd7",
-    "name": "Curry P",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 564.3,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 5.45,
-      "averageCost": 5.45,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T10:14:13.018Z",
-    "updatedAt": "2026-06-26T04:45:03.592Z",
-    "productCode": "P-FIN-PRD-26169-24",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a33c4f5d989fc27892bbcd8",
-    "name": "Curry P",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T10:14:13.521Z",
-    "updatedAt": "2026-06-18T10:14:13.521Z",
-    "productCode": "P-FIN-PRD-26169-25",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a33cca1f59cd66148c54e49",
-    "name": "Curry Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T10:46:57.821Z",
-    "updatedAt": "2026-06-18T10:46:57.821Z",
-    "productCode": "P-FIN-PRD-26169-26",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a33cca1f59cd66148c54e4a",
-    "name": "Curry Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
+    "unitOfMeasure": "pcs",
     "basePrice": 2000,
+    "mrp": 2200,
     "currency": "LKR",
     "tax": {
       "taxable": true,
       "taxRate": 18
     },
     "costs": {
-      "lastPurchaseCost": 2000,
-      "averageCost": 1807.14,
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 8,
+      "reorderLevel": 10,
+      "maximumLevel": 18
+    },
+    "packaging": {
+      "unitsPerCarton": 2,
+      "cartonsPerPallet": 1
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 34,
+      "allowBackorder": false
+    },
+    "status": "inactive",
+    "createdBy": "6a59de76df44fbda7b9acaa6",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-24T02:11:22.139Z",
+    "updatedAt": "2026-08-24T02:11:22.139Z",
+    "__v": 0,
+    "categoryName": "Aluminium Profiles",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a8baae2cad8449ce69ea68f",
+    "sku": "GH",
+    "barcode": "tyhh",
+    "name": "mm",
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": false,
+    "canBeSold": false,
+    "shortName": "m",
+    "categoryId": {
+      "_id": "6a8b3bbcca24cca2ba1b4eb3",
+      "name": "Aluminium Profiles"
+    },
+    "brandId": {
+      "_id": "6a8baa3dcad8449ce69ea68b",
+      "name": "Alumex"
+    },
+    "tags": [],
+    "type": "manufactured",
+    "unitOfMeasure": "pcs",
+    "basePrice": 30000,
+    "mrp": 29990,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 0,
+      "reorderLevel": 0,
+      "maximumLevel": 0
+    },
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "inactive",
+    "createdBy": "6a59de76df44fbda7b9acaa6",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-24T02:22:26.403Z",
+    "updatedAt": "2026-08-24T02:22:26.403Z",
+    "productCode": "P-ALU-PRD-26236-01",
+    "__v": 0,
+    "categoryName": "Aluminium Profiles",
+    "brandName": "Alumex"
+  },
+  {
+    "_id": "6a8bb69ccad8449ce69ea8ec",
+    "name": "glasses",
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "categoryId": {
+      "_id": "6a8b3bbcca24cca2ba1b4eb3",
+      "name": "Aluminium Profiles"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "Kg",
+    "basePrice": 700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 700,
+      "averageCost": 700,
       "standardCost": 0
     },
     "stockLevels": {
@@ -219,26 +148,26 @@
       "allowBackorder": false
     },
     "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
+    "createdBy": "6a59de76df44fbda7b9acaa6",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-06-18T10:46:57.984Z",
-    "updatedAt": "2026-06-24T07:17:15.130Z",
-    "productCode": "P-FIN-PRD-26169-27",
+    "createdAt": "2026-08-24T03:12:28.180Z",
+    "updatedAt": "2026-08-24T03:14:59.814Z",
+    "productCode": "P-ALU-PRD-26236-03",
     "__v": 0,
-    "categoryName": "Finished Good",
+    "categoryName": "Aluminium Profiles",
     "brandName": "—"
   },
   {
-    "_id": "6a33d6dfd58e0a535dfee055",
-    "name": "m",
+    "_id": "6a8bb69ccad8449ce69ea8eb",
+    "name": "glasses",
     "productType": "raw_material",
     "canBeManufactured": false,
     "canBePurchased": true,
     "canBeSold": false,
     "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
+      "_id": "6a8b3bbcca24cca2ba1b4eb3",
+      "name": "Aluminium Profiles"
     },
     "tags": [],
     "type": "trading",
@@ -265,31 +194,40 @@
       "allowBackorder": false
     },
     "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
+    "createdBy": "6a59de76df44fbda7b9acaa6",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-06-18T11:30:39.951Z",
-    "updatedAt": "2026-06-18T11:30:39.951Z",
-    "productCode": "P-RAW-PRD-26169-30",
+    "createdAt": "2026-08-24T03:12:28.165Z",
+    "updatedAt": "2026-08-24T03:12:28.165Z",
+    "productCode": "P-ALU-PRD-26236-02",
     "__v": 0,
-    "categoryName": "Raw Material",
+    "categoryName": "Aluminium Profiles",
     "brandName": "—"
   },
   {
-    "_id": "6a33e7ac3f5a2b865e184a2d",
-    "name": "ginger",
-    "productType": "raw_material",
+    "_id": "6a8bbfef309320248e36bf4c",
+    "productCode": "P-ALU-VCV-26236-01",
+    "sku": "CV",
+    "barcode": "vcvvc",
+    "name": "vcvc",
+    "productType": "finished_good",
     "canBeManufactured": false,
-    "canBePurchased": true,
+    "canBePurchased": false,
     "canBeSold": false,
+    "shortName": "v",
     "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
+      "_id": "6a8b3bbcca24cca2ba1b4eb3",
+      "name": "Aluminium Profiles"
+    },
+    "brandId": {
+      "_id": "6a8baa3dcad8449ce69ea68b",
+      "name": "Alumex"
     },
     "tags": [],
     "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
+    "unitOfMeasure": "pcs",
+    "basePrice": 10000,
+    "mrp": 10000,
     "currency": "LKR",
     "tax": {
       "taxable": true,
@@ -305,51 +243,9 @@
       "reorderLevel": 0,
       "maximumLevel": 0
     },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T12:42:20.455Z",
-    "updatedAt": "2026-06-18T12:42:56.594Z",
-    "productCode": "P-RAW-PRD-26169-31",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a33e8553f5a2b865e184a6d",
-    "name": "Ginger Dry",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 1291.67,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 1291.67,
-      "averageCost": 1291.67,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
     },
     "salesConfig": {
       "sellable": true,
@@ -357,883 +253,13 @@
       "allowBackorder": false
     },
     "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
+    "createdBy": "6a59de76df44fbda7b9acaa6",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-06-18T12:45:09.607Z",
-    "updatedAt": "2026-06-18T16:11:56.107Z",
-    "productCode": "P-FIN-PRD-26169-32",
+    "createdAt": "2026-08-24T03:52:15.532Z",
+    "updatedAt": "2026-08-24T03:52:15.532Z",
     "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a341a4f02f2e91a208d7b02",
-    "name": "Walpenela",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T16:18:23.691Z",
-    "updatedAt": "2026-06-18T16:19:02.694Z",
-    "productCode": "P-RAW-PRD-26169-33",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a341a9a02f2e91a208d7b1e",
-    "name": "WAL POWDER",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 86.67,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 86.67,
-      "averageCost": 86.67,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T16:19:38.739Z",
-    "updatedAt": "2026-06-18T16:22:49.096Z",
-    "productCode": "P-FIN-PRD-26169-34",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a341fce02f2e91a208d7b38",
-    "name": "Suwahas",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 995,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 995,
-      "averageCost": 995,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T16:41:50.633Z",
-    "updatedAt": "2026-06-26T05:27:47.688Z",
-    "productCode": "P-RAW-PRD-26169-35",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3421c080ddb5a3f76b4bf4",
-    "name": "SU Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 1081.52,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 1081.52,
-      "averageCost": 1081.52,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T16:50:08.166Z",
-    "updatedAt": "2026-06-18T16:51:15.244Z",
-    "productCode": "P-FIN-PRD-26169-36",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a342bf5258cab163c621892",
-    "name": "gegiri",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T17:33:41.461Z",
-    "updatedAt": "2026-06-18T17:33:57.538Z",
-    "productCode": "P-RAW-PRD-26169-37",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a342c28258cab163c6218b0",
-    "name": "G gram",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 555.56,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 555.56,
-      "averageCost": 555.56,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T17:34:32.769Z",
-    "updatedAt": "2026-06-25T15:42:32.878Z",
-    "productCode": "P-FIN-PRD-26169-38",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a343325236541237b5f2153",
-    "productCode": "T-SU-PWD-01",
-    "name": "Organic Ceylon SU Powder (Test)",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 650,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 450,
-      "averageCost": 450,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 50,
-      "reorderLevel": 100,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-18T18:04:21.055Z",
-    "updatedAt": "2026-06-18T18:04:23.091Z",
-    "__v": 0,
-    "categoryName": "—",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3b320127e2f161e6c6f3c7",
-    "name": "Ginger Dry Powder",
-    "productType": "finished_good",
-    "canBeManufactured": true,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-24T01:25:22.005Z",
-    "updatedAt": "2026-06-24T01:29:56.956Z",
-    "productCode": "P-FIN-PRD-26175-39",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3b320227e2f161e6c6f3c8",
-    "name": "Ginger Dry Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-24T01:25:22.285Z",
-    "updatedAt": "2026-06-24T01:25:22.285Z",
-    "productCode": "P-FIN-PRD-26175-40",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3b320327e2f161e6c6f3cb",
-    "name": "Ginger Dry Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-24T01:25:23.513Z",
-    "updatedAt": "2026-06-24T01:25:23.513Z",
-    "productCode": "P-FIN-PRD-26175-41",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3ba38188fb0b40e651c840",
-    "name": "Mango",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-24T09:29:37.496Z",
-    "updatedAt": "2026-06-24T09:30:26.587Z",
-    "productCode": "P-RAW-PRD-26175-42",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3ba39a88fb0b40e651c855",
-    "name": "Water Melon",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-24T09:30:02.084Z",
-    "updatedAt": "2026-06-24T09:30:28.239Z",
-    "productCode": "P-RAW-PRD-26175-43",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3d47bdb81c8d600ef6ad07",
-    "productCode": "PROD-MOR-001",
-    "productShortCode": "MOR",
-    "name": "Ceylon Moringa Powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "shortName": "Moringa Powder",
-    "description": "Premium quality dehydrated Ceylon Moringa Leaf Powder",
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "kg",
-    "basePrice": 1500,
-    "mrp": 1800,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2280960331098cce55d2b9",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-25T15:22:37.206Z",
-    "updatedAt": "2026-06-25T15:22:37.206Z",
-    "__v": 0,
-    "categoryName": "—",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3d47bdb81c8d600ef6ad08",
-    "productCode": "PROD-SOU-002",
-    "productShortCode": "SOU",
-    "name": "Organic Soursop Tea",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "shortName": "Soursop Tea",
-    "description": "Rich organic Soursop leaf tea bags",
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "pack",
-    "basePrice": 2500,
-    "mrp": 3000,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 100,
-      "averageCost": 100,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2280960331098cce55d2b9",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-25T15:22:37.482Z",
-    "updatedAt": "2026-06-26T04:12:33.015Z",
-    "__v": 0,
-    "categoryName": "—",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3dfb17360b910c192c1f8b",
-    "name": "COCO",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-26T04:07:51.093Z",
-    "updatedAt": "2026-06-26T04:09:40.134Z",
-    "productCode": "P-RAW-PRD-26177-44",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3dfbd1360b910c192c2019",
-    "name": "Coco powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 1062.5,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 1062.5,
-      "averageCost": 1062.5,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-26T04:10:57.491Z",
-    "updatedAt": "2026-06-26T04:12:31.383Z",
-    "productCode": "P-FIN-PRD-26177-45",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3e0bd8807e326a0a0932bd",
-    "name": "Coconut",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-26T05:19:20.698Z",
-    "updatedAt": "2026-06-26T05:20:10.382Z",
-    "productCode": "P-RAW-PRD-26177-48",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3e0c9b807e326a0a093304",
-    "name": "coconut powder",
-    "productType": "finished_good",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": true,
-    "categoryId": {
-      "_id": "6a33ba17404dd2fe734242c4",
-      "name": "Finished Good"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 657.89,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 657.89,
-      "averageCost": 657.89,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "active",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-26T05:22:35.986Z",
-    "updatedAt": "2026-06-26T05:25:04.501Z",
-    "productCode": "P-FIN-PRD-26177-49",
-    "__v": 0,
-    "categoryName": "Finished Good",
-    "brandName": "—"
-  },
-  {
-    "_id": "6a3e1c96807e326a0a0935da",
-    "name": "Murunga",
-    "productType": "raw_material",
-    "canBeManufactured": false,
-    "canBePurchased": true,
-    "canBeSold": false,
-    "categoryId": {
-      "_id": "6a33b9916fcf19bac041d9c8",
-      "name": "Raw Material"
-    },
-    "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
-    "currency": "LKR",
-    "tax": {
-      "taxable": true,
-      "taxRate": 18
-    },
-    "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
-    },
-    "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
-      "maximumLevel": 0
-    },
-    "salesConfig": {
-      "sellable": true,
-      "minimumOrderQuantity": 1,
-      "allowBackorder": false
-    },
-    "status": "inactive",
-    "createdBy": "6a2314f4bd599fedbae59a61",
-    "deletedAt": null,
-    "tierPricing": [],
-    "createdAt": "2026-06-26T06:30:46.534Z",
-    "updatedAt": "2026-06-26T06:30:46.534Z",
-    "productCode": "P-RAW-PRD-26177-50",
-    "__v": 0,
-    "categoryName": "Raw Material",
-    "brandName": "—"
+    "categoryName": "Aluminium Profiles",
+    "brandName": "Alumex"
   }
 ]

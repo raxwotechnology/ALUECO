@@ -98,7 +98,7 @@ export default function ProductAutocompleteSelect({
             const payload = {
                 name: nameToCreate.trim(),
                 productType: productType,
-                status: 'inactive',
+                status: 'active',
                 categoryId: matchedCat._id,
                 unitOfMeasure: 'Kg',
                 basePrice: 0,
