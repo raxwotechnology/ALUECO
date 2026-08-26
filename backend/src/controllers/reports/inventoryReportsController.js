@@ -8,9 +8,22 @@ import Product from '../../models/Product.js';
  * Total stock value per product and warehouse
  */
 export const getStockValuation = asyncHandler(async (req, res) => {
-    const { warehouseId } = req.query;
+    const { warehouseId, businessType = 'all' } = req.query;
     const matchStage = {};
     if (warehouseId) matchStage.warehouseId = warehouseId;
+
+    const productMatch = { 'product.deletedAt': null };
+    if (businessType === 'alueco') {
+        productMatch.$or = [
+            { 'product.name': { $regex: /alu|profile|glass|accessory|hardware|gasket|sliding|casement|window|door/i } },
+            { 'product.productCode': { $regex: /^(ALU|AP|AG|ACC|PRF|GLS)/i } },
+        ];
+    } else if (businessType === 'normal') {
+        productMatch.$and = [
+            { 'product.name': { $not: { $regex: /alu|profile|glass|sliding|casement|aluminium/i } } },
+            { 'product.productCode': { $not: { $regex: /^(ALU|AP|AG|ACC|PRF|GLS)/i } } }
+        ];
+    }
 
     const data = await StockItem.aggregate([
         { $match: matchStage },
@@ -20,7 +33,7 @@ export const getStockValuation = asyncHandler(async (req, res) => {
             },
         },
         { $unwind: '$product' },
-        { $match: { 'product.deletedAt': null } },
+        { $match: productMatch },
         {
             $lookup: {
                 from: 'warehouses', localField: 'warehouseId', foreignField: '_id', as: 'warehouse',

@@ -6,7 +6,8 @@ const aluAccessorySchema = new mongoose.Schema({
         required: true,
         unique: true,
         trim: true,
-        uppercase: true
+        uppercase: true,
+        maxlength: 50
     },
     name: {
         type: String,

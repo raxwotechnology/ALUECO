@@ -273,3 +273,540 @@ export const issueProjectMaterials = asyncHandler(async (req, res) => {
         session.endSession();
     }
 });
+
+// === DEDICATED ALUECO RAW MATERIALS & GRN ===
+
+export const getAluRawMaterials = asyncHandler(async (req, res) => {
+    const { category, warehouseId, search } = req.query;
+    const Product = (await import('../models/Product.js')).default;
+    const StockItem = (await import('../models/StockItem.js')).default;
+
+    const filter = {
+        $or: [
+            { businessType: 'alueco' },
+            { productType: 'raw_material' },
+            { category: 'Aluminium Stock' }
+        ],
+        deletedAt: null
+    };
+
+    if (category && category !== 'all') {
+        filter.aluCategory = category;
+    }
+
+    if (search) {
+        filter.$and = [
+            {
+                $or: [
+                    { name: { $regex: search, $options: 'i' } },
+                    { productCode: { $regex: search, $options: 'i' } },
+                    { 'aluSpecs.series': { $regex: search, $options: 'i' } }
+                ]
+            }
+        ];
+    }
+
+    const products = await Product.find(filter).sort({ name: 1 });
+    const productIds = products.map(p => p._id);
+
+    const stockFilter = { productId: { $in: productIds } };
+    if (warehouseId) {
+        stockFilter.warehouseId = warehouseId;
+    }
+
+    const stockItems = await StockItem.find(stockFilter)
+        .populate('warehouseId', 'name warehouseCode')
+        .populate('productId', 'name productCode unitOfMeasure stockLevels aluCategory aluSpecs businessType');
+
+    res.json({
+        success: true,
+        data: {
+            products,
+            stockItems
+        }
+    });
+});
+
+export const createAluRawMaterial = asyncHandler(async (req, res) => {
+    let items = req.body.items;
+    
+    // Support single product payload as fallback
+    if (!items || !Array.isArray(items)) {
+        items = [req.body];
+    }
+
+    if (items.length === 0) {
+        res.status(400);
+        throw new Error('At least one raw material item is required.');
+    }
+
+    const Product = (await import('../models/Product.js')).default;
+    const { increaseStock } = await import('../services/stockService.js');
+    const mongoose = (await import('mongoose')).default;
+
+    // Validate codes
+    for (const it of items) {
+        if (!it.name || !it.name.trim()) {
+            res.status(400);
+            throw new Error('Material name is required for all items.');
+        }
+        const cleanCode = (it.productCode || '').trim().toUpperCase();
+        if (cleanCode) {
+            if (cleanCode.length > 15) {
+                res.status(400);
+                throw new Error(`Item Code "${cleanCode}" exceeds maximum 15 characters.`);
+            }
+            const existing = await Product.findOne({ productCode: cleanCode, deletedAt: null });
+            if (existing) {
+                res.status(400);
+                throw new Error(`Item Code "${cleanCode}" already exists. Please provide a unique code.`);
+            }
+        }
+    }
+
+    const session = await mongoose.startSession();
+    const createdProducts = [];
+    const Warehouse = (await import('../models/Warehouse.js')).default;
+
+    // Ensure a valid warehouse exists
+    let targetWhId = req.body.warehouseId;
+    if (!targetWhId) {
+        const firstWh = await Warehouse.findOne({ isActive: { $ne: false } });
+        if (firstWh) {
+            targetWhId = firstWh._id;
+        } else {
+            const newWh = await Warehouse.create({
+                name: 'Fabrication Main Warehouse',
+                warehouseCode: 'WH-MAIN',
+                type: 'raw_materials',
+                isDefault: true,
+                isActive: true
+            });
+            targetWhId = newWh._id;
+        }
+    }
+
+    try {
+        await session.withTransaction(async () => {
+            for (const it of items) {
+                const cleanCode = (it.productCode || '').trim().toUpperCase();
+                const defaultWarehouseId = it.warehouseId || targetWhId;
+                const specs = it.specs || {};
+
+                const [product] = await Product.create([{
+                    productCode: cleanCode || undefined,
+                    name: it.name.trim(),
+                    businessType: 'alueco',
+                    aluCategory: it.aluCategory || 'profiles',
+                    aluSpecs: {
+                        series: specs.series || it.series || '',
+                        thickness: specs.thickness || it.thickness || '',
+                        finish: specs.finish || it.finish || '',
+                        lengthMm: Number(specs.lengthMm || it.lengthMm) || 0,
+                        brand: it.supplierName || specs.brand || '',
+                    },
+                    productType: 'raw_material',
+                    type: 'raw_material',
+                    canBeManufactured: false,
+                    canBePurchased: true,
+                    canBeSold: false,
+                    unitOfMeasure: it.unitOfMeasure || 'Lengths',
+                    basePrice: Number(it.purchaseCost) || 0,
+                    costs: {
+                        lastPurchaseCost: Number(it.purchaseCost) || 0,
+                        standardCost: Number(it.purchaseCost) || 0,
+                        averageCost: Number(it.purchaseCost) || 0,
+                    },
+                    stockLevels: {
+                        reorderLevel: Number(it.reorderLevel) || 5,
+                        minimumLevel: Number(it.minimumLevel) || 2,
+                    },
+                    notes: it.notes || '',
+                    createdBy: req.user?._id
+                }], { session });
+
+                // If opening stock is specified and warehouse provided, create stock
+                const qty = Number(it.openingStockQuantity || it.quantity || 0);
+                if (qty > 0 && defaultWarehouseId) {
+                    await increaseStock({
+                        productId: product._id,
+                        warehouseId: defaultWarehouseId,
+                        quantity: qty,
+                        costPerUnit: Number(it.purchaseCost) || 0,
+                        movementType: 'opening_stock',
+                        sourceDocument: { type: 'opening_stock', number: 'ALU-BATCH-OPEN' },
+                        reason: 'AluEco Initial Opening Raw Material Stock',
+                        notes: `Opening balance for ${product.name} (${product.productCode})`,
+                        userId: req.user?._id,
+                        session,
+                    });
+                }
+
+                createdProducts.push(product);
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: `Successfully created ${createdProducts.length} AluEco Raw Material(s) with initial stock!`,
+            data: createdProducts
+        });
+    } finally {
+        session.endSession();
+    }
+});
+
+export const processAluGrn = asyncHandler(async (req, res) => {
+    const {
+        warehouseId,
+        supplierName,
+        invoiceNumber,
+        notes,
+        items = []
+    } = req.body;
+
+    if (!warehouseId || !items.length) {
+        res.status(400);
+        throw new Error('Warehouse and at least one material item are required for GRN.');
+    }
+
+    const mongoose = (await import('mongoose')).default;
+    const { increaseStock } = await import('../services/stockService.js');
+    const AluPurchaseOrder = (await import('../models/AluPurchaseOrder.js')).default;
+    const Product = (await import('../models/Product.js')).default;
+
+    const session = await mongoose.startSession();
+    const grnNumber = `ALU-GRN-${Date.now().toString().slice(-6)}`;
+    const results = [];
+
+    try {
+        await session.withTransaction(async () => {
+            for (const item of items) {
+                const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
+                let pId = item.productId;
+
+                if (!pId && targetCode) {
+                    let found = await Product.findOne({
+                        $or: [{ productCode: targetCode }, { sku: targetCode }]
+                    }).session(session);
+
+                    if (!found) {
+                        // Auto-create raw material product entry if it doesn't exist
+                        found = new Product({
+                            productCode: targetCode,
+                            name: item.productName || item.description || `AluEco Raw Material (${targetCode})`,
+                            productType: 'raw_material',
+                            businessType: 'alueco',
+                            unitOfMeasure: item.unitOfMeasure || 'pcs',
+                            costPrice: Number(item.unitCost) || 0,
+                            status: 'active'
+                        });
+                        await found.save({ session });
+                    }
+                    pId = found._id;
+                }
+
+                if (!pId || !item.quantityReceived) continue;
+
+                const qty = Number(item.quantityReceived);
+                const cost = Number(item.unitCost) || 0;
+
+                const stockResult = await increaseStock({
+                    productId: pId,
+                    warehouseId,
+                    quantity: qty,
+                    costPerUnit: cost,
+                    movementType: 'grn',
+                    sourceDocument: { type: 'grn', number: grnNumber },
+                    reason: `AluEco GRN from ${supplierName || 'Supplier'}`,
+                    notes: invoiceNumber ? `Supplier Invoice #${invoiceNumber}` : notes,
+                    userId: req.user?._id,
+                    session
+                });
+
+                // Auto fulfill any pending AluPurchaseOrder matching this item code
+                if (targetCode) {
+                    const matchingPos = await AluPurchaseOrder.find({
+                        status: { $in: ['pending', 'partially_received'] },
+                        $or: [
+                            { 'items.itemCode': targetCode },
+                            { 'items.productCode': targetCode }
+                        ]
+                    }).session(session);
+
+                    let remainingFulfill = qty;
+                    for (const po of matchingPos) {
+                        let poModified = false;
+                        for (const poItem of po.items) {
+                            const poCode = (poItem.itemCode || poItem.productCode || '').toUpperCase();
+                            const curPending = poItem.pendingQuantity ?? Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0));
+
+                            if (poCode === targetCode && curPending > 0 && remainingFulfill > 0) {
+                                const decr = Math.min(curPending, remainingFulfill);
+                                poItem.receivedQuantity = (poItem.receivedQuantity || 0) + decr;
+                                poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
+                                remainingFulfill -= decr;
+
+                                if (poItem.pendingQuantity === 0) {
+                                    poItem.status = 'fulfilled';
+                                } else {
+                                    poItem.status = 'partially_received';
+                                }
+                                poModified = true;
+                            }
+                        }
+
+                        if (poModified) {
+                            const allFulfilled = po.items.every(i => (i.pendingQuantity || 0) === 0 || i.status === 'fulfilled');
+                            po.status = allFulfilled ? 'fulfilled' : 'partially_received';
+                            await po.save({ session });
+                        }
+                    }
+                }
+
+                results.push({
+                    productId: pId,
+                    quantity: qty,
+                    stockMovement: stockResult.movement.movementNumber
+                });
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: `AluEco GRN processed successfully. Recorded ${results.length} materials into stock.`,
+            data: {
+                grnNumber,
+                items: results
+            }
+        });
+    } finally {
+        session.endSession();
+    }
+});
+
+// === PROJECT MATERIALS & SHORTAGE ALLOCATION SUMMARY ===
+export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
+    const AluQuotation = (await import('../models/AluQuotation.js')).default;
+    const AluPurchaseOrder = (await import('../models/AluPurchaseOrder.js')).default;
+    const StockItem = (await import('../models/StockItem.js')).default;
+
+    // Migrate any quotations missing isLatestRevision field
+    try {
+        await AluQuotation.updateMany(
+            { isLatestRevision: { $exists: false } },
+            { $set: { isLatestRevision: true } }
+        );
+    } catch (e) {
+        console.log('Migration error:', e);
+    }
+
+    // Fetch active latest-revision or standard quotations (projects)
+    const quotations = await AluQuotation.find({ isLatestRevision: { $ne: false } })
+        .sort({ updatedAt: -1 })
+        .lean();
+
+    // Fetch related purchase orders for shortage matching
+    const purchaseOrders = await AluPurchaseOrder.find().sort({ createdAt: -1 }).lean();
+
+    // Fetch all stock items to cross-reference available warehouse stock
+    const stockItems = await StockItem.find({ deletedAt: null }).lean();
+    const stockMap = {};
+    stockItems.forEach(s => {
+        const code = (s.productCode || s.sku || '').toUpperCase();
+        if (code) {
+            stockMap[code] = (stockMap[code] || 0) + (s.openStock || s.currentStock || 0);
+        }
+    });
+
+    const mappedQuotationIds = new Set();
+    const mappedPONumbers = new Set();
+
+    const projectsSummary = quotations.map(q => {
+        mappedQuotationIds.add(q._id.toString());
+        if (q.quoteNumber) mappedPONumbers.add(q.quoteNumber);
+
+        // Find linked POs for this quotation/project
+        const projectPOs = purchaseOrders.filter(po => {
+            const isMatch = (po.quotationId && po.quotationId.toString() === q._id.toString()) ||
+                (po.quoteNumber && po.quoteNumber === q.quoteNumber) ||
+                (po.projectName && q.projectName && po.projectName.toLowerCase().trim() === q.projectName.toLowerCase().trim());
+            if (isMatch) mappedPONumbers.add(po.poNumber);
+            return isMatch;
+        });
+
+        // Aggregate project required materials from quotation items
+        const profileMap = {};
+        const glassMap = {};
+        const accessoryMap = {};
+
+        // 1. Process cutting optimization results for profiles
+        if (q.cuttingOptimizationResults) {
+            Object.values(q.cuttingOptimizationResults).forEach(p => {
+                const code = (p.profileCode || '').toUpperCase();
+                if (!code) return;
+                const totalBars = p.totalBarsPurchased || (p.bars ? p.bars.length : 0);
+                const reqMm = p.usedLengthMm || 0;
+                profileMap[code] = {
+                    code,
+                    description: p.description || `Profile ${code}`,
+                    totalRequiredMm: reqMm,
+                    totalRequiredBars: totalBars,
+                    availableStockBars: stockMap[code] || 0,
+                    wastePercent: p.wastePercent || 0,
+                    cost: p.totalCost || 0
+                };
+            });
+        }
+
+        // 2. Process quotation items for glass & accessories
+        (q.items || []).forEach(item => {
+            // Glass items
+            (item.glassItems || []).forEach(g => {
+                const type = g.glassType || 'Standard Glass';
+                if (!glassMap[type]) {
+                    glassMap[type] = {
+                        type,
+                        totalAreaSqFt: 0,
+                        quantity: 0,
+                        totalCost: 0
+                    };
+                }
+                glassMap[type].totalAreaSqFt += (g.areaSqFt || 0);
+                glassMap[type].quantity += (g.qty || 1);
+                glassMap[type].totalCost += (g.cost || 0);
+            });
+
+            // Accessory items
+            (item.accessories || []).forEach(a => {
+                const code = (a.code || '').toUpperCase();
+                if (!code) return;
+                if (!accessoryMap[code]) {
+                    accessoryMap[code] = {
+                        code,
+                        name: a.name || code,
+                        requiredQty: 0,
+                        availableStockQty: stockMap[code] || 0,
+                        unit: a.unit || 'pcs',
+                        totalCost: 0
+                    };
+                }
+                accessoryMap[code].requiredQty += (a.qty || 0);
+                accessoryMap[code].totalCost += (a.cost || 0);
+            });
+        });
+
+        // Collect shortages from linked PO items
+        const shortageItems = [];
+        let totalPendingPOValue = 0;
+        let hasPendingPO = false;
+
+        projectPOs.forEach(po => {
+            (po.items || []).forEach(poItem => {
+                const isPending = poItem.status === 'pending' || poItem.pendingQuantity > 0;
+                if (isPending) hasPendingPO = true;
+
+                shortageItems.push({
+                    poId: po._id,
+                    poNumber: po.poNumber,
+                    itemCode: poItem.itemCode,
+                    productName: poItem.productName,
+                    materialType: poItem.materialType,
+                    requiredQuantity: poItem.requiredQuantity,
+                    receivedQuantity: poItem.receivedQuantity || 0,
+                    pendingQuantity: poItem.pendingQuantity || Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0)),
+                    unitOfMeasure: poItem.unitOfMeasure,
+                    estimatedTotalCost: poItem.estimatedTotalCost || 0,
+                    status: poItem.status || po.status
+                });
+                totalPendingPOValue += (poItem.estimatedTotalCost || 0);
+            });
+        });
+
+        // Determine material status
+        let materialStatus = 'fully_allocated';
+        let materialStatusLabel = 'Fully Allocated / Ready';
+        let statusBadgeColor = 'emerald';
+
+        if (shortageItems.length > 0 && hasPendingPO) {
+            materialStatus = 'pending_po';
+            materialStatusLabel = 'Material Shortage / Pending PO';
+            statusBadgeColor = 'amber';
+        } else if (q.status === 'converted' || q.status === 'in_production') {
+            materialStatus = 'in_production';
+            materialStatusLabel = 'Materials Issued to Production';
+            statusBadgeColor = 'blue';
+        } else if (q.status === 'draft') {
+            materialStatus = 'quotation_stage';
+            materialStatusLabel = 'Quotation Stage';
+            statusBadgeColor = 'slate';
+        }
+
+        return {
+            _id: q._id,
+            quoteNumber: q.quoteNumber,
+            projectName: q.projectName || 'Untitled Project',
+            customerName: q.customerName || 'Standard Client',
+            version: q.version || 0,
+            date: q.date,
+            status: q.status,
+            finalSellingPrice: q.finalSellingPrice || 0,
+            materialStatus,
+            materialStatusLabel,
+            statusBadgeColor,
+            profiles: Object.values(profileMap),
+            glass: Object.values(glassMap),
+            accessories: Object.values(accessoryMap),
+            shortageItems,
+            linkedPOs: projectPOs.map(p => ({ _id: p._id, poNumber: p.poNumber, status: p.status, totalAmount: p.totalEstimatedCost })),
+            totalPendingPOValue
+        };
+    });
+
+    // Also gather standalone POs not linked to any listed quotation
+    const unmappedPOs = purchaseOrders.filter(po => !mappedPONumbers.has(po.poNumber) && (!po.quotationId || !mappedQuotationIds.has(po.quotationId.toString())));
+    unmappedPOs.forEach(po => {
+        const shortageItems = (po.items || []).map(poItem => ({
+            poId: po._id,
+            poNumber: po.poNumber,
+            itemCode: poItem.itemCode,
+            productName: poItem.productName,
+            materialType: poItem.materialType,
+            requiredQuantity: poItem.requiredQuantity,
+            receivedQuantity: poItem.receivedQuantity || 0,
+            pendingQuantity: poItem.pendingQuantity || Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0)),
+            unitOfMeasure: poItem.unitOfMeasure,
+            estimatedTotalCost: poItem.estimatedTotalCost || 0,
+            status: poItem.status || po.status
+        }));
+
+        const totalPendingPOValue = shortageItems.reduce((sum, i) => sum + (i.estimatedTotalCost || 0), 0);
+
+        projectsSummary.push({
+            _id: po._id,
+            quoteNumber: po.poNumber,
+            projectName: po.projectName || `Purchase Order ${po.poNumber}`,
+            customerName: po.customerName || 'Direct Order Client',
+            version: 0,
+            date: po.createdAt || new Date(),
+            status: po.status,
+            finalSellingPrice: po.totalEstimatedCost || 0,
+            materialStatus: po.status === 'fulfilled' ? 'fully_allocated' : 'pending_po',
+            materialStatusLabel: po.status === 'fulfilled' ? 'Fully Allocated / Received' : 'Material Shortage / Pending PO',
+            statusBadgeColor: po.status === 'fulfilled' ? 'emerald' : 'amber',
+            profiles: [],
+            glass: [],
+            accessories: [],
+            shortageItems,
+            linkedPOs: [{ _id: po._id, poNumber: po.poNumber, status: po.status, totalAmount: po.totalEstimatedCost }],
+            totalPendingPOValue
+        });
+    });
+
+    res.json({
+        success: true,
+        data: projectsSummary
+    });
+});
+
+

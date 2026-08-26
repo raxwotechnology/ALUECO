@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Download, FileText } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import BusinessSegmentFilter from '../../components/ui/BusinessSegmentFilter';
 import { useStockValuation } from '../../features/reports/useReports';
 import { useWarehouses } from '../../features/warehouses/useWarehouses';
 import { exportToExcel, exportToPDF } from '../../utils/dataExport';
@@ -17,8 +18,10 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function StockValuationReportPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const [businessType, setBusinessType] = useState(searchParams.get('businessType') || 'all');
     const [warehouseId, setWarehouseId] = useState('');
-    const { data, isLoading } = useStockValuation({ warehouseId: warehouseId || undefined });
+    const { data, isLoading } = useStockValuation({ warehouseId: warehouseId || undefined, businessType });
     const { data: warehousesData } = useWarehouses({ isActive: true });
 
     const report = data?.data;
@@ -76,7 +79,11 @@ export default function StockValuationReportPage() {
                     </div>
                 } />
 
-            <Card className="p-4 mb-4">
+            <Card className="p-4 mb-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Business Segment</span>
+                    <BusinessSegmentFilter value={businessType} onChange={setBusinessType} />
+                </div>
                 <div className="w-64">
                     <Select label="Warehouse" options={warehouseOptions}
                         value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} />

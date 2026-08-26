@@ -1,47 +1,8 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { Phone, Mail, Globe, MapPin, CheckCircle2, ShieldCheck } from 'lucide-react';
+import AluOpeningSketchRenderer from './AluOpeningSketchRenderer';
 
-/**
- * Diagram Sketch Icon Renderer for Aluminium Application Types
- */
-function ApplicationSketchDiagram({ type = '', configuration = '' }) {
-    const typeLower = (type || '').toLowerCase();
-    const isCasement = typeLower.includes('casement');
-    const isFixed = typeLower.includes('fixed');
-
-    return (
-        <div className="w-20 h-14 bg-white border-2 border-slate-300 rounded-lg p-1 flex items-center justify-center relative overflow-hidden shadow-sm">
-            <svg viewBox="0 0 100 70" className="w-full h-full stroke-slate-800 fill-none stroke-[2]">
-                <rect x="4" y="4" width="92" height="62" className="stroke-slate-900 fill-slate-100 stroke-[3]" rx="1.5" />
-                
-                {isFixed ? (
-                    <g>
-                        <rect x="9" y="9" width="82" height="52" className="stroke-slate-500 fill-sky-50/70 stroke-[1.5]" />
-                        <line x1="18" y1="52" x2="82" y2="18" className="stroke-sky-400 stroke-[1.5] stroke-dasharray-[4,3]" />
-                    </g>
-                ) : isCasement ? (
-                    <g>
-                        <line x1="50" y1="4" x2="50" y2="66" className="stroke-slate-900 stroke-[3]" />
-                        <rect x="9" y="9" width="37" height="52" className="fill-sky-50/70 stroke-slate-700 stroke-[1.5]" />
-                        <rect x="54" y="9" width="37" height="52" className="fill-sky-50/70 stroke-slate-700 stroke-[1.5]" />
-                        <path d="M 11 11 L 44 35 L 11 59" className="stroke-sky-600 stroke-[1.5] stroke-dasharray-[3,2]" />
-                        <path d="M 89 11 L 56 35 L 89 59" className="stroke-sky-600 stroke-[1.5] stroke-dasharray-[3,2]" />
-                    </g>
-                ) : (
-                    <g>
-                        <line x1="34" y1="4" x2="34" y2="66" className="stroke-slate-900 stroke-[2.5]" />
-                        <line x1="66" y1="4" x2="66" y2="66" className="stroke-slate-900 stroke-[2.5]" />
-                        <rect x="8" y="9" width="23" height="52" className="fill-sky-50/60 stroke-slate-700 stroke-[1.5]" />
-                        <rect x="38" y="9" width="24" height="52" className="fill-sky-50/60 stroke-slate-700 stroke-[1.5]" />
-                        <rect x="69" y="9" width="23" height="52" className="fill-sky-50/60 stroke-slate-700 stroke-[1.5]" />
-                        <path d="M 42 35 L 58 35 M 53 31 L 58 35 L 53 39" className="stroke-sky-600 stroke-[2]" />
-                    </g>
-                )}
-            </svg>
-        </div>
-    );
-}
 
 /**
  * Unified Document View Component (Customer Quotation & Invoice)
@@ -313,7 +274,7 @@ export default function CustomerQuotationView({
                         <thead>
                             <tr className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white font-extrabold border-b border-slate-800 text-[10px] tracking-wide">
                                 <th className="p-2 w-7 text-center">#</th>
-                                <th className="p-2 w-16 text-center">Sketch</th>
+                                <th className="p-2 w-28 text-center">Elevation Sketch</th>
                                 <th className="p-2 min-w-[190px]">Description &amp; Specifications</th>
                                 <th className="p-2 w-20 text-center">Size (W&times;H mm)</th>
                                 <th className="p-2 w-10 text-center">Qty</th>
@@ -333,11 +294,18 @@ export default function CustomerQuotationView({
                                         <td className="p-2 text-center font-bold text-slate-700 border-r border-slate-200">
                                             {index + 1}
                                         </td>
-                                        <td className="p-1 text-center border-r border-slate-200 bg-slate-900/5">
-                                            <ApplicationSketchDiagram
+                                        <td className="p-1.5 text-center border-r border-slate-200 bg-slate-950/5">
+                                            <AluOpeningSketchRenderer
+                                                item={item}
                                                 type={appType}
                                                 configuration={config}
-                                                className="w-14 h-14 mx-auto rounded bg-slate-950 p-0.5 border border-slate-300 shadow-xs"
+                                                width={itemWidth}
+                                                height={itemHeight}
+                                                panelArrangement={item.panelArrangement}
+                                                topSection={item.topSection}
+                                                trackSystem={item.trackSystem}
+                                                sketchImage={item.sketchImage}
+                                                className="w-24 h-16 mx-auto rounded-md shadow-xs"
                                             />
                                         </td>
                                         <td className="p-2 border-r border-slate-200 space-y-0.5">
@@ -356,7 +324,7 @@ export default function CustomerQuotationView({
                                                 <p>• <strong>Profile:</strong> {item.profileSpec || item.profile || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)'}</p>
                                                 <p>• <strong>Glass:</strong> {item.glassSpec || item.glass || '5mm Single Tempered Clear Glass'}</p>
                                                 <p>• <strong>Hardware:</strong> {item.hardwareSpec || item.hardware || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals'}</p>
-                                                <p>• <strong>Scope:</strong> {item.scopeSpec || item.scope || 'Fabrication, Delivery & Installation Inclusive'}</p>
+                                                <p>• <strong>Scope &amp; Labour:</strong> {item.scopeSpec || item.scope || 'Fabrication, Delivery & Installation Inclusive'} {item.totalAreaSqFt ? `(${item.totalAreaSqFt} Sq.Ft)` : ''}</p>
                                             </div>
                                         </td>
                                         <td className="p-2 text-center border-r border-slate-200 font-mono font-bold text-slate-800">

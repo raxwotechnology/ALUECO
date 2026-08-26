@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import GoodsReceiptNote from '../models/GoodsReceiptNote.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import AluPurchaseOrder from '../models/AluPurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import Bill from '../models/Bill.js';
 import Payment from '../models/Payment.js';
@@ -241,6 +242,51 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                     const poLine = po.items.id(grnItem.poLineItemId);
                     if (poLine) {
                         poLine.receivedQuantity = (poLine.receivedQuantity || 0) + acceptedQty;
+                    }
+                }
+
+                // 4. Auto-fulfill matching items in open AluEco POs (AluPurchaseOrder)
+                if (acceptedQty > 0) {
+                    const codeToMatch = (grnItem.productCode || '').toUpperCase().trim();
+                    const aluOrders = await AluPurchaseOrder.find({
+                        status: { $in: ['pending', 'partially_received'] },
+                        $or: [
+                            { 'items.itemCode': codeToMatch },
+                            { 'items.productId': grnItem.productId }
+                        ]
+                    }).session(session);
+
+                    let remainingToFulfill = acceptedQty;
+                    for (const aluOrder of aluOrders) {
+                        if (remainingToFulfill <= 0) break;
+                        let orderModified = false;
+
+                        for (const item of aluOrder.items) {
+                            const isMatch = (item.itemCode && item.itemCode.toUpperCase() === codeToMatch) ||
+                                (item.productId && grnItem.productId && item.productId.toString() === grnItem.productId.toString());
+
+                            if (isMatch && item.pendingQuantity > 0 && remainingToFulfill > 0) {
+                                const fulfillAmount = Math.min(item.pendingQuantity, remainingToFulfill);
+                                item.receivedQuantity = +(item.receivedQuantity + fulfillAmount).toFixed(2);
+                                item.pendingQuantity = Math.max(0, +(item.pendingQuantity - fulfillAmount).toFixed(2));
+                                remainingToFulfill = +(remainingToFulfill - fulfillAmount).toFixed(2);
+                                
+                                if (item.pendingQuantity === 0) {
+                                    item.status = 'fulfilled';
+                                } else {
+                                    item.status = 'partially_received';
+                                }
+                                orderModified = true;
+                            }
+                        }
+
+                        if (orderModified) {
+                            const allDone = aluOrder.items.every(it => it.status === 'fulfilled' || it.pendingQuantity === 0);
+                            const anyRec = aluOrder.items.some(it => it.receivedQuantity > 0);
+                            aluOrder.status = allDone ? 'fulfilled' : (anyRec ? 'partially_received' : 'pending');
+                            aluOrder.updatedBy = req.user._id;
+                            await aluOrder.save({ session });
+                        }
                     }
                 }
             }

@@ -9,7 +9,8 @@ import {
     getScraps, createScrap, updateScrap, deleteScrap,
     getJobCards, updateJobCardStatus,
     getSurveys, createSurvey, updateSurvey, deleteSurvey,
-    checkProjectStockAndShortages, reserveProjectMaterials, issueProjectMaterials
+    checkProjectStockAndShortages, reserveProjectMaterials, issueProjectMaterials,
+    getAluRawMaterials, createAluRawMaterial, processAluGrn, getProjectsMaterialsSummary
 } from '../controllers/aluController.js';
 import {
     getAluQuotations, getAluQuotationById, createAluQuotation,
@@ -22,6 +23,11 @@ import {
     getAgreements, getAgreementById, createAgreement,
     updateAgreement, deleteAgreement
 } from '../controllers/aluAgreementController.js';
+import {
+    getAluPurchaseOrders, getAluPurchaseOrderById, createAluPurchaseOrder,
+    updateAluPurchaseOrder, deleteAluPurchaseOrder, addManualItemToAluPO,
+    getAluPOSummaryStats
+} from '../controllers/aluPurchaseOrderController.js';
 
 const router = express.Router();
 
@@ -122,9 +128,24 @@ router.route('/agreements/:id')
     .delete(deleteAgreement);
 
 // Project stock checks & reservations
+router.get('/projects/materials-summary', getProjectsMaterialsSummary);
 router.get('/projects/:id/stock-check', checkProjectStockAndShortages);
 router.post('/projects/:id/reserve-materials', reserveProjectMaterials);
 router.post('/projects/:id/issue-materials', issueProjectMaterials);
 router.get('/projects/:id/costing-sheet', getProjectCostingSheet);
+
+// AluEco Purchase Orders & Shortage Management
+router.get('/purchase-orders/summary-stats', getAluPOSummaryStats);
+router.post('/purchase-orders/manual-item', addManualItemToAluPO);
+router.route('/purchase-orders')
+    .get(getAluPurchaseOrders)
+    .post(createAluPurchaseOrder);
+router.route('/purchase-orders/:id')
+    .get(getAluPurchaseOrderById)
+// AluEco Raw Materials & Dedicated GRN Intake
+router.route('/raw-materials')
+    .get(getAluRawMaterials)
+    .post(createAluRawMaterial);
+router.post('/grn', processAluGrn);
 
 export default router;

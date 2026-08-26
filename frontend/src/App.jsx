@@ -59,6 +59,8 @@ import QuotationsPage from './pages/QuotationsPage';
 import AluQuotationsPage from './pages/AluQuotationsPage';
 import AluQuotationFormPage from './pages/AluQuotationFormPage';
 import AluQuotationDetailPage from './pages/AluQuotationDetailPage';
+import AluPurchaseOrdersPage from './pages/AluPurchaseOrdersPage';
+import AluRawMaterialsPage from './pages/AluRawMaterialsPage';
 import AluDatabasePage from './pages/AluDatabasePage';
 import AluScrapPage from './pages/AluScrapPage';
 import AluKanbanPage from './pages/AluKanbanPage';
@@ -66,6 +68,7 @@ import AluConfiguratorPage from './pages/AluConfiguratorPage';
 import AluSurveyPage from './pages/AluSurveyPage';
 import AluAgreementsPage from './pages/AluAgreementsPage';
 import AluAgreementFormPage from './pages/AluAgreementFormPage';
+import AluProjectMaterialsPage from './pages/AluProjectMaterialsPage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import PettyCashPage from './pages/PettyCashPage';
 import FixedAssetsPage from './pages/FixedAssetsPage';
@@ -206,6 +209,9 @@ function App() {
         <Route path="/alu/quotations/new" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationFormPage /></ProtectedRoute>} />
         <Route path="/alu/quotations/:id" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationDetailPage /></ProtectedRoute>} />
         <Route path="/alu/quotations/:id/edit" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationFormPage /></ProtectedRoute>} />
+        <Route path="/alu/po" element={<ProtectedRoute requiredPermission="purchasing.view"><AluPurchaseOrdersPage /></ProtectedRoute>} />
+        <Route path="/alu/purchase-orders" element={<ProtectedRoute requiredPermission="purchasing.view"><AluPurchaseOrdersPage /></ProtectedRoute>} />
+        <Route path="/alu/raw-materials" element={<ProtectedRoute requiredPermission="inventory.view"><AluRawMaterialsPage /></ProtectedRoute>} />
         <Route path="/alu/database" element={<ProtectedRoute requiredPermission="sales.view"><AluDatabasePage /></ProtectedRoute>} />
         <Route path="/alu/scrap" element={<ProtectedRoute requiredPermission="sales.view"><AluScrapPage /></ProtectedRoute>} />
         <Route path="/alu/kanban" element={<ProtectedRoute requiredPermission="sales.view"><AluKanbanPage /></ProtectedRoute>} />
@@ -214,6 +220,7 @@ function App() {
         <Route path="/alu/agreements" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementsPage /></ProtectedRoute>} />
         <Route path="/alu/agreements/new" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
         <Route path="/alu/agreements/:id" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
+        <Route path="/alu/project-materials" element={<ProtectedRoute requiredPermission="inventory.view"><AluProjectMaterialsPage /></ProtectedRoute>} />
 
         <Route path="/logistics/shipments" element={<ProtectedRoute requiredPermission="inventory.view"><ShipmentsPage /></ProtectedRoute>} />
         <Route path="/logistics/gate-passes" element={<ProtectedRoute requiredPermission="inventory.view"><GatePassPage /></ProtectedRoute>} />

@@ -254,24 +254,250 @@ export const deleteQuotation = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Convert quotation to sales order
+ * @desc    Convert quotation to sales order & invoice with auto stock deduction & shortage PO
  * @route   POST /api/crm/quotations/:id/convert
  * @access  Private
  */
 export const convertQuotationToOrder = asyncHandler(async (req, res) => {
-    const quotation = await Quotation.findById(req.params.id);
+    const quotation = await Quotation.findById(req.params.id).populate('items.product');
     if (!quotation) {
         res.status(404);
         throw new Error('Quotation not found');
     }
 
-    if (quotation.status !== 'accepted') {
-        res.status(400);
-        throw new Error('Only accepted quotations can be converted');
+    const { default: Customer } = await import('../models/Customer.js');
+    const { default: SalesOrder } = await import('../models/SalesOrder.js');
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const { default: Warehouse } = await import('../models/Warehouse.js');
+    const { default: Product } = await import('../models/Product.js');
+    const { default: StockItem } = await import('../models/StockItem.js');
+    const { default: BillOfMaterials } = await import('../models/BillOfMaterials.js');
+    const { default: PurchaseOrder } = await import('../models/PurchaseOrder.js');
+    const { decreaseStock } = await import('../services/stockService.js');
+
+    // Customer
+    let customer = null;
+    if (quotation.customerId) {
+        customer = await Customer.findById(quotation.customerId);
+    }
+    if (!customer && quotation.customerName) {
+        customer = await Customer.findOne({ displayName: quotation.customerName });
+        if (!customer) {
+            customer = await Customer.create({
+                displayName: quotation.customerName,
+                companyName: quotation.customerName,
+                primaryContact: {
+                    email: quotation.customerEmail || undefined,
+                    phone: quotation.customerPhone || undefined
+                },
+                billingAddress: quotation.customerAddress ? { line1: quotation.customerAddress, country: 'Sri Lanka' } : undefined,
+                status: 'active',
+                createdBy: req.user._id
+            });
+        }
     }
 
-    // Logic to create SalesOrder would go here
-    // For now, mark as converted
+    const date = new Date();
+    const prefix = `SO-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await SalesOrder.countDocuments({ orderNumber: { $regex: `^${prefix}` } });
+    const orderNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+
+    const orderItems = (quotation.items || []).map((item, idx) => ({
+        lineNumber: idx + 1,
+        productId: item.product?._id || item.product,
+        productName: item.productName || item.product?.name || `Item ${idx + 1}`,
+        description: item.description || '',
+        orderedQuantity: item.quantity || 1,
+        unitOfMeasure: item.product?.unitOfMeasure || 'pcs',
+        unitPrice: item.unitPrice || 0,
+        lineSubtotal: item.subtotal || (item.quantity * item.unitPrice) || 0,
+        lineTotal: item.subtotal || (item.quantity * item.unitPrice) || 0
+    }));
+
+    const salesOrder = await SalesOrder.create({
+        orderNumber,
+        customerId: customer?._id,
+        customerName: quotation.customerName || customer?.displayName,
+        orderDate: date,
+        deliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        items: orderItems,
+        totalAmount: quotation.totalAmount || quotation.grandTotal || 0,
+        discount: quotation.discount || 0,
+        tax: quotation.tax || 0,
+        grandTotal: quotation.grandTotal || quotation.totalAmount || 0,
+        status: 'pending',
+        notes: `Converted from Quotation #${quotation.quoteNumber}`,
+        createdBy: req.user._id
+    });
+
+    const invoiceItems = orderItems.map((item, idx) => ({
+        lineNumber: idx + 1,
+        productId: item.productId,
+        productName: item.productName,
+        description: item.description,
+        quantity: item.orderedQuantity,
+        unitOfMeasure: item.unitOfMeasure,
+        unitPrice: item.unitPrice,
+        discountPercent: 0,
+        taxRate: 0,
+        taxable: false,
+        lineSubtotal: item.lineSubtotal,
+        lineTotal: item.lineTotal
+    }));
+
+    const invoice = await Invoice.create({
+        customerId: customer?._id,
+        customerSnapshot: {
+            name: customer?.displayName || quotation.customerName,
+            code: customer?.customerCode,
+            taxRegistrationNumber: customer?.taxRegistrationNumber,
+            contactName: customer?.primaryContact?.name,
+        },
+        billingAddress: customer?.billingAddress,
+        salesOrderIds: [salesOrder._id],
+        salesOrderNumbers: [salesOrder.orderNumber],
+        invoiceType: 'standard',
+        invoiceDate: date,
+        items: invoiceItems,
+        subtotal: quotation.totalAmount || quotation.grandTotal || 0,
+        totalDiscount: quotation.discount || 0,
+        totalTax: quotation.tax || 0,
+        grandTotal: quotation.grandTotal || quotation.totalAmount || 0,
+        amountPaid: 0,
+        balanceDue: quotation.grandTotal || quotation.totalAmount || 0,
+        paymentStatus: 'unpaid',
+        status: 'approved',
+        notes: `Auto-generated Commercial Invoice for Quotation #${quotation.quoteNumber}`,
+        createdBy: req.user._id
+    });
+
+    salesOrder.invoiceId = invoice._id;
+    salesOrder.status = 'invoiced';
+    await salesOrder.save();
+
+    // Resolve warehouse
+    const warehouse = await Warehouse.findOne({ isDefault: true, deletedAt: null }) || await Warehouse.findOne({ deletedAt: null });
+    const whId = warehouse?._id;
+
+    // Check & Deduct raw materials or finished products, and create PO for shortages
+    const shortagePoItems = [];
+    const deductedItems = [];
+
+    for (const it of quotation.items || []) {
+        const pId = it.product?._id || it.product;
+        if (!pId) continue;
+
+        const prod = await Product.findById(pId);
+        if (!prod) continue;
+
+        // Check if product has an active BOM
+        const bom = await BillOfMaterials.findOne({ finishedProductId: prod._id, status: 'active' });
+
+        if (bom && bom.components?.length > 0) {
+            // Deduct BOM components
+            for (const comp of bom.components) {
+                const compProduct = await Product.findById(comp.productId);
+                if (!compProduct) continue;
+
+                const neededCompQty = +(comp.quantity * (it.quantity || 1) * (1 + (comp.wastagePercent || 0) / 100)).toFixed(2);
+                const stockItems = await StockItem.find({ productId: compProduct._id });
+                const availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+                const qtyToDeduct = Math.min(availableQty, neededCompQty);
+                const shortage = +(Math.max(0, neededCompQty - availableQty)).toFixed(2);
+
+                if (qtyToDeduct > 0 && whId) {
+                    try {
+                        await decreaseStock({
+                            productId: compProduct._id,
+                            warehouseId: whId,
+                            quantity: qtyToDeduct,
+                            movementType: 'production_consume',
+                            sourceDocument: { type: 'invoice', id: invoice._id, number: invoice.invoiceNumber },
+                            reason: `BOM Raw Material auto-deducted for Quotation #${quotation.quoteNumber}`,
+                            userId: req.user._id
+                        });
+                        deductedItems.push({ productName: compProduct.name, quantity: qtyToDeduct, unitOfMeasure: compProduct.unitOfMeasure });
+                    } catch (err) {
+                        console.warn(`[Quotation Stock Deduct Error] ${compProduct.name}:`, err.message);
+                    }
+                }
+
+                if (shortage > 0) {
+                    const cost = comp.standardCost || compProduct.basePrice || compProduct.costs?.lastPurchaseCost || 0;
+                    shortagePoItems.push({
+                        productId: compProduct._id,
+                        productCode: compProduct.productCode,
+                        productName: compProduct.name,
+                        description: `Material shortage for Order ${salesOrder.orderNumber}`,
+                        orderedQuantity: shortage,
+                        pendingQuantity: shortage,
+                        receivedQuantity: 0,
+                        unitOfMeasure: compProduct.unitOfMeasure,
+                        unitPrice: cost,
+                        lineSubtotal: +(shortage * cost).toFixed(2),
+                        lineTotal: +(shortage * cost).toFixed(2),
+                        notes: `Needed ${neededCompQty}, in stock ${availableQty}`
+                    });
+                }
+            }
+        } else {
+            // Direct Product deduction
+            const neededQty = it.quantity || 1;
+            const stockItems = await StockItem.find({ productId: prod._id });
+            const availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+            const qtyToDeduct = Math.min(availableQty, neededQty);
+            const shortage = +(Math.max(0, neededQty - availableQty)).toFixed(2);
+
+            if (qtyToDeduct > 0 && whId) {
+                try {
+                    await decreaseStock({
+                        productId: prod._id,
+                        warehouseId: whId,
+                        quantity: qtyToDeduct,
+                        movementType: 'sale_dispatch',
+                        sourceDocument: { type: 'invoice', id: invoice._id, number: invoice.invoiceNumber },
+                        reason: `Product dispatched for Invoice #${invoice.invoiceNumber}`,
+                        userId: req.user._id
+                    });
+                    deductedItems.push({ productName: prod.name, quantity: qtyToDeduct, unitOfMeasure: prod.unitOfMeasure });
+                } catch (err) {
+                    console.warn(`[Quotation Stock Deduct Error] ${prod.name}:`, err.message);
+                }
+            }
+
+            if (shortage > 0) {
+                const cost = prod.basePrice || prod.costs?.lastPurchaseCost || 0;
+                shortagePoItems.push({
+                    productId: prod._id,
+                    productCode: prod.productCode,
+                    productName: prod.name,
+                    description: `Stock shortage for Order ${salesOrder.orderNumber}`,
+                    orderedQuantity: shortage,
+                    pendingQuantity: shortage,
+                    receivedQuantity: 0,
+                    unitOfMeasure: prod.unitOfMeasure,
+                    unitPrice: cost,
+                    lineSubtotal: +(shortage * cost).toFixed(2),
+                    lineTotal: +(shortage * cost).toFixed(2),
+                    notes: `Needed ${neededQty}, in stock ${availableQty}`
+                });
+            }
+        }
+    }
+
+    let purchaseOrder = null;
+    if (shortagePoItems.length > 0) {
+        const poSubtotal = shortagePoItems.reduce((s, i) => s + (i.lineTotal || 0), 0);
+        purchaseOrder = await PurchaseOrder.create({
+            items: shortagePoItems,
+            subtotal: poSubtotal,
+            grandTotal: poSubtotal,
+            status: 'draft',
+            notes: `Auto-generated shortage Purchase Order for Quotation #${quotation.quoteNumber} (Sales Order ${salesOrder.orderNumber})`,
+            createdBy: req.user._id
+        });
+    }
+
     quotation.status = 'converted';
     await quotation.save();
 
@@ -279,9 +505,26 @@ export const convertQuotationToOrder = asyncHandler(async (req, res) => {
         action: 'update',
         module: 'crm',
         documentId: quotation._id,
-        description: `Converted quotation ${quotation.quoteNumber} to order`,
+        documentCode: quotation.quoteNumber,
+        description: `Converted quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & Invoice ${invoice.invoiceNumber}. Deducted ${deductedItems.length} items from stock.`,
         req
     });
 
-    res.json({ success: true, message: 'Quotation converted successfully', data: quotation });
+    res.json({
+        success: true,
+        message: 'Quotation converted successfully',
+        data: {
+            quotation,
+            salesOrder,
+            invoice,
+            invoiceId: invoice._id,
+            invoiceNumber: invoice.invoiceNumber,
+            deductedItems,
+            purchaseOrder: purchaseOrder ? {
+                _id: purchaseOrder._id,
+                poNumber: purchaseOrder.poNumber,
+                shortageItemCount: shortagePoItems.length
+            } : null
+        }
+    });
 });

@@ -4,7 +4,7 @@ import {
     CartesianGrid, LineChart, Line,
 } from 'recharts';
 import { ArrowLeft, Calendar, FileText, Download } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import PageHeader from '../../components/ui/PageHeader';
 import Card from '../../components/ui/Card';
@@ -13,21 +13,24 @@ import KpiCard from '../../components/ui/KpiCard';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Badge from '../../components/ui/Badge';
+import BusinessSegmentFilter from '../../components/ui/BusinessSegmentFilter';
 import { useSalesSummary, useSalesTrend } from '../../features/reports/useReports';
 import { exportToExcel, exportToPDF } from '../../utils/dataExport';
 
 export default function SalesSummaryReportPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
 
+    const [businessType, setBusinessType] = useState(searchParams.get('businessType') || 'all');
     const [startDate, setStartDate] = useState(monthStart);
     const [endDate, setEndDate] = useState(today);
     const [groupBy, setGroupBy] = useState('day');
 
-    const { data: summaryData, isLoading } = useSalesSummary({ startDate, endDate });
-    const { data: trendData } = useSalesTrend({ startDate, endDate, groupBy });
+    const { data: summaryData, isLoading } = useSalesSummary({ startDate, endDate, businessType });
+    const { data: trendData } = useSalesTrend({ startDate, endDate, groupBy, businessType });
 
     const s = summaryData?.data;
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
@@ -73,7 +76,12 @@ export default function SalesSummaryReportPage() {
                     </div>
                 } />
 
-            <Card className="p-4 mb-6">
+            <Card className="p-4 mb-6 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Business Segment</span>
+                    <BusinessSegmentFilter value={businessType} onChange={setBusinessType} />
+                </div>
+
                 <div className="flex flex-wrap items-end gap-3">
                     <div className="w-40">
                         <Input label="From" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />

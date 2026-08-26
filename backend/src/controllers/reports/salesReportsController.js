@@ -4,23 +4,35 @@ import Invoice from '../../models/Invoice.js';
 import Payment from '../../models/Payment.js';
 
 /**
- * GET /api/reports/sales/summary?startDate=&endDate=
+ * GET /api/reports/sales/summary?startDate=&endDate=&businessType=
  */
 export const getSalesSummary = asyncHandler(async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, businessType = 'all' } = req.query;
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
+    const matchFilter = {
+        deletedAt: null,
+        orderDate: { $gte: start, $lte: end },
+        status: { $nin: ['draft', 'cancelled'] },
+    };
+
+    if (businessType === 'alueco') {
+        matchFilter.$or = [
+            { notes: { $regex: /aluminium|alu|quotation|quote/i } },
+            { 'items.productName': { $regex: /sliding|casement|door|window|profile|glass|aluminium/i } }
+        ];
+    } else if (businessType === 'normal') {
+        matchFilter.$and = [
+            { notes: { $not: { $regex: /aluminium|alu/i } } },
+            { 'items.productName': { $not: { $regex: /sliding|casement|door|window|aluminium/i } } }
+        ];
+    }
+
     // All orders in period (excluding draft/cancelled)
     const ordersAgg = await SalesOrder.aggregate([
-        {
-            $match: {
-                deletedAt: null,
-                orderDate: { $gte: start, $lte: end },
-                status: { $nin: ['draft', 'cancelled'] },
-            },
-        },
+        { $match: matchFilter },
         {
             $group: {
                 _id: null,
@@ -112,19 +124,31 @@ export const getSalesSummary = asyncHandler(async (req, res) => {
  * GET /api/reports/sales/by-product?startDate=&endDate=&limit=50
  */
 export const getSalesByProduct = asyncHandler(async (req, res) => {
-    const { startDate, endDate, limit = 50 } = req.query;
+    const { startDate, endDate, limit = 50, businessType = 'all' } = req.query;
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
+    const matchFilter = {
+        deletedAt: null,
+        orderDate: { $gte: start, $lte: end },
+        status: { $nin: ['draft', 'cancelled'] },
+    };
+
+    if (businessType === 'alueco') {
+        matchFilter.$or = [
+            { notes: { $regex: /aluminium|alu|quotation|quote/i } },
+            { 'items.productName': { $regex: /sliding|casement|door|window|profile|glass|aluminium/i } }
+        ];
+    } else if (businessType === 'normal') {
+        matchFilter.$and = [
+            { notes: { $not: { $regex: /aluminium|alu/i } } },
+            { 'items.productName': { $not: { $regex: /sliding|casement|door|window|aluminium/i } } }
+        ];
+    }
+
     const data = await SalesOrder.aggregate([
-        {
-            $match: {
-                deletedAt: null,
-                orderDate: { $gte: start, $lte: end },
-                status: { $nin: ['draft', 'cancelled'] },
-            },
-        },
+        { $match: matchFilter },
         { $unwind: '$items' },
         {
             $group: {

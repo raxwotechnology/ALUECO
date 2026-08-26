@@ -6,7 +6,8 @@ const aluProfileSchema = new mongoose.Schema({
         required: true,
         unique: true,
         trim: true,
-        uppercase: true
+        uppercase: true,
+        maxlength: 50
     },
     description: {
         type: String,

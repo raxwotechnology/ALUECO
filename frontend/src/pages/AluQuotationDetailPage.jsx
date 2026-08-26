@@ -43,7 +43,15 @@ const AluQuotationDetailPage = () => {
         setConverting(true);
         try {
             const { data } = await api.post(`/alu/quotations/${quotation._id}/convert-to-order`);
-            toast.success('Converted to Commercial Invoice & Production Job Card successfully!');
+            const aluPo = data.data?.aluPurchaseOrder;
+            if (aluPo) {
+                toast.success(
+                    `Converted! Created Invoice & AluEco PO (${aluPo.poNumber}) for ${aluPo.shortageItemCount} shortage items!`,
+                    { duration: 6000 }
+                );
+            } else {
+                toast.success('Converted to Commercial Invoice & Production Job Card successfully!');
+            }
             setQuotation(prev => ({ ...prev, status: 'converted' }));
             if (data.data?.invoiceId) {
                 navigate(`/invoices/${data.data.invoiceId}`);

@@ -30,12 +30,15 @@ const menuGroups = [
         icon: Layers,
         items: [
             { label: 'Alu Quotations', icon: FileText, path: '/alu/quotations', permission: 'sales.view' },
+            { label: 'Project Materials & Shortages', icon: PackageCheck, path: '/alu/project-materials', permission: 'inventory.view' },
+            { label: 'AluEco PO', icon: ShoppingBag, path: '/alu/po', permission: 'purchasing.view' },
+            { label: 'Alu Raw Materials', icon: Boxes, path: '/alu/raw-materials', permission: 'inventory.view' },
             { label: 'Project Agreements', icon: FileText, path: '/alu/agreements', permission: 'sales.view' },
             { label: 'Alu Scrap Inventory', icon: History, path: '/alu/scrap', permission: 'sales.view' },
             { label: 'Production Kanban', icon: ClipboardList, path: '/alu/kanban', permission: 'sales.view' },
             { label: '2D Visual Configurator', icon: Sparkles, path: '/alu/configurator', permission: 'sales.view' },
             { label: 'On-Site Site Surveys', icon: Navigation, path: '/alu/surveys', permission: 'sales.view' },
-            { label: 'Alu Database', icon: Settings, path: '/alu/database', permission: 'sales.view' },
+            { label: 'Application BOM Templates', icon: Settings, path: '/alu/database', permission: 'sales.view' },
         ],
     },
     {

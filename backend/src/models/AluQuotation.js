@@ -22,6 +22,10 @@ const aluQuotationItemSchema = new mongoose.Schema({
         id: Number,
         action: String
     }],
+    sketchImage: { type: String },
+    totalAreaSqFt: { type: Number },
+    labourRatePerSqFt: { type: Number },
+    labourMethod: { type: String, default: 'sqft' },
 
     // Snapshot of calculated components for this opening
     profileCuts: [{

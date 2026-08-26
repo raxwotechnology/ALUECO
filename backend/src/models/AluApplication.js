@@ -34,7 +34,7 @@ const aluApplicationSchema = new mongoose.Schema({
     }],
     labourMethod: {
         type: String,
-        enum: ['sqft', 'sqm', 'opening', 'fixed', 'percentage'],
+        enum: ['linear_feet', 'feet', 'sqft', 'sqm', 'opening', 'fixed', 'percentage'],
         default: 'opening'
     },
     labourRate: {

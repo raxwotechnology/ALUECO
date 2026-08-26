@@ -62,6 +62,27 @@ const AluQuotationsPage = () => {
         }
     };
 
+    const handleConvertToOrder = async (id) => {
+        try {
+            const { data } = await api.post(`/alu/quotations/${id}/convert-to-order`);
+            const aluPo = data.data?.aluPurchaseOrder;
+            if (aluPo) {
+                toast.success(
+                    `Converted! Created Invoice & AluEco PO (${aluPo.poNumber}) for material shortages!`,
+                    { duration: 6000 }
+                );
+            } else {
+                toast.success('Converted to Sales Order & Commercial Invoice successfully!');
+            }
+            fetchQuotations();
+            if (data.data?.invoiceId) {
+                navigate(`/invoices/${data.data.invoiceId}`);
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to convert quotation to order');
+        }
+    };
+
     // Filter quotations
     const filteredQuotations = quotations.filter(q => {
         const matchesSearch = 
@@ -194,20 +215,24 @@ const AluQuotationsPage = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-800">LKR {q.finalSellingPrice.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1.5">
-                                            <button onClick={() => navigate(`/alu/quotations/${q._id}`)} title="View costing details" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100"><Eye size={16} /></button>
+                                            <button onClick={() => navigate(`/alu/quotations/${q._id}`)} title="View Costing & Quotation Details" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Eye size={16} /></button>
                                             
-                                            {q.status === 'draft' && (
-                                                <button onClick={() => navigate(`/alu/quotations/${q._id}/edit`)} title="Edit quote details" className="text-slate-600 hover:text-amber-600 p-1.5 rounded-lg hover:bg-slate-100"><Edit size={16} /></button>
+                                            {q.status !== 'converted' ? (
+                                                <button onClick={() => navigate(`/alu/quotations/${q._id}/edit`)} title="Edit Quotation" className="text-slate-600 hover:text-amber-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Edit size={16} /></button>
+                                            ) : (
+                                                <button onClick={() => handleCreateRevision(q._id)} title="Converted (Create Revision to modify)" className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Edit size={16} /></button>
                                             )}
                                             
-                                            <button onClick={() => handleCreateRevision(q._id)} title="Create a new revision copy using current rates" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100"><GitBranch size={16} /></button>
-                                            <button onClick={() => handleDuplicateQuotation(q._id)} title="Duplicate quotation (Create copy)" className="text-slate-600 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-slate-100"><Copy size={16} /></button>
+                                            <button onClick={() => handleCreateRevision(q._id)} title="Create Revision Copy (New Version)" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><GitBranch size={16} /></button>
+                                            <button onClick={() => handleDuplicateQuotation(q._id)} title="Duplicate Quotation (Clone)" className="text-slate-600 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Copy size={16} /></button>
                                             
-                                            {q.status !== 'converted' && (
-                                                <button onClick={() => handleConvertToOrder(q._id)} title="Convert quote to Sales Order" className="text-slate-600 hover:text-purple-600 p-1.5 rounded-lg hover:bg-slate-100"><ArrowRightLeft size={16} /></button>
+                                            {q.status !== 'converted' ? (
+                                                <button onClick={() => handleConvertToOrder(q._id)} title="Convert to Sales Order & Invoice" className="text-slate-600 hover:text-purple-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><ArrowRightLeft size={16} /></button>
+                                            ) : (
+                                                <span title="Already Converted to Order" className="text-purple-400 p-1.5 inline-block opacity-40"><ArrowRightLeft size={16} /></span>
                                             )}
                                             
-                                            <button onClick={() => setDeletingId(q._id)} title="Delete quote" className="text-slate-600 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-100"><Trash2 size={16} /></button>
+                                            <button onClick={() => setDeletingId(q._id)} title="Delete Quotation" className="text-slate-600 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Trash2 size={16} /></button>
                                         </td>
                                     </tr>
                                 ))}

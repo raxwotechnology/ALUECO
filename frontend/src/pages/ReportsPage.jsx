@@ -66,8 +66,11 @@ const reportGroups = [
     },
 ];
 
+import BusinessSegmentFilter from '../components/ui/BusinessSegmentFilter';
+
 export default function ReportsPage() {
     const navigate = useNavigate();
+    const [businessType, setBusinessType] = useState('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
     const [exporting, setExporting] = useState(false);
@@ -100,8 +103,13 @@ export default function ReportsPage() {
     };
 
     return (
-        <div>
-            <PageHeader title="Reports & Analytics" description="Business intelligence for your operations" />
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <PageHeader title="Reports & Analytics" description="Business intelligence for your operations" />
+                <div className="self-start sm:self-center">
+                    <BusinessSegmentFilter value={businessType} onChange={setBusinessType} />
+                </div>
+            </div>
 
             <div className="space-y-8">
                 {reportGroups.map((group) => (
@@ -116,7 +124,7 @@ export default function ReportsPage() {
                                         if (r.isExporter) {
                                             setIsModalOpen(true);
                                         } else {
-                                            navigate(r.path);
+                                            navigate(`${r.path}?businessType=${businessType}`);
                                         }
                                     }}>
                                     <div className="flex items-start gap-3 mb-2">

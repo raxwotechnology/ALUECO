@@ -9,6 +9,7 @@ const productSchema = new mongoose.Schema(
             unique: true,
             trim: true,
             uppercase: true,
+            maxlength: 50,
         },
         productShortCode: {
             type: String,
@@ -34,8 +35,25 @@ const productSchema = new mongoose.Schema(
             trim: true,
             maxlength: 200,
         },
-        productType: {
+        businessType: {
             type: String,
+            enum: ['normal', 'alueco'],
+            default: 'normal',
+            index: true,
+        },
+        aluCategory: {
+            type: String,
+            enum: ['profiles', 'glass', 'accessories', 'hardware', 'gaskets', 'other'],
+            default: 'other',
+        },
+        aluSpecs: {
+            series: { type: String, trim: true },
+            thickness: { type: String, trim: true },
+            finish: { type: String, trim: true },
+            lengthMm: { type: Number, default: 0 },
+            brand: { type: String, trim: true },
+        },
+        productType: {
             type: String,
             default: 'finished_good',
         },

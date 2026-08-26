@@ -5,7 +5,8 @@ const aluGlassSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        trim: true
+        trim: true,
+        maxlength: 100
     },
     thickness: {
         type: String,

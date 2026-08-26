@@ -86,9 +86,12 @@ const AluConfiguratorPage = () => {
         { code: 'CUST-ACC-02', name: 'EPDM Heavy Weather Seal Gasket', qty: 12, unit: 'm', unitRate: 150 }
     ]);
 
-    // Labour Mode in Custom & Standard: 'fixed' (LKR amount) vs 'percentage' (% of material cost)
-    const [customLabourType, setCustomLabourType] = useState('fixed');
-    const [customLabourValue, setCustomLabourValue] = useState(7500);
+    // Labour Rate per Square Feet (LKR/sqft) - Default & Primary Standard
+    const [labourRatePerSqFt, setLabourRatePerSqFt] = useState(150);
+
+    // Labour Mode in Custom & Standard: 'sqft' (LKR/sqft) vs 'fixed' (LKR amount) vs 'percentage' (% of material cost)
+    const [customLabourType, setCustomLabourType] = useState('sqft');
+    const [customLabourValue, setCustomLabourValue] = useState(150);
 
     // Custom Hardware Add-ons & Extra Items State
     const [customAddons, setCustomAddons] = useState([]);
@@ -289,7 +292,7 @@ const AluConfiguratorPage = () => {
         return calculateBOM({
             appType: activeAppType,
             baseFormula: activeFormula,
-            selectedTemplate: appType === 'CUSTOM_PRODUCT' ? selectedTemplate : null,
+            selectedTemplate: selectedTemplate,
             width: Number(width) || 0,
             height: Number(height) || 0,
             trackSystem,
@@ -304,16 +307,19 @@ const AluConfiguratorPage = () => {
             customProfiles,
             customGlass,
             customAccessories,
+            labourRatePerSqFt: Number(labourRatePerSqFt) || 150,
             customLabourType,
-            customLabourValue
+            customLabourValue: customLabourType === 'sqft' ? (Number(labourRatePerSqFt) || 150) : customLabourValue
         });
-    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, dbRates, customAddons, calculationMode, customProfiles, customGlass, customAccessories, customLabourType, customLabourValue]);
+    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, dbRates, customAddons, calculationMode, customProfiles, customGlass, customAccessories, labourRatePerSqFt, customLabourType, customLabourValue]);
 
     // Build single opening object from current state
     const getCurrentOpeningItem = () => {
         const configTitle = calculationMode === 'custom'
             ? `${activeAppType} (Custom Ad-Hoc BOM)`
-            : `${panelCount} Panel ${activeAppType} (${trackSystem})`;
+            : selectedTemplate
+                ? `${selectedTemplate.type} - ${selectedTemplate.configuration} (${selectedTemplate.brand || 'ERP Template'})`
+                : `${panelCount} Panel ${activeAppType} (${trackSystem})`;
         
         return {
             applicationType: activeAppType,
@@ -321,13 +327,16 @@ const AluConfiguratorPage = () => {
             width: Number(width),
             height: Number(height),
             quantity: Number(quantity),
-            profileSpec: `Swisstek 100mm Series (${activeAppType})`,
+            profileSpec: selectedTemplate ? `${selectedTemplate.brand || 'Standard'} Series (${selectedTemplate.type})` : `Swisstek 100mm Series (${activeAppType})`,
             glassSpec: '5mm / 6mm Single Tempered Clear Glass',
             hardwareSpec: 'Heavy Duty Locks, Bearings, Hinges & EPDM Seals',
             scopeSpec: 'Fabrication, Delivery & Installation Inclusive',
             profileCuts: bomResult.profileCuts,
             glassItems: bomResult.glassItems,
             accessories: bomResult.accessories,
+            totalAreaSqFt: bomResult.summary.totalAreaSqFt,
+            labourRatePerSqFt: Number(labourRatePerSqFt) || 150,
+            labourMethod: 'sqft',
             labourCost: bomResult.summary.totalLabourCost,
             unitPrice: Math.round(bomResult.summary.finalSellingPrice / (Number(quantity) || 1)),
             totalPrice: bomResult.summary.finalSellingPrice,
@@ -517,6 +526,10 @@ const AluConfiguratorPage = () => {
                                                 setSelectedTemplate(t);
                                                 setCustomProductName(`${t.type} (${t.configuration})`);
                                                 setBaseFormula(t.type);
+                                                if (t.labourRate) {
+                                                    setLabourRatePerSqFt(t.labourRate);
+                                                    setCustomLabourValue(t.labourRate);
+                                                }
                                             }
                                         }}
                                         className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-emerald-950 font-bold shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -745,6 +758,40 @@ const AluConfiguratorPage = () => {
                                     onChange={(e) => setProfitMarginPercent(Math.max(0, parseInt(e.target.value) || 0))}
                                     className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-emerald-600"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Fabrication & Labour Cost by Square Feet (Auto-Calculated) */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                                    🛠️ Labour & Fabrication Rate
+                                </span>
+                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                    {bomResult.summary.totalAreaSqFt} Sq.Ft Total
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 items-center">
+                                <div>
+                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Rate / Sq.Ft (LKR)</label>
+                                    <input
+                                        type="number"
+                                        value={labourRatePerSqFt}
+                                        onChange={(e) => {
+                                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                                            setLabourRatePerSqFt(val);
+                                            setCustomLabourValue(val);
+                                        }}
+                                        placeholder="150"
+                                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono text-indigo-700 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 text-right">
+                                    <span className="block text-[8.5px] font-bold text-slate-400 uppercase">Auto Labour Cost</span>
+                                    <span className="text-xs font-black text-emerald-600 font-mono">
+                                        LKR {bomResult.summary.totalLabourCost.toLocaleString()}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>

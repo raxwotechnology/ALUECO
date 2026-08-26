@@ -29,6 +29,30 @@ const invoiceLineItemSchema = new mongoose.Schema({
     lineTax: { type: Number, default: 0 },
     lineTotal: { type: Number, default: 0 },
 
+    // Architectural & Elevation Sketch Metadata
+    applicationType: String,
+    configuration: String,
+    width: Number,
+    height: Number,
+    profileSpec: String,
+    glassSpec: String,
+    hardwareSpec: String,
+    scopeSpec: String,
+    trackSystem: String,
+    topSection: {
+        enabled: Boolean,
+        height: Number,
+        type: { type: String, default: 'fixed' }
+    },
+    panelArrangement: [{
+        id: Number,
+        action: String
+    }],
+    sketchImage: String,
+    totalAreaSqFt: Number,
+    labourRatePerSqFt: Number,
+    labourCost: Number,
+
     // Traceability
     salesOrderLineId: mongoose.Schema.Types.ObjectId,
 

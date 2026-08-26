@@ -18,7 +18,7 @@ export const inventoryReportsApi = {
     valuation: async (params = {}) => (await api.get('/reports/inventory/valuation', { params })).data,
     movement: async (params = {}) => (await api.get('/reports/inventory/movement', { params })).data,
     slowFastMovers: async (params = {}) => (await api.get('/reports/inventory/slow-fast-movers', { params })).data,
-    lowStock: async () => (await api.get('/reports/inventory/low-stock')).data,
+    lowStock: async (params = {}) => (await api.get('/reports/inventory/low-stock', { params })).data,
     dailyStatus: async (params = {}) => (await api.get('/reports/inventory/daily-status', { params })).data,
 };
 

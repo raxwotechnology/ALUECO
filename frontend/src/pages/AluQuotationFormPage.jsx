@@ -68,13 +68,13 @@ const AluQuotationFormPage = () => {
                 const { data: tempRes } = await api.get('/alu/applications');
                 setTemplates(tempRes.data || []);
                 
-                // If editing, load the draft quotation
+                // If editing, load the quotation
                 if (id) {
                     const { data: quoteRes } = await api.get(`/alu/quotations/${id}`);
                     const q = quoteRes.data;
-                    if (q.status !== 'draft') {
-                        toast.error('Only draft quotations can be edited directly.');
-                        navigate('/alu/quotations');
+                    if (q.status === 'converted') {
+                        toast.error('This quotation has already been converted to an order. Please create a revision to modify.');
+                        navigate(`/alu/quotations/${id}`);
                         return;
                     }
                     
@@ -97,7 +97,8 @@ const AluQuotationFormPage = () => {
                             scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
                             trackSystem: item.trackSystem,
                             topSection: item.topSection,
-                            panelArrangement: item.panelArrangement
+                            panelArrangement: item.panelArrangement,
+                            sketchImage: item.sketchImage
                         })),
                         transportCost: q.transportCost || 0,
                         includeVat: q.includeVat !== undefined ? q.includeVat : true,

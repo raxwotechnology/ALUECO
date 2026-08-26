@@ -4,35 +4,19 @@ import AluGlass from '../models/AluGlass.js';
 import AluAccessory from '../models/AluAccessory.js';
 import AluApplication from '../models/AluApplication.js';
 import AluQuotation from '../models/AluQuotation.js';
+import AluPurchaseOrder from '../models/AluPurchaseOrder.js';
 import SalesOrder from '../models/SalesOrder.js';
 import Product from '../models/Product.js';
+import StockItem from '../models/StockItem.js';
+import Warehouse from '../models/Warehouse.js';
 import AluScrap from '../models/AluScrap.js';
 import AluJobCard from '../models/AluJobCard.js';
 import { createAuditLog } from '../utils/auditLogger.js';
 import { solve2DGlassPacking } from '../utils/aluGlassSolver.js';
+import { evaluateFormula } from '../utils/aluFormulaHelper.js';
+import { decreaseStock } from '../services/stockService.js';
 
 // === Helper Functions ===
-
-// Safe formula evaluator
-const evaluateFormula = (formulaStr, variables) => {
-    try {
-        const safeRegex = /^[0-9WHPQ+\-*/().\s]+$/i;
-        if (!safeRegex.test(formulaStr)) {
-            return 0;
-        }
-        let expr = formulaStr
-            .replace(/\bW\b/g, variables.W)
-            .replace(/\bH\b/g, variables.H)
-            .replace(/\bP\b/g, variables.P)
-            .replace(/\bQ\b/g, variables.Q);
-        
-        const val = Function(`"use strict"; return (${expr})`)();
-        return isNaN(val) ? 0 : Number(val);
-    } catch (e) {
-        console.error(`Error evaluating formula: ${formulaStr}`, e);
-        return 0;
-    }
-};
 
 // 1D Bin Packing Optimization
 const solve1DPacking = (requiredCuts, availableBars) => {
@@ -361,24 +345,34 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
         });
         totalAccessoriesCost += itemAccCost;
         
-        // Labour
+        // Labour Calculation (supports Square Feet Rate, linear feet, opening, fixed, percentage)
         let labourCost = 0;
         const totalAreaSqFt = (width * height * quantity) / 92903.04;
         const totalAreaSqM = (width * height * quantity) / 1000000;
+        const totalLinearFeet = (2 * (width + height) / 304.8) * quantity;
         
-        if (appData.labourMethod === 'sqft') {
-            labourCost = totalAreaSqFt * appData.labourRate;
+        const effectiveRatePerSqFt = Number(item.labourRatePerSqFt) || (appData.labourMethod === 'sqft' && Number(appData.labourRate)) || 0;
+
+        if (effectiveRatePerSqFt > 0) {
+            labourCost = totalAreaSqFt * effectiveRatePerSqFt;
+        } else if (appData.labourMethod === 'linear_feet' || appData.labourMethod === 'feet') {
+            labourCost = totalLinearFeet * (appData.labourRate || 0);
         } else if (appData.labourMethod === 'sqm') {
-            labourCost = totalAreaSqM * appData.labourRate;
+            labourCost = totalAreaSqM * (appData.labourRate || 0);
         } else if (appData.labourMethod === 'opening') {
-            labourCost = quantity * appData.labourRate;
+            labourCost = quantity * (appData.labourRate || 0);
         } else if (appData.labourMethod === 'fixed') {
-            labourCost = appData.labourRate;
+            labourCost = appData.labourRate || 0;
         } else if (appData.labourMethod === 'percentage') {
-            // calculated later as percentage of material cost
-            labourCost = (itemGlassCost + itemAccCost) * appData.labourRate / 100;
+            labourCost = (itemGlassCost + itemAccCost) * (appData.labourRate || 0) / 100;
+        } else if (Number(item.labourCost) > 0) {
+            labourCost = Number(item.labourCost);
+        } else {
+            // Default standard sqft labour rate (150 LKR/sqft)
+            labourCost = totalAreaSqFt * 150;
         }
         
+        labourCost = parseFloat(labourCost.toFixed(2));
         totalLabourCost += labourCost;
         
         items.push({
@@ -390,10 +384,19 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             trackSystem: item.trackSystem,
             topSection: item.topSection,
             panelArrangement: item.panelArrangement,
+            description: item.description,
+            profileSpec: item.profileSpec,
+            glassSpec: item.glassSpec,
+            hardwareSpec: item.hardwareSpec,
+            scopeSpec: item.scopeSpec,
+            sketchImage: item.sketchImage,
+            totalAreaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
+            labourRatePerSqFt: effectiveRatePerSqFt || 150,
+            labourMethod: 'sqft',
             profileCuts,
             glassItems,
             accessories,
-            labourCost: parseFloat(labourCost.toFixed(2)),
+            labourCost,
             unitPrice: 0, // updated after project optimization & profit margin
             totalPrice: 0
         });
@@ -1049,12 +1052,27 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     const items = quotation.items.map((item, idx) => ({
         lineNumber: idx + 1,
         productName: `${item.applicationType} (${item.configuration})`,
-        description: `Size: ${item.width} x ${item.height} mm`,
+        description: item.description || `Size: ${item.width} x ${item.height} mm`,
         orderedQuantity: item.quantity,
         unitOfMeasure: 'Pcs',
         unitPrice: item.unitPrice,
         lineSubtotal: item.totalPrice,
-        lineTotal: item.totalPrice
+        lineTotal: item.totalPrice,
+        applicationType: item.applicationType,
+        configuration: item.configuration,
+        width: item.width,
+        height: item.height,
+        profileSpec: item.profileSpec,
+        glassSpec: item.glassSpec,
+        hardwareSpec: item.hardwareSpec,
+        scopeSpec: item.scopeSpec,
+        topSection: item.topSection,
+        panelArrangement: item.panelArrangement,
+        trackSystem: item.trackSystem,
+        sketchImage: item.sketchImage,
+        totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * (item.quantity || 1)) / 92903.04).toFixed(2)),
+        labourRatePerSqFt: item.labourRatePerSqFt || 150,
+        labourCost: item.labourCost || 0
     }));
     
     // Find or create a default wholesale client
@@ -1092,18 +1110,33 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
 
     // Automatically create Invoice for this Sales Order
     const { default: Invoice } = await import('../models/Invoice.js');
-    const invoiceItems = items.map((item, idx) => ({
+    const invoiceItems = quotation.items.map((item, idx) => ({
         lineNumber: idx + 1,
-        productName: item.productName,
-        description: item.description,
-        quantity: item.orderedQuantity,
-        unitOfMeasure: item.unitOfMeasure || 'Pcs',
+        productName: `${item.applicationType} (${item.configuration})`,
+        description: item.description || `Size: ${item.width} x ${item.height} mm`,
+        quantity: item.quantity,
+        unitOfMeasure: 'Pcs',
         unitPrice: item.unitPrice,
         discountPercent: 0,
         taxRate: 0,
         taxable: false,
-        lineSubtotal: item.lineSubtotal,
-        lineTotal: item.lineTotal
+        lineSubtotal: item.totalPrice,
+        lineTotal: item.totalPrice,
+        applicationType: item.applicationType,
+        configuration: item.configuration,
+        width: item.width,
+        height: item.height,
+        profileSpec: item.profileSpec,
+        glassSpec: item.glassSpec,
+        hardwareSpec: item.hardwareSpec,
+        scopeSpec: item.scopeSpec,
+        topSection: item.topSection,
+        panelArrangement: item.panelArrangement,
+        trackSystem: item.trackSystem,
+        sketchImage: item.sketchImage,
+        totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * (item.quantity || 1)) / 92903.04).toFixed(2)),
+        labourRatePerSqFt: item.labourRatePerSqFt || 150,
+        labourCost: item.labourCost || 0
     }));
 
     const invoice = await Invoice.create({
@@ -1190,12 +1223,242 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         notes: `Production instructions for order ${salesOrder.orderNumber}`
     });
 
+    // Resolve warehouse for stock deduction
+    let warehouse = await Warehouse.findOne({ isDefault: true, deletedAt: null }) || await Warehouse.findOne({ deletedAt: null });
+    const whId = warehouse?._id;
+
+    // Check stock for all required materials, deduct available raw materials, and auto-generate AluEco PO for shortages
+    let aluPurchaseOrder = null;
+    const shortageItems = [];
+    const deductedItems = [];
+
+    // 1. Check & Deduct Profiles
+    if (quotation.cuttingOptimizationResults) {
+        for (const pCode in quotation.cuttingOptimizationResults) {
+            const opt = quotation.cuttingOptimizationResults[pCode];
+            const barCount = opt.bars?.length || 0;
+            if (barCount > 0) {
+                const pCodeClean = pCode.toUpperCase().slice(0, 50);
+                const product = await Product.findOne({ productCode: pCodeClean, deletedAt: null });
+                let availableQty = 0;
+                let unitCost = 0;
+                if (product) {
+                    const stockItems = await StockItem.find({ productId: product._id });
+                    availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+                    unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || 0;
+                } else {
+                    const prof = await AluProfile.findOne({ profileCode: pCodeClean });
+                    unitCost = prof?.standardLengths?.[0]?.price || 0;
+                }
+
+                const neededQty = barCount;
+                const qtyToDeduct = Math.min(availableQty, neededQty);
+                const shortage = +(Math.max(0, neededQty - availableQty)).toFixed(2);
+
+                // Deduct available stock immediately
+                if (qtyToDeduct > 0 && product && whId) {
+                    try {
+                        await decreaseStock({
+                            productId: product._id,
+                            warehouseId: whId,
+                            quantity: qtyToDeduct,
+                            movementType: 'production_consume',
+                            sourceDocument: {
+                                type: 'invoice',
+                                id: invoice._id,
+                                number: invoice.invoiceNumber
+                            },
+                            reason: `Aluminium Profile auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                            userId: req.user._id
+                        });
+                        deductedItems.push({ itemCode: pCodeClean, name: opt.description || `Profile ${pCodeClean}`, quantity: qtyToDeduct, unitOfMeasure: 'bar' });
+                    } catch (deductErr) {
+                        console.warn(`[Auto Stock Deduction Error] Profile ${pCodeClean}:`, deductErr.message);
+                    }
+                }
+
+                // Add shortage to PO
+                if (shortage > 0) {
+                    shortageItems.push({
+                        itemCode: pCodeClean,
+                        materialType: 'profile',
+                        productName: opt.description || `Profile ${pCodeClean}`,
+                        productId: product?._id,
+                        requiredQuantity: shortage,
+                        receivedQuantity: 0,
+                        pendingQuantity: shortage,
+                        unitOfMeasure: 'bar',
+                        estimatedUnitCost: unitCost,
+                        estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                        status: 'pending',
+                        notes: `Shortage for Project ${quotation.projectName} (${neededQty} bars needed, ${availableQty} in stock)`
+                    });
+                }
+            }
+        }
+    }
+
+    // 2. Check & Deduct Glass
+    const glassMap = {};
+    quotation.items.forEach(item => {
+        (item.glassItems || []).forEach(g => {
+            const code = (g.glassType || 'GLASS').toUpperCase();
+            if (!glassMap[code]) {
+                glassMap[code] = { areaSqFt: 0, cost: g.cost || 0 };
+            }
+            glassMap[code].areaSqFt += (g.areaSqFt || 0);
+        });
+    });
+    for (const gCode in glassMap) {
+        const neededSqFt = +glassMap[gCode].areaSqFt.toFixed(2);
+        const gCodeClean = gCode.slice(0, 50);
+        const product = await Product.findOne({ productCode: gCodeClean, deletedAt: null });
+        let availableQty = 0;
+        let unitCost = 0;
+        if (product) {
+            const stockItems = await StockItem.find({ productId: product._id });
+            availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+            unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || 0;
+        } else {
+            const glassDoc = await AluGlass.findOne({ typeName: gCodeClean });
+            unitCost = glassDoc?.ratePerSqFt || 0;
+        }
+
+        const qtyToDeduct = Math.min(availableQty, neededSqFt);
+        const shortage = +(Math.max(0, neededSqFt - availableQty)).toFixed(2);
+
+        // Deduct available stock immediately
+        if (qtyToDeduct > 0 && product && whId) {
+            try {
+                await decreaseStock({
+                    productId: product._id,
+                    warehouseId: whId,
+                    quantity: qtyToDeduct,
+                    movementType: 'production_consume',
+                    sourceDocument: {
+                        type: 'invoice',
+                        id: invoice._id,
+                        number: invoice.invoiceNumber
+                    },
+                    reason: `Glass auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                    userId: req.user._id
+                });
+                deductedItems.push({ itemCode: gCodeClean, name: `${gCodeClean} Glass`, quantity: qtyToDeduct, unitOfMeasure: 'sqft' });
+            } catch (deductErr) {
+                console.warn(`[Auto Stock Deduction Error] Glass ${gCodeClean}:`, deductErr.message);
+            }
+        }
+
+        // Add shortage to PO
+        if (shortage > 0) {
+            shortageItems.push({
+                itemCode: gCodeClean,
+                materialType: 'glass',
+                productName: `${gCodeClean} Glass`,
+                productId: product?._id,
+                requiredQuantity: shortage,
+                receivedQuantity: 0,
+                pendingQuantity: shortage,
+                unitOfMeasure: 'sqft',
+                estimatedUnitCost: unitCost,
+                estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                status: 'pending',
+                notes: `Shortage for Project ${quotation.projectName} (${neededSqFt} sqft needed, ${availableQty} in stock)`
+            });
+        }
+    }
+
+    // 3. Check & Deduct Accessories
+    const accMap = {};
+    quotation.items.forEach(item => {
+        (item.accessories || []).forEach(a => {
+            const code = (a.code || 'ACC').toUpperCase();
+            if (!accMap[code]) {
+                accMap[code] = { name: a.name, qty: 0, unitRate: a.unitRate || 0 };
+            }
+            accMap[code].qty += (a.qty || 0);
+        });
+    });
+    for (const aCode in accMap) {
+        const neededQty = +accMap[aCode].qty.toFixed(2);
+        const aCodeClean = aCode.slice(0, 50);
+        const product = await Product.findOne({ productCode: aCodeClean, deletedAt: null });
+        let availableQty = 0;
+        let unitCost = accMap[aCode].unitRate;
+        if (product) {
+            const stockItems = await StockItem.find({ productId: product._id });
+            availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+            unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || unitCost;
+        } else {
+            const accDoc = await AluAccessory.findOne({ code: aCodeClean });
+            unitCost = accDoc?.purchaseRate || unitCost;
+        }
+
+        const qtyToDeduct = Math.min(availableQty, neededQty);
+        const shortage = +(Math.max(0, neededQty - availableQty)).toFixed(2);
+
+        // Deduct available stock immediately
+        if (qtyToDeduct > 0 && product && whId) {
+            try {
+                await decreaseStock({
+                    productId: product._id,
+                    warehouseId: whId,
+                    quantity: qtyToDeduct,
+                    movementType: 'production_consume',
+                    sourceDocument: {
+                        type: 'invoice',
+                        id: invoice._id,
+                        number: invoice.invoiceNumber
+                    },
+                    reason: `Accessory auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                    userId: req.user._id
+                });
+                deductedItems.push({ itemCode: aCodeClean, name: accMap[aCode].name || `Accessory ${aCodeClean}`, quantity: qtyToDeduct, unitOfMeasure: 'pcs' });
+            } catch (deductErr) {
+                console.warn(`[Auto Stock Deduction Error] Accessory ${aCodeClean}:`, deductErr.message);
+            }
+        }
+
+        // Add shortage to PO
+        if (shortage > 0) {
+            shortageItems.push({
+                itemCode: aCodeClean,
+                materialType: 'accessory',
+                productName: accMap[aCode].name || `Accessory ${aCodeClean}`,
+                productId: product?._id,
+                requiredQuantity: shortage,
+                receivedQuantity: 0,
+                pendingQuantity: shortage,
+                unitOfMeasure: 'pcs',
+                estimatedUnitCost: unitCost,
+                estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                status: 'pending',
+                notes: `Shortage for Project ${quotation.projectName} (${neededQty} pcs needed, ${availableQty} in stock)`
+            });
+        }
+    }
+
+    if (shortageItems.length > 0) {
+        aluPurchaseOrder = await AluPurchaseOrder.create({
+            sourceType: 'quotation_shortage',
+            quotationId: quotation._id,
+            salesOrderId: salesOrder._id,
+            projectName: quotation.projectName,
+            customerName: quotation.customerName,
+            items: shortageItems,
+            status: 'pending',
+            priority: 'high',
+            notes: `Auto-generated material shortage PO for Project: ${quotation.projectName} (${salesOrder.orderNumber})`,
+            createdBy: req.user._id
+        });
+    }
+
     await createAuditLog({
         action: 'CREATE',
         module: 'CRM',
         documentId: salesOrder._id,
         documentCode: salesOrder.orderNumber,
-        description: `Converted aluminium quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & generated Job Card ${jobCardNumber}`,
+        description: `Converted aluminium quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & generated Job Card ${jobCardNumber}${aluPurchaseOrder ? ` and AluEco PO ${aluPurchaseOrder.poNumber}` : ''}. Deducted ${deductedItems.length} raw materials from stock.`,
         req
     });
     
@@ -1206,7 +1469,15 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
             invoice, 
             invoiceId: invoice._id, 
             invoiceNumber: invoice.invoiceNumber,
-            jobCardNumber 
+            jobCardNumber,
+            deductedItemCount: deductedItems.length,
+            deductedItems,
+            aluPurchaseOrder: aluPurchaseOrder ? {
+                _id: aluPurchaseOrder._id,
+                poNumber: aluPurchaseOrder.poNumber,
+                shortageItemCount: shortageItems.length,
+                totalEstimatedCost: aluPurchaseOrder.totalEstimatedCost
+            } : null
         } 
     });
 });

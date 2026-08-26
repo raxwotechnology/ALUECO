@@ -24,9 +24,10 @@ export const calculateBOM = ({
     customProfiles = [],
     customGlass = [],
     customAccessories = [],
-    customLabourType = 'fixed', // 'fixed' | 'percentage' | 'sqft' | 'opening'
-    customLabourValue = 7500,
-    customLabourCost = 7500
+    labourRatePerSqFt = 150, // Default fabrication labour rate per sqft in LKR
+    customLabourType = 'sqft', // 'sqft' | 'fixed' | 'percentage' | 'opening'
+    customLabourValue = 150,
+    customLabourCost = 0
 }) => {
     // Sanitize inputs (allow 0 width/height)
     const W = Number(width) > 0 ? Number(width) : 0;
@@ -222,15 +223,18 @@ export const calculateBOM = ({
 
         const totalAreaSqFt = (W * H_total * Q) / 92903.04;
         let totalLabourCost = 0;
-        const labourRate = Number(selectedTemplate.labourRate) || 0;
-        if (selectedTemplate.labourMethod === 'sqft') {
+        const labourRate = Number(labourRatePerSqFt) || Number(selectedTemplate.labourRate) || 0;
+        const labourMethod = selectedTemplate.labourMethod || 'sqft';
+        if (labourMethod === 'sqft') {
             totalLabourCost = Math.round(totalAreaSqFt * labourRate);
-        } else if (selectedTemplate.labourMethod === 'opening') {
+        } else if (labourMethod === 'opening') {
             totalLabourCost = Math.round(labourRate * Q);
-        } else if (selectedTemplate.labourMethod === 'fixed') {
+        } else if (labourMethod === 'fixed') {
             totalLabourCost = Math.round(labourRate);
-        } else if (selectedTemplate.labourMethod === 'percentage') {
+        } else if (labourMethod === 'percentage') {
             totalLabourCost = Math.round((totalAluminiumCost + totalGlassCost + totalAccessoriesCost) * (labourRate / 100));
+        } else {
+            totalLabourCost = Math.round(totalAreaSqFt * labourRate);
         }
 
         const isZeroDim = (W === 0 || H_total === 0);
@@ -697,8 +701,17 @@ export const calculateBOM = ({
     // 5. LABOUR COST & TOTAL ESTIMATION SUMMARY
     // ----------------------------------------------------
     const totalAreaSqFt = (W * H_total * Q) / 92903.04;
-    const labourRatePerSqFt = rates?.labourRate || 0; // Defaults to 0 when DB is empty
-    const totalLabourCost = (W === 0 || H_total === 0) ? 0 : Math.round(totalAreaSqFt * labourRatePerSqFt);
+    let totalLabourCost = 0;
+
+    if (customLabourType === 'percentage') {
+        totalLabourCost = Math.round((totalAluminiumCost + totalGlassCost + totalAccessoriesCost) * (Number(customLabourValue) / 100));
+    } else if (customLabourType === 'fixed') {
+        totalLabourCost = Math.round(Number(customLabourValue) || 0);
+    } else {
+        // Square Feet Rate Calculation (Default & Primary Standard)
+        const ratePerSqFt = Number(labourRatePerSqFt) || Number(rates?.labourRate) || 0;
+        totalLabourCost = (W === 0 || H_total === 0) ? 0 : Math.round(totalAreaSqFt * ratePerSqFt);
+    }
 
     const isZeroDim = (W === 0 || H_total === 0);
     const totalRawCost = isZeroDim ? 0 : (totalAluminiumCost + totalGlassCost + totalAccessoriesCost + totalLabourCost);
