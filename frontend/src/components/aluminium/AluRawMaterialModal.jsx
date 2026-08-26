@@ -26,6 +26,54 @@ const UNIT_OPTIONS = [
     { value: 'Rolls', label: 'Rolls (Coils)' },
 ];
 
+const PROFILE_OPTIONS = [
+    { value: 'SW100', label: 'Swisstek 100mm Commercial' },
+    { value: 'SW70', label: 'Swisstek 70mm Residential' },
+    { value: 'CS45', label: 'Swisstek 45mm Casement' },
+    { value: 'AL100', label: 'Alumex 100mm Sliding' },
+    { value: 'AL45', label: 'Alumex 45mm Casement' },
+    { value: 'MOR70', label: 'Moris 70mm System' },
+    { value: 'BEAD', label: 'Glazing Bead Profile' },
+];
+
+const COLOR_OPTIONS = [
+    { value: 'MB', label: 'Matt Black (RAL 9005)' },
+    { value: 'WH', label: 'Powder Coated White (RAL 9016)' },
+    { value: 'AN', label: 'Anodized Silver' },
+    { value: 'NA', label: 'Natural Anodized' },
+    { value: 'DB', label: 'Dark Bronze' },
+    { value: 'CH', label: 'Charcoal Grey (RAL 7016)' },
+    { value: 'MF', label: 'Mill Finish (Raw)' },
+];
+
+const SIDE_OPTIONS = [
+    { value: 'TOP', label: 'Top Frame' },
+    { value: 'BOT', label: 'Bottom Frame' },
+    { value: 'SID', label: 'Side Jamb' },
+    { value: 'SSH', label: 'Sash Frame' },
+    { value: 'INT', label: 'Interlock Profile' },
+    { value: 'TRN', label: 'Transom Profile' },
+    { value: 'MUL', label: 'Mullion Profile' },
+    { value: 'OUT', label: 'Outer Frame' },
+    { value: 'INN', label: 'Inner Frame' },
+];
+
+const computeAutoCode = (item) => {
+    const prefix = item.aluCategory === 'profiles' ? 'PRF' : item.aluCategory === 'glass' ? 'GLS' : item.aluCategory === 'accessories' ? 'ACC' : 'MAT';
+    const prof = (item.profileType || 'SW100').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const color = (item.colorCode || 'MB').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const w = item.width ? Number(item.width) : '';
+    const h = item.height ? Number(item.height) : '';
+    const side = (item.side || 'TOP').toUpperCase();
+
+    let dim = '';
+    if (w && h) dim = `-${w}X${h}`;
+    else if (w) dim = `-W${w}`;
+    else if (h) dim = `-H${h}`;
+
+    return `${prefix}-${prof}-${color}${dim}-${side}`;
+};
+
 // Comprehensive Standard Suggestions for 1-click Auto-fill
 const SERIES_SUGGESTIONS = [
     'Swisstek 100mm Commercial Sliding',
@@ -174,6 +222,25 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
     const updateItem = (idx, field, value) => {
         const next = [...items];
         next[idx] = { ...next[idx], [field]: value };
+        setItems(next);
+    };
+
+    const updateStructuredField = (idx, field, value) => {
+        const next = [...items];
+        const updated = { ...next[idx], [field]: value };
+        updated.productCode = computeAutoCode(updated);
+
+        const profLabel = PROFILE_OPTIONS.find(p => p.value === updated.profileType)?.label || updated.profileType || '';
+        const sideLabel = SIDE_OPTIONS.find(s => s.value === updated.side)?.label || updated.side || '';
+        const colorLabel = COLOR_OPTIONS.find(c => c.value === updated.colorCode)?.label || updated.colorCode || '';
+        const dimStr = updated.width && updated.height ? ` (${updated.width}x${updated.height}mm)` : updated.width ? ` (${updated.width}mm)` : '';
+
+        if (!updated.name || updated.autoDesc) {
+            updated.name = `${profLabel} ${sideLabel} - ${colorLabel}${dimStr}`.trim();
+            updated.autoDesc = true;
+        }
+
+        next[idx] = updated;
         setItems(next);
     };
 
@@ -490,49 +557,123 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
                                     </div>
 
-                                    {/* Inputs Row */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-                                        {/* Name with Auto-Suggest Datalist */}
-                                        <div className="sm:col-span-5">
-                                            <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-0.5">
-                                                <span>PRODUCT NAME / SPEC *</span>
-                                                <span className="text-indigo-600 font-semibold flex items-center gap-0.5">
-                                                    <Sparkles size={10} /> Auto-Fills Code & Unit
-                                                </span>
-                                            </div>
-                                            <input
-                                                type="text"
-                                                list="product-name-suggestions"
-                                                value={it.name}
-                                                onChange={e => handleProductNameChange(idx, e.target.value)}
-                                                required
-                                                placeholder="Type or select Material preset..."
-                                                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            />
+                                    {/* 1. Data Inputs & Automated Code Generator Grid */}
+                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                                        <div className="flex items-center justify-between text-[11px] font-extrabold uppercase text-slate-700 border-b border-slate-200/80 pb-1.5">
+                                            <span className="flex items-center gap-1.5 text-indigo-700">
+                                                <Wand2 size={13} /> 1. Data Inputs &amp; Auto Code Generator
+                                            </span>
+                                            <span className="text-slate-500 font-normal">
+                                                Auto Code: <strong className="font-mono text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">{it.productCode || computeAutoCode(it)}</strong>
+                                            </span>
                                         </div>
 
-                                        {/* Code */}
-                                        <div className="sm:col-span-2">
-                                            <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-0.5">
-                                                <span>CODE *</span>
-                                                <span className={it.productCode.length > 15 ? 'text-rose-600' : 'text-slate-400'}>
-                                                    {it.productCode.length}/15
+                                        <div className="grid grid-cols-2 sm:grid-cols-12 gap-2">
+                                            {/* Profile Type */}
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Profile Type / Series *</label>
+                                                <select
+                                                    value={it.profileType || 'SW100'}
+                                                    onChange={e => updateStructuredField(idx, 'profileType', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                >
+                                                    {PROFILE_OPTIONS.map(p => (
+                                                        <option key={p.value} value={p.value}>{p.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Color Code */}
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Color Code *</label>
+                                                <select
+                                                    value={it.colorCode || 'MB'}
+                                                    onChange={e => updateStructuredField(idx, 'colorCode', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                >
+                                                    {COLOR_OPTIONS.map(c => (
+                                                        <option key={c.value} value={c.value}>{c.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Width */}
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Width (mm)</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="e.g. 1200"
+                                                    value={it.width || ''}
+                                                    onChange={e => updateStructuredField(idx, 'width', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            </div>
+
+                                            {/* Height */}
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Height (mm)</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="e.g. 2100"
+                                                    value={it.height || ''}
+                                                    onChange={e => updateStructuredField(idx, 'height', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            </div>
+
+                                            {/* Side */}
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Side *</label>
+                                                <select
+                                                    value={it.side || 'TOP'}
+                                                    onChange={e => updateStructuredField(idx, 'side', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                >
+                                                    {SIDE_OPTIONS.map(s => (
+                                                        <option key={s.value} value={s.value}>{s.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Description */}
+                                        <div>
+                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Description (Manual / Auto Specification) *</label>
+                                            <input
+                                                type="text"
+                                                value={it.name}
+                                                onChange={e => updateItem(idx, 'name', e.target.value)}
+                                                required
+                                                placeholder="Enter custom description or specs..."
+                                                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Standard Inventory & Pricing Fields */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-white p-2 border border-slate-200 rounded-xl">
+                                        {/* Generated Unique Code */}
+                                        <div className="sm:col-span-4">
+                                            <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
+                                                <span>GENERATED UNIQUE CODE *</span>
+                                                <span className={it.productCode.length > 50 ? 'text-rose-600' : 'text-slate-400'}>
+                                                    {it.productCode.length}/50
                                                 </span>
                                             </div>
                                             <input
                                                 type="text"
-                                                maxLength={15}
+                                                maxLength={50}
                                                 value={it.productCode}
                                                 onChange={e => updateItem(idx, 'productCode', e.target.value.toUpperCase())}
                                                 required
                                                 placeholder="PRF-..."
-                                                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
                                             />
                                         </div>
 
                                         {/* Stock Qty */}
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-[10px] font-bold text-emerald-800 mb-0.5">STOCK QTY *</label>
+                                        <div className="sm:col-span-3">
+                                            <label className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">STOCK QTY *</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -541,17 +682,17 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 onChange={e => updateItem(idx, 'quantity', Number(e.target.value))}
                                                 required
                                                 placeholder="10"
-                                                className="w-full bg-emerald-50/60 focus:bg-white border border-emerald-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                className="w-full bg-emerald-50/60 focus:bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                             />
                                         </div>
 
                                         {/* Unit */}
-                                        <div className="sm:col-span-1">
-                                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5">UNIT</label>
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">UOM (UNIT)</label>
                                             <select
                                                 value={it.unitOfMeasure}
                                                 onChange={e => updateItem(idx, 'unitOfMeasure', e.target.value)}
-                                                className="w-full bg-white border border-slate-300 rounded-xl px-1.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none cursor-pointer"
+                                                className="w-full bg-white border border-slate-300 rounded-lg px-1.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none cursor-pointer"
                                             >
                                                 {UNIT_OPTIONS.map(u => (
                                                     <option key={u.value} value={u.value}>{u.value}</option>
@@ -560,8 +701,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
 
                                         {/* Unit Cost */}
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5">UNIT COST (LKR)</label>
+                                        <div className="sm:col-span-3">
+                                            <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">PRICE / UNIT COST (LKR)</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -569,7 +710,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 value={it.purchaseCost}
                                                 onChange={e => updateItem(idx, 'purchaseCost', Number(e.target.value))}
                                                 placeholder="0.00"
-                                                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none"
+                                                className="w-full bg-slate-50 focus:bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none"
                                             />
                                         </div>
                                     </div>
