@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, TruckIcon } from 'lucide-react';
+import { Plus, Search, Eye, TruckIcon, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -48,6 +48,15 @@ export default function SupplierReturnsPage() {
         { key: 'supplier', label: 'Supplier', render: (r) => r.supplierSnapshot?.name },
         { key: 'items', label: 'Items', render: (r) => r.items?.length },
         { key: 'value', label: 'Return Value', render: (r) => fmt(r.totalReturnValue) },
+        { key: 'source', label: 'Source', render: (r) => r.sourceDocument?.type === 'damage_record' ? (
+            <button 
+                onClick={() => navigate(`/damages`)}
+                className="flex items-center gap-1 text-orange-600 hover:text-orange-800 text-sm"
+            >
+                <AlertTriangle size={14} />
+                {r.sourceDocument.number}
+            </button>
+        ) : <span className="text-gray-400 text-sm">—</span> },
         { key: 'credit', label: 'Credit', render: (r) => r.actualCreditReceived > 0 ? fmt(r.actualCreditReceived) : <span className="text-gray-400">—</span> },
         { key: 'status', label: 'Status', render: (r) => <Badge>{r.status.replace(/_/g, ' ')}</Badge> },
         { key: 'actions', label: '', width: '50px', render: (r) => <button onClick={() => navigate(`/supplier-returns/${r._id}`)} className="p-1.5 hover:bg-gray-100 rounded"><Eye size={16} /></button> },

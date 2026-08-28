@@ -147,6 +147,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/boms', bomRoutes);
 app.use('/api/production-orders', productionOrderRoutes);
 app.use('/api/customer-returns', customerReturnRoutes);
+app.use('/api/returns', customerReturnRoutes);
 app.use('/api/credit-notes', creditNoteRoutes);
 app.use('/api/damages', damageRoutes);
 app.use('/api/supplier-returns', supplierReturnRoutes);

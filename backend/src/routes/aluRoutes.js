@@ -26,8 +26,16 @@ import {
 import {
     getAluPurchaseOrders, getAluPurchaseOrderById, createAluPurchaseOrder,
     updateAluPurchaseOrder, deleteAluPurchaseOrder, addManualItemToAluPO,
-    getAluPOSummaryStats
+    getAluPOSummaryStats, createGrnFromAluPO
 } from '../controllers/aluPurchaseOrderController.js';
+import {
+    getAluProjectIncome, createAluIncome, getAluExpenses, createAluExpense,
+    getAluProjectInvoices, calculateProjectProfitMargins,
+    getAluFinanceSummary, getAluFinanceProjects
+} from '../controllers/aluFinanceController.js';
+import {
+    getProjectWisePnLReport, getAluSeparatedAnalytics, getSupplierAndCustomerAging
+} from '../controllers/aluReportsController.js';
 
 const router = express.Router();
 
@@ -142,10 +150,28 @@ router.route('/purchase-orders')
     .post(createAluPurchaseOrder);
 router.route('/purchase-orders/:id')
     .get(getAluPurchaseOrderById)
+    .post(createGrnFromAluPO);
 // AluEco Raw Materials & Dedicated GRN Intake
 router.route('/raw-materials')
     .get(getAluRawMaterials)
     .post(createAluRawMaterial);
 router.post('/grn', processAluGrn);
+
+// Alueco Finance & Accounting
+router.get('/finance/summary', getAluFinanceSummary);
+router.get('/finance/projects', getAluFinanceProjects);
+router.route('/finance/income')
+    .get(getAluProjectIncome)
+    .post(createAluIncome);
+router.route('/finance/expenses')
+    .get(getAluExpenses)
+    .post(createAluExpense);
+router.get('/finance/invoices', getAluProjectInvoices);
+router.get('/finance/profit-engine', calculateProjectProfitMargins);
+
+// Alueco Reports & Analytics
+router.get('/reports/project-pnl', getProjectWisePnLReport);
+router.get('/reports/analytics', getAluSeparatedAnalytics);
+router.get('/reports/aging', getSupplierAndCustomerAging);
 
 export default router;

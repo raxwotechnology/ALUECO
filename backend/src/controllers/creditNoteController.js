@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import CreditNote from '../models/CreditNote.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
+import AuditLog from '../models/AuditLog.js';
 import { updateCustomerBalance } from './invoiceController.js';
 
 /**
@@ -88,27 +89,63 @@ export const applyCreditNote = asyncHandler(async (req, res) => {
         res.status(400); throw new Error(`Cannot apply more than invoice balance (${invoice.balanceDue})`);
     }
 
-    const session = await mongoose.startSession();
+    const previousInvoiceStatus = invoice.paymentStatus;
+    const previousAmountPaid = invoice.amountPaid;
+    const previousBalanceDue = invoice.balanceDue;
 
-    try {
-        await session.withTransaction(async () => {
-            cn.applications.push({
-                invoiceId: invoice._id,
-                invoiceNumber: invoice.invoiceNumber,
-                amountApplied: amount,
-                appliedBy: req.user._id,
-            });
-            await cn.save({ session });
+    cn.applications.push({
+        invoiceId: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        amountApplied: amount,
+        appliedBy: req.user._id,
+    });
+    await cn.save();
 
-            invoice.amountPaid = +(invoice.amountPaid + amount).toFixed(2);
-            invoice.lastPaymentDate = new Date();
-            await invoice.save({ session });
-        });
-
-        await updateCustomerBalance(cn.customerId);
-
-        res.json({ success: true, message: 'Credit applied to invoice', data: cn });
-    } finally {
-        session.endSession();
+    invoice.amountPaid = +(invoice.amountPaid + amount).toFixed(2);
+    invoice.balanceDue = +(invoice.grandTotal - invoice.amountPaid).toFixed(2);
+    invoice.lastPaymentDate = new Date();
+    
+    // Update payment status based on new amountPaid
+    if (invoice.amountPaid >= invoice.grandTotal) {
+        invoice.paymentStatus = 'paid';
+        if (!invoice.fullyPaidAt) invoice.fullyPaidAt = new Date();
+    } else if (invoice.amountPaid > 0) {
+        invoice.paymentStatus = 'partially_paid';
+    } else {
+        invoice.paymentStatus = 'unpaid';
     }
+    
+    await invoice.save();
+
+    await updateCustomerBalance(cn.customerId);
+
+    // Create audit log entry
+    await AuditLog.create({
+        action: 'CREDIT_NOTE_APPLIED',
+        module: 'credit_notes',
+        documentId: cn._id,
+        documentCode: cn.creditNoteNumber,
+        description: `Credit note ${cn.creditNoteNumber} applied to invoice ${invoice.invoiceNumber}`,
+        changes: {
+            creditNoteId: cn._id,
+            invoiceId: invoice._id,
+            amountApplied: amount,
+            previousInvoiceStatus: previousInvoiceStatus,
+            newInvoiceStatus: invoice.paymentStatus,
+            previousAmountPaid: previousAmountPaid,
+            newAmountPaid: invoice.amountPaid,
+            previousBalanceDue: previousBalanceDue,
+            newBalanceDue: invoice.balanceDue,
+        },
+        previousData: {
+            invoiceStatus: previousInvoiceStatus,
+            amountPaid: previousAmountPaid,
+            balanceDue: previousBalanceDue,
+        },
+        performedBy: req.user._id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+    });
+
+    res.json({ success: true, message: 'Credit applied to invoice', data: cn });
 });

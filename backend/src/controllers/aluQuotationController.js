@@ -576,7 +576,9 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
         const itemBaseCost = (itemProfileCost + itemGlass + itemAcc + (item.labourCost)) / item.quantity;
         
         // Add proportional transport + additional + margin
-        const itemProportionOfCost = (itemBaseCost * item.quantity) / (materialCost + totalLabourCost);
+        // Calculate the proportion of this item's cost to the total project cost (excluding transport/additional)
+        const totalBaseCost = materialCost + totalLabourCost;
+        const itemProportionOfCost = totalBaseCost > 0 ? (itemBaseCost * item.quantity) / totalBaseCost : 0;
         const proportionalExtras = (transportCost + sumAdditional) * itemProportionOfCost / item.quantity;
         
         const unitCost = itemBaseCost + proportionalExtras;
@@ -637,7 +639,9 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         discount,
         manualAdjustment,
         terms,
-        checklist
+        checklist,
+        includeVat,
+        distributeTransportCost
     } = req.body;
     
     const rates = await captureRatesSnapshot();
@@ -656,7 +660,15 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
     const count = await AluQuotation.countDocuments({ quoteNumber: { $regex: `^${prefix}` } });
     const quoteNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
     
-    const finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    // Apply VAT if enabled
+    let finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    let vatAmount = 0;
+    let finalPriceWithVat = finalPrice;
+    
+    if (includeVat) {
+        vatAmount = finalPrice * 0.18; // 18% VAT
+        finalPriceWithVat = finalPrice + vatAmount;
+    }
     
     let discountStatus = 'none';
     let discountApprovedBy = undefined;
@@ -698,12 +710,16 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         discountApprovedBy,
         manualAdjustment: Number(manualAdjustment || 0),
         finalSellingPrice: parseFloat(finalPrice.toFixed(2)),
+        vatAmount: parseFloat(vatAmount.toFixed(2)),
+        finalPriceWithVat: parseFloat(finalPriceWithVat.toFixed(2)),
         status: 'draft',
         rateSnapshot: rates,
         cuttingOptimizationResults: calc.cuttingOptimizationResults,
         glassOptimizationResults: calc.glassOptimizationResults,
         terms: terms || [],
         checklist: checklist || [],
+        includeVat: includeVat !== undefined ? includeVat : true,
+        distributeTransportCost: distributeTransportCost !== undefined ? distributeTransportCost : false,
         createdBy: req.user._id
     });
     
@@ -781,7 +797,9 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
         manualAdjustment,
         terms,
         checklist,
-        status
+        status,
+        includeVat,
+        distributeTransportCost
     } = req.body;
     
     // Recalculate using snapshot rates preserved in the document
@@ -793,7 +811,15 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
         Number(profitMarginPercent || 20)
     );
     
-    const finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    // Apply VAT if enabled
+    let finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    let vatAmount = 0;
+    let finalPriceWithVat = finalPrice;
+    
+    if (includeVat) {
+        vatAmount = finalPrice * 0.18; // 18% VAT
+        finalPriceWithVat = finalPrice + vatAmount;
+    }
 
     let discountStatus = 'none';
     let discountApprovedBy = undefined;
@@ -829,6 +855,8 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     if (discountApprovedBy) quotation.discountApprovedBy = discountApprovedBy;
     quotation.manualAdjustment = Number(manualAdjustment || 0);
     quotation.finalSellingPrice = parseFloat(finalPrice.toFixed(2));
+    quotation.vatAmount = parseFloat(vatAmount.toFixed(2));
+    quotation.finalPriceWithVat = parseFloat(finalPriceWithVat.toFixed(2));
     if (status) {
         quotation.status = status;
         if (status === 'sent') {
@@ -847,6 +875,8 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     quotation.glassOptimizationResults = calc.glassOptimizationResults;
     if (terms) quotation.terms = terms;
     if (checklist) quotation.checklist = checklist;
+    if (includeVat !== undefined) quotation.includeVat = includeVat;
+    if (distributeTransportCost !== undefined) quotation.distributeTransportCost = distributeTransportCost;
     
     await quotation.save();
     
@@ -960,6 +990,8 @@ export const reviseAluQuotation = asyncHandler(async (req, res) => {
         glassOptimizationResults: calc.glassOptimizationResults,
         terms: sourceQuote.terms,
         checklist: sourceQuote.checklist,
+        includeVat: sourceQuote.includeVat !== undefined ? sourceQuote.includeVat : true,
+        distributeTransportCost: sourceQuote.distributeTransportCost !== undefined ? sourceQuote.distributeTransportCost : false,
         createdBy: req.user._id
     });
     
@@ -1016,6 +1048,8 @@ export const duplicateAluQuotation = asyncHandler(async (req, res) => {
         glassOptimizationResults: sourceQuote.glassOptimizationResults,
         terms: sourceQuote.terms,
         checklist: sourceQuote.checklist,
+        includeVat: sourceQuote.includeVat !== undefined ? sourceQuote.includeVat : true,
+        distributeTransportCost: sourceQuote.distributeTransportCost !== undefined ? sourceQuote.distributeTransportCost : false,
         createdBy: req.user._id
     });
 
@@ -1094,10 +1128,13 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     
     const salesOrder = await SalesOrder.create({
         orderNumber,
+        businessType: 'alueco',
+        quotationId: quotation._id,
+        projectName: quotation.projectName,
         customerId: customer._id,
         customerName: quotation.customerName,
         orderDate: date,
-        deliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // default 2 weeks
+        deliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         items,
         totalAmount: quotation.calculatedSellingPrice - quotation.discount,
         discount: quotation.discount,
@@ -1140,7 +1177,9 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     }));
 
     const invoice = await Invoice.create({
+        businessType: 'alueco',
         customerId: customer._id,
+        customerName: customer.displayName || quotation.customerName,
         customerSnapshot: {
             name: customer.displayName || quotation.customerName,
             code: customer.customerCode,
@@ -1290,6 +1329,7 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
                         unitOfMeasure: 'bar',
                         estimatedUnitCost: unitCost,
                         estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                        supplierId: null,
                         status: 'pending',
                         notes: `Shortage for Project ${quotation.projectName} (${neededQty} bars needed, ${availableQty} in stock)`
                     });
@@ -1362,6 +1402,7 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
                 unitOfMeasure: 'sqft',
                 estimatedUnitCost: unitCost,
                 estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                supplierId: null,
                 status: 'pending',
                 notes: `Shortage for Project ${quotation.projectName} (${neededSqFt} sqft needed, ${availableQty} in stock)`
             });
@@ -1432,6 +1473,7 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
                 unitOfMeasure: 'pcs',
                 estimatedUnitCost: unitCost,
                 estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                supplierId: null,
                 status: 'pending',
                 notes: `Shortage for Project ${quotation.projectName} (${neededQty} pcs needed, ${availableQty} in stock)`
             });

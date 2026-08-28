@@ -6,6 +6,27 @@ import WarrantyTermsPrint from './WarrantyTermsPrint';
 
 const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
 
+// Add print-specific styles
+const printStyles = `
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        .pos-receipt-print-area, .pos-receipt-print-area * {
+            visibility: visible;
+        }
+        .pos-receipt-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .no-print {
+            display: none !important;
+        }
+    }
+`;
+
 export default function PosReceiptPrintModal({
     isOpen,
     onClose,
@@ -55,9 +76,11 @@ export default function PosReceiptPrintModal({
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="POS Sale Completed — Invoice & Receipt Print" size="2xl">
+        <>
+            <style>{printStyles}</style>
+            <Modal isOpen={isOpen} onClose={onClose} title="POS Sale Completed — Invoice & Receipt Print" size="2xl">
             {/* Action Bar */}
-            <div className="bg-slate-900 text-white p-4 flex flex-wrap items-center justify-between gap-3 rounded-t-xl print:hidden">
+            <div className="bg-slate-900 text-white p-4 flex flex-wrap items-center justify-between gap-3 rounded-t-xl no-print">
                 <div className="flex items-center gap-2">
                     <CheckCircle className="text-emerald-400" size={24} />
                     <div>
@@ -91,14 +114,14 @@ export default function PosReceiptPrintModal({
             </div>
 
             {/* Print Body */}
-            <div className="p-6 bg-slate-100 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 bg-slate-100 max-h-[70vh] overflow-y-auto no-print">
                 
                 {/* ─── THERMAL RECEIPT VIEW (80mm) ─── */}
                 {activeTab === 'thermal' && (
                     <div className="flex justify-center">
                         <div
                             ref={printAreaRef}
-                            className="w-[340px] bg-white p-5 shadow-xl border border-slate-200 text-slate-900 font-mono text-xs leading-snug print:w-full print:shadow-none print:border-none"
+                            className="pos-receipt-print-area w-[340px] bg-white p-5 shadow-xl border border-slate-200 text-slate-900 font-mono text-xs leading-snug print:w-full print:shadow-none print:border-none"
                         >
                             <div className="text-center border-b border-dashed border-slate-400 pb-3 mb-3">
                                 <h2 className="font-black text-base text-slate-900 tracking-wider">ALUECO ALUMINIUM SYSTEMS</h2>
@@ -262,7 +285,7 @@ export default function PosReceiptPrintModal({
             </div>
 
             {/* Footer buttons */}
-            <div className="p-4 bg-slate-50 border-t flex justify-between items-center">
+            <div className="p-4 bg-slate-50 border-t flex justify-between items-center no-print">
                 <Button variant="outline" onClick={onClose}>Close</Button>
                 
                 <div className="flex gap-2">
@@ -277,5 +300,6 @@ export default function PosReceiptPrintModal({
                 </div>
             </div>
         </Modal>
+        </>
     );
 }

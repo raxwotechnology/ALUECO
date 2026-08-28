@@ -35,6 +35,13 @@ const supplierReturnSchema = new mongoose.Schema({
 
     warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: false },
 
+    // Source document (e.g., damage record)
+    sourceDocument: {
+        type: { type: String },
+        id: mongoose.Schema.Types.ObjectId,
+        number: String,
+    },
+
     items: [supplierReturnItemSchema],
 
     totalReturnValue: { type: Number, default: 0 },

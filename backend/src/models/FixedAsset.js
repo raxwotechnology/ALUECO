@@ -23,15 +23,14 @@ const fixedAssetSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
-fixedAssetSchema.pre(/^find/, function(next) {
+fixedAssetSchema.pre(/^find/, function() {
   if (!this.getOptions || !this.getOptions().includeDeleted) {
     this.where({ deletedAt: null });
   }
-  if (typeof next === 'function') next();
 });
 
 // Update balances before saving
-fixedAssetSchema.pre('save', function(next) {
+fixedAssetSchema.pre('save', function() {
   const totalPaid = this.payments.reduce((sum, p) => sum + p.amount, 0);
   this.balanceDue = Math.max(0, this.purchaseCost - totalPaid);
   
@@ -42,7 +41,6 @@ fixedAssetSchema.pre('save', function(next) {
   } else {
     this.paymentStatus = 'partially_paid';
   }
-  next();
 });
 
 const FixedAsset = mongoose.model('FixedAsset', fixedAssetSchema);

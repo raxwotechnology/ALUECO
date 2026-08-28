@@ -9,15 +9,24 @@ import { createAuditLog } from '../utils/auditLogger.js';
  */
 export const getMaintenanceRequests = asyncHandler(async (req, res) => {
     const { status, priority } = req.query;
-    const filter = { deletedAt: null };
+    const filter = {};
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
     const requests = await MaintenanceRequest.find(filter)
         .populate('requestedBy', 'firstName lastName')
         .sort({ createdAt: -1 });
-    
-    res.json({ success: true, data: requests });
+
+    // Transform responses to ensure backward compatibility
+    const transformedRequests = requests.map(req => ({
+        ...req.toObject(),
+        // Map old field names to new ones if needed
+        assetId: req.assetId || req.asset || null,
+        category: req.category || req.assetType || 'machine',
+        title: req.title || req.description || 'No title'
+    }));
+
+    res.json({ success: true, data: transformedRequests });
 });
 
 /**
@@ -26,17 +35,28 @@ export const getMaintenanceRequests = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const createMaintenanceRequest = asyncHandler(async (req, res) => {
-    const request = await MaintenanceRequest.create({
+    // Ensure compatibility with both old and new field names
+    const requestData = {
         ...req.body,
         status: 'pending',
         requestedBy: req.user._id
-    });
+    };
+
+    // Map old field names to new ones if needed
+    if (req.body.asset && !req.body.assetId) {
+        requestData.assetId = req.body.asset;
+    }
+    if (req.body.assetType && !req.body.category) {
+        requestData.category = req.body.assetType;
+    }
+
+    const request = await MaintenanceRequest.create(requestData);
 
     createAuditLog({
         action: 'create',
         module: 'maintenance',
         documentId: request._id,
-        description: `New maintenance request for ${request.assetId} (${request.priority})`,
+        description: `New maintenance request for ${request.assetId || request.title || 'unknown asset'} (${request.priority})`,
         req
     });
 

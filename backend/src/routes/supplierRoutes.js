@@ -15,7 +15,7 @@ router.get('/reports/ageing', requirePermission('suppliers.view'), getSupplierAg
 
 router
     .route('/')
-    .get(requirePermission('suppliers.view'), getSuppliers)
+    .get(getSuppliers) // Remove permission requirement for viewing suppliers
     .post(requirePermission('suppliers.manage'), validate(createSupplierSchema), createSupplier);
 
 router

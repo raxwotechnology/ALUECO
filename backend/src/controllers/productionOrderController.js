@@ -243,180 +243,167 @@ export const completeProductionOrder = asyncHandler(async (req, res) => {
         res.status(400); throw new Error(`Cannot complete order with status '${po.status}'`);
     }
 
-    const session = await mongoose.startSession();
+    // 1. Update consumption with actuals and decrease raw material stock
+    const consumptionMap = new Map(actualConsumption.map((ac) => [ac.consumptionItemId, ac]));
 
-    try {
-        await session.withTransaction(async () => {
-            // 1. Update consumption with actuals and decrease raw material stock
-            const consumptionMap = new Map(actualConsumption.map((ac) => [ac.consumptionItemId, ac]));
+    for (const c of po.consumption) {
+        const actual = consumptionMap.get(c._id.toString()) || { actualQuantity: c.plannedQuantity };
+        const qtyToConsume = Number(actual.actualQuantity) || 0;
 
-            for (const c of po.consumption) {
-                const actual = consumptionMap.get(c._id.toString()) || { actualQuantity: c.plannedQuantity };
-                const qtyToConsume = Number(actual.actualQuantity) || 0;
-
-                if (qtyToConsume > 0) {
-                    const result = await decreaseStock({
-                        productId: c.productId,
-                        warehouseId: c.warehouseId || po.sourceWarehouseId,
-                        quantity: qtyToConsume,
-                        movementType: 'production_consume',
-                        sourceDocument: {
-                            type: 'production_order',
-                            id: po._id,
-                            number: po.productionNumber,
-                        },
-                        reason: `Material consumed for ${po.productionNumber}`,
-                        notes: actual.notes,
-                        userId: req.user._id,
-                        session,
-                    });
-                    c.actualQuantity = qtyToConsume;
-                    c.actualCost = +(qtyToConsume * result.stockItem.costPerUnit).toFixed(2);
-                    c.stockMovementId = result.movement._id;
-                    c.consumedAt = new Date();
-                }
-            }
-
-            // 2. Update labor
-            const laborMap = new Map();
-            po.labor.forEach((l) => laborMap.set(l._id.toString(), l));
-
-            for (const al of actualLabor) {
-                if (al.laborLogId) {
-                    // Update existing labor log
-                    const l = laborMap.get(al.laborLogId);
-                    if (l) {
-                        l.actualHours = Number(al.actualHours) || 0;
-                        l.actualCost = +(l.actualHours * (al.hourlyRate ?? l.hourlyRate ?? 0)).toFixed(2);
-                        if (al.hourlyRate !== undefined) l.hourlyRate = Number(al.hourlyRate);
-                        if (al.workerId) l.workerId = al.workerId;
-                    }
-                } else {
-                    // New labor entry
-                    po.labor.push({
-                        laborType: al.laborType || 'general',
-                        description: al.description,
-                        plannedHours: 0,
-                        actualHours: Number(al.actualHours) || 0,
-                        hourlyRate: Number(al.hourlyRate) || 0,
-                        actualCost: +((Number(al.actualHours) || 0) * (Number(al.hourlyRate) || 0)).toFixed(2),
-                        workerId: al.workerId,
-                    });
-                }
-            }
-
-            // 3. Calculate total actual cost BEFORE creating output
-            const actualMaterialCost = po.consumption.reduce((s, c) => s + (c.actualCost || 0), 0);
-            const actualLaborCost = po.labor.reduce((s, l) => s + (l.actualCost || 0), 0);
-            const totalActualCost = actualMaterialCost + actualLaborCost + (overheadCost || 0);
-
-            // 4. Update output with actuals and increase finished goods stock
-            let totalProduced = 0;
-            const outputMap = new Map();
-            po.output.forEach((o, idx) => outputMap.set(idx, o));
-
-            for (let i = 0; i < output.length; i++) {
-                const outItem = output[i];
-                const poOutput = po.output[i] || po.output[0];
-
-                const actualQty = Number(outItem.actualQuantity) || 0;
-                const damagedQty = Number(outItem.damagedQuantity) || 0;
-                const rejectedQty = Number(outItem.rejectedQuantity) || 0;
-
-                totalProduced += actualQty;
-
-                poOutput.actualQuantity = actualQty;
-                poOutput.damagedQuantity = damagedQty;
-                poOutput.rejectedQuantity = rejectedQty;
-                poOutput.qcStatus = outItem.qcStatus || 'passed';
-                poOutput.batchNumber = outItem.batchNumber;
-                poOutput.manufactureDate = outItem.manufactureDate ? new Date(outItem.manufactureDate) : new Date();
-                poOutput.expiryDate = outItem.expiryDate ? new Date(outItem.expiryDate) : undefined;
-                poOutput.producedAt = new Date();
-
-                // Cost per unit = total cost / total good output
-                const costPerUnit = totalProduced > 0 ? totalActualCost / totalProduced : 0;
-                poOutput.costPerUnit = +costPerUnit.toFixed(2);
-
-                if (actualQty > 0) {
-                    const result = await increaseStock({
-                        productId: poOutput.productId,
-                        warehouseId: poOutput.warehouseId || po.outputWarehouseId,
-                        quantity: actualQty,
-                        costPerUnit: +costPerUnit.toFixed(2),
-                        movementType: 'production_output',
-                        batchNumber: outItem.batchNumber || null,
-                        sourceDocument: {
-                            type: 'production_order',
-                            id: po._id,
-                            number: po.productionNumber,
-                        },
-                        reason: `Produced via ${po.productionNumber}`,
-                        notes: outItem.notes,
-                        userId: req.user._id,
-                        session,
-                    });
-                    poOutput.stockMovementId = result.movement._id;
-                }
-
-                // Damaged goods → separate movement to 'scrap' (optional, just audit)
-                if (damagedQty > 0) {
-                    // We don't have a scrap warehouse yet — just log as a damage movement
-                    const StockMovement = (await import('../models/StockMovement.js')).default;
-                    const Product = (await import('../models/Product.js')).default;
-                    const product = await Product.findById(poOutput.productId).session(session);
-                    const damageMovement = new StockMovement({
-                        productId: poOutput.productId,
-                        productCode: product?.productCode,
-                        productName: product?.name,
-                        movementType: 'production_scrap',
-                        direction: 'out',
-                        quantity: damagedQty,
-                        unitOfMeasure: poOutput.unitOfMeasure,
-                        warehouseId: poOutput.warehouseId || po.outputWarehouseId,
-                        sourceDocument: {
-                            type: 'production_order',
-                            id: po._id,
-                            number: po.productionNumber,
-                        },
-                        reason: 'Damaged during production',
-                        performedBy: req.user._id,
-                        balanceBefore: 0,
-                        balanceAfter: 0,
-                    });
-                    await damageMovement.save({ session });
-                }
-            }
-
-            po.overheadCost = overheadCost;
-            po.status = totalProduced >= po.plannedQuantity ? 'completed' : 'partially_completed';
-            po.actualEndDate = new Date();
-            po.completedBy = req.user._id;
-            po.updatedBy = req.user._id;
-            if (notes) po.notes = po.notes ? `${po.notes}\n---\n${notes}` : notes;
-
-            await po.save({ session });
-        });
-
-        const populated = await ProductionOrder.findById(po._id)
-            .populate('bomId', 'name bomCode')
-            .populate('finishedProductId', 'name productCode')
-            .populate('sourceWarehouseId', 'name warehouseCode')
-            .populate('outputWarehouseId', 'name warehouseCode')
-            .populate('consumption.productId', 'name productCode')
-            .populate('output.productId', 'name productCode');
-
-        res.json({
-            success: true,
-            message: `Production ${po.status === 'completed' ? 'completed' : 'partially completed'}. Stock updated.`,
-            data: populated,
-        });
-    } catch (err) {
-        res.status(400);
-        throw new Error(err.message || 'Failed to complete production');
-    } finally {
-        session.endSession();
+        if (qtyToConsume > 0) {
+            const result = await decreaseStock({
+                productId: c.productId,
+                warehouseId: c.warehouseId || po.sourceWarehouseId,
+                quantity: qtyToConsume,
+                movementType: 'production_consume',
+                sourceDocument: {
+                    type: 'production_order',
+                    id: po._id,
+                    number: po.productionNumber,
+                },
+                reason: `Material consumed for ${po.productionNumber}`,
+                notes: actual.notes,
+                userId: req.user._id,
+            });
+            c.actualQuantity = qtyToConsume;
+            c.actualCost = +(qtyToConsume * result.stockItem.costPerUnit).toFixed(2);
+            c.stockMovementId = result.movement._id;
+            c.consumedAt = new Date();
+        }
     }
+
+    // 2. Update labor
+    const laborMap = new Map();
+    po.labor.forEach((l) => laborMap.set(l._id.toString(), l));
+
+    for (const al of actualLabor) {
+        if (al.laborLogId) {
+            // Update existing labor log
+            const l = laborMap.get(al.laborLogId);
+            if (l) {
+                l.actualHours = Number(al.actualHours) || 0;
+                l.actualCost = +(l.actualHours * (al.hourlyRate ?? l.hourlyRate ?? 0)).toFixed(2);
+                if (al.hourlyRate !== undefined) l.hourlyRate = Number(al.hourlyRate);
+                if (al.workerId) l.workerId = al.workerId;
+            }
+        } else {
+            // New labor entry
+            po.labor.push({
+                laborType: al.laborType || 'general',
+                description: al.description,
+                plannedHours: 0,
+                actualHours: Number(al.actualHours) || 0,
+                hourlyRate: Number(al.hourlyRate) || 0,
+                actualCost: +((Number(al.actualHours) || 0) * (Number(al.hourlyRate) || 0)).toFixed(2),
+                workerId: al.workerId,
+            });
+        }
+    }
+
+    // 3. Calculate total actual cost BEFORE creating output
+    const actualMaterialCost = po.consumption.reduce((s, c) => s + (c.actualCost || 0), 0);
+    const actualLaborCost = po.labor.reduce((s, l) => s + (l.actualCost || 0), 0);
+    const totalActualCost = actualMaterialCost + actualLaborCost + (overheadCost || 0);
+
+    // 4. Update output with actuals and increase finished goods stock
+    let totalProduced = 0;
+    const outputMap = new Map();
+    po.output.forEach((o, idx) => outputMap.set(idx, o));
+
+    for (let i = 0; i < output.length; i++) {
+        const outItem = output[i];
+        const poOutput = po.output[i] || po.output[0];
+
+        const actualQty = Number(outItem.actualQuantity) || 0;
+        const damagedQty = Number(outItem.damagedQuantity) || 0;
+        const rejectedQty = Number(outItem.rejectedQuantity) || 0;
+
+        totalProduced += actualQty;
+
+        poOutput.actualQuantity = actualQty;
+        poOutput.damagedQuantity = damagedQty;
+        poOutput.rejectedQuantity = rejectedQty;
+        poOutput.qcStatus = outItem.qcStatus || 'passed';
+        poOutput.batchNumber = outItem.batchNumber;
+        poOutput.manufactureDate = outItem.manufactureDate ? new Date(outItem.manufactureDate) : new Date();
+        poOutput.expiryDate = outItem.expiryDate ? new Date(outItem.expiryDate) : undefined;
+        poOutput.producedAt = new Date();
+
+        // Cost per unit = total cost / total good output
+        const costPerUnit = totalProduced > 0 ? totalActualCost / totalProduced : 0;
+        poOutput.costPerUnit = +costPerUnit.toFixed(2);
+
+        if (actualQty > 0) {
+            const result = await increaseStock({
+                productId: poOutput.productId,
+                warehouseId: poOutput.warehouseId || po.outputWarehouseId,
+                quantity: actualQty,
+                costPerUnit: +costPerUnit.toFixed(2),
+                movementType: 'production_output',
+                batchNumber: outItem.batchNumber || null,
+                sourceDocument: {
+                    type: 'production_order',
+                    id: po._id,
+                    number: po.productionNumber,
+                },
+                reason: `Produced via ${po.productionNumber}`,
+                notes: outItem.notes,
+                userId: req.user._id,
+            });
+            poOutput.stockMovementId = result.movement._id;
+        }
+
+        // Damaged goods → separate movement to 'scrap' (optional, just audit)
+        if (damagedQty > 0) {
+            // We don't have a scrap warehouse yet — just log as a damage movement
+            const StockMovement = (await import('../models/StockMovement.js')).default;
+            const Product = (await import('../models/Product.js')).default;
+            const product = await Product.findById(poOutput.productId);
+            const damageMovement = new StockMovement({
+                productId: poOutput.productId,
+                productCode: product?.productCode,
+                productName: product?.name,
+                movementType: 'production_scrap',
+                direction: 'out',
+                quantity: damagedQty,
+                unitOfMeasure: poOutput.unitOfMeasure,
+                warehouseId: poOutput.warehouseId || po.outputWarehouseId,
+                sourceDocument: {
+                    type: 'production_order',
+                    id: po._id,
+                    number: po.productionNumber,
+                },
+                reason: 'Damaged during production',
+                performedBy: req.user._id,
+                balanceBefore: 0,
+                balanceAfter: 0,
+            });
+            await damageMovement.save();
+        }
+    }
+
+    po.overheadCost = overheadCost;
+    po.status = totalProduced >= po.plannedQuantity ? 'completed' : 'partially_completed';
+    po.actualEndDate = new Date();
+    po.completedBy = req.user._id;
+    po.updatedBy = req.user._id;
+    if (notes) po.notes = po.notes ? `${po.notes}\n---\n${notes}` : notes;
+
+    await po.save();
+
+    const populated = await ProductionOrder.findById(po._id)
+        .populate('bomId', 'name bomCode')
+        .populate('finishedProductId', 'name productCode')
+        .populate('sourceWarehouseId', 'name warehouseCode')
+        .populate('outputWarehouseId', 'name warehouseCode')
+        .populate('consumption.productId', 'name productCode')
+        .populate('output.productId', 'name productCode');
+
+    res.json({
+        success: true,
+        message: `Production ${po.status === 'completed' ? 'completed' : 'partially completed'}. Stock updated.`,
+        data: populated,
+    });
 });
 
 /**

@@ -11,7 +11,7 @@ const LOCK_TIME_MINUTES = 15;
  * @access  Public for first user (becomes admin), then Admin-only
  */
 export const register = asyncHandler(async (req, res) => {
-    const { firstName, lastName, email, phone, password, role } = req.body;
+    const { firstName, lastName, email, phone, password, role, permissions, designationId } = req.body;
 
     // Check if user exists
     const userExists = await User.findOne({ email });
@@ -43,6 +43,7 @@ export const register = asyncHandler(async (req, res) => {
         phone,
         password,
         role: isFirstUser ? 'admin' : (role || 'staff'),
+        permissions: permissions || [],
         createdBy: req.user?._id,
     });
 
@@ -211,4 +212,43 @@ export const changePassword = asyncHandler(async (req, res) => {
     await user.save();
 
     res.json({ success: true, message: 'Password changed successfully' });
+});
+
+/**
+ * @desc    Verify Admin Password for high-security actions (e.g. Delete)
+ * @route   POST /api/auth/verify-admin-password
+ * @access  Private
+ */
+export const verifyAdminPassword = asyncHandler(async (req, res) => {
+    const { password } = req.body;
+    if (!password) {
+        res.status(400);
+        throw new Error('Admin password is required');
+    }
+
+    const User = (await import('../models/User.js')).default;
+    // Find admin user(s)
+    const adminUsers = await User.find({ role: 'admin' }).select('+password');
+
+    if (!adminUsers || adminUsers.length === 0) {
+        res.status(404);
+        throw new Error('No admin user registered in the system');
+    }
+
+    let isValid = false;
+    for (const admin of adminUsers) {
+        // Compare using comparePassword or matchPassword
+        const match = admin.comparePassword ? await admin.comparePassword(password) : (admin.matchPassword ? await admin.matchPassword(password) : false);
+        if (match) {
+            isValid = true;
+            break;
+        }
+    }
+
+    if (!isValid) {
+        res.status(401);
+        throw new Error('Invalid Admin Password. Operation denied.');
+    }
+
+    res.json({ success: true, message: 'Admin password verified successfully' });
 });

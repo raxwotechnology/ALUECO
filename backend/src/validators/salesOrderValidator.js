@@ -32,7 +32,7 @@ export const createSalesOrderSchema = z.object({
     customerNotes: z.string().optional(),
     internalNotes: z.string().optional(),
     specialInstructions: z.string().optional(),
-    status: z.enum(['draft', 'pending_approval', 'approved']).optional(),
+    status: z.enum(['draft', 'pending_approval', 'approved', 'Confirmed', 'In Production', 'Installation', 'Completed', 'invoiced', 'pending', 'dispatched', 'delivered', 'cancelled', 'on_hold', 'cutting', 'assembly', 'glazing', 'qa', 'ready']).optional(),
     creditOverride: z.boolean().optional(),
     creditOverrideReason: z.string().optional(),
     paymentMethod: z.enum(['cash', 'card', 'bank_transfer', 'cheque']).optional(),

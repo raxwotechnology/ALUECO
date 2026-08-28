@@ -9,11 +9,34 @@ import { createAuditLog } from '../utils/auditLogger.js';
  * @access  Private
  */
 export const createExportShipment = asyncHandler(async (req, res) => {
-    const shipment = await ExportShipment.create({
+    // Map frontend field names to backend structure
+    const mappedData = {
         ...req.body,
+        shipmentCode: req.body.bookingReference || undefined,
+        logistics: {
+            ...req.body.logistics,
+            vesselName: req.body.vesselName,
+            portOfDischarge: req.body.destinationCountry,
+            eta: req.body.estimatedArrivalDate ? new Date(req.body.estimatedArrivalDate) : undefined,
+        },
+        containerDetails: {
+            ...req.body.containerDetails,
+            containerNumber: req.body.containerNumber,
+            sealNumber: req.body.sealNumber,
+        },
         status: 'booked',
         createdBy: req.user._id
-    });
+    };
+
+    // Remove the flat fields that we've mapped to nested structure
+    delete mappedData.bookingReference;
+    delete mappedData.vesselName;
+    delete mappedData.destinationCountry;
+    delete mappedData.estimatedArrivalDate;
+    delete mappedData.containerNumber;
+    delete mappedData.sealNumber;
+
+    const shipment = await ExportShipment.create(mappedData);
 
     // Update status of linked batches to 'exported' if applicable
     if (shipment.batches?.length > 0) {
@@ -27,8 +50,8 @@ export const createExportShipment = asyncHandler(async (req, res) => {
         action: 'create',
         module: 'logistics',
         documentId: shipment._id,
-        documentCode: shipment.bookingReference,
-        description: `Created export shipment for ${shipment.destinationCountry}`,
+        documentCode: shipment.shipmentCode,
+        description: `Created export shipment for ${shipment.logistics?.portOfDischarge}`,
         req
     });
 
@@ -56,6 +79,12 @@ export const getExportShipments = asyncHandler(async (req, res) => {
         ExportShipment.countDocuments(filter)
     ]);
 
+    // Debug: Log first shipment's logistics data
+    if (shipments.length > 0) {
+        console.log('DEBUG - First shipment logistics:', JSON.stringify(shipments[0].logistics, null, 2));
+        console.log('DEBUG - First shipment containerDetails:', JSON.stringify(shipments[0].containerDetails, null, 2));
+    }
+
     res.json({
         success: true,
         data: shipments,
@@ -72,9 +101,35 @@ export const getExportShipments = asyncHandler(async (req, res) => {
  */
 export const updateExportShipment = asyncHandler(async (req, res) => {
     const oldData = await ExportShipment.findById(req.params.id);
+
+    // Map frontend field names to backend structure
+    const mappedData = {
+        ...req.body,
+        logistics: {
+            ...req.body.logistics,
+            vesselName: req.body.vesselName,
+            portOfDischarge: req.body.destinationCountry,
+            eta: req.body.estimatedArrivalDate ? new Date(req.body.estimatedArrivalDate) : undefined,
+        },
+        containerDetails: {
+            ...req.body.containerDetails,
+            containerNumber: req.body.containerNumber,
+            sealNumber: req.body.sealNumber,
+        },
+        updatedBy: req.user._id
+    };
+
+    // Remove the flat fields that we've mapped to nested structure
+    delete mappedData.bookingReference;
+    delete mappedData.vesselName;
+    delete mappedData.destinationCountry;
+    delete mappedData.estimatedArrivalDate;
+    delete mappedData.containerNumber;
+    delete mappedData.sealNumber;
+
     const shipment = await ExportShipment.findByIdAndUpdate(
         req.params.id,
-        { ...req.body, updatedBy: req.user._id },
+        mappedData,
         { new: true, runValidators: true }
     );
 
@@ -87,8 +142,8 @@ export const updateExportShipment = asyncHandler(async (req, res) => {
         action: 'update',
         module: 'logistics',
         documentId: shipment._id,
-        documentCode: shipment.bookingReference,
-        description: `Updated status of shipment to ${shipment.destinationCountry} to ${shipment.status}`,
+        documentCode: shipment.shipmentCode,
+        description: `Updated status of shipment to ${shipment.logistics?.portOfDischarge} to ${shipment.status}`,
         changes: req.body,
         previousData: oldData,
         req

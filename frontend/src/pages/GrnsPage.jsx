@@ -78,7 +78,7 @@ export default function GrnsPage() {
         setLoading(true);
         try {
             const [grnRes, supRes, farmRes, whRes, prodRes, poRes, bankRes] = await Promise.all([
-                api.get('/grns'),
+                api.get('/grns', { params: { startDate: '', endDate: '' } }), // Bypass global date filter
                 api.get('/suppliers'),
                 api.get('/farms?status=active'),
                 api.get('/warehouses'),

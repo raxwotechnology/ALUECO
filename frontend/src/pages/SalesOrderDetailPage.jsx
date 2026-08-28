@@ -351,6 +351,75 @@ export default function SalesOrderDetailPage() {
                         </div>
                     </Card>
 
+                    {/* Invoice Payment Status */}
+                    {order.invoiceId && (
+                        <Card className="p-5">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-4">Invoice Status</h3>
+                            <div className="space-y-2.5 text-sm">
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-500 flex-shrink-0">Invoice Number</span>
+                                    <span className="text-right font-mono">{order.invoiceId.invoiceNumber || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-500 flex-shrink-0">Payment Status</span>
+                                    <span className="text-right">
+                                        <Badge variant={
+                                            order.invoiceId.paymentStatus === 'paid' ? 'success' : 
+                                            order.invoiceId.paymentStatus === 'partially_paid' ? 'info' : 
+                                            order.invoiceId.paymentStatus === 'overdue' ? 'danger' : 'warning'
+                                        }>
+                                            {order.invoiceId.paymentStatus?.replace('_', ' ') || 'Unknown'}
+                                        </Badge>
+                                    </span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-500 flex-shrink-0">Amount Paid</span>
+                                    <span className="text-right">{fmt(order.invoiceId.amountPaid || 0)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-500 flex-shrink-0">Balance Due</span>
+                                    <span className="text-right font-medium text-red-600">{fmt(order.invoiceId.balanceDue || 0)}</span>
+                                </div>
+                            </div>
+                        </Card>
+                    )}
+
+                    {/* Payment Schedule */}
+                    {order.paymentSchedule && order.paymentSchedule.length > 0 && (
+                        <Card className="p-5">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-4">Payment Schedule</h3>
+                            <div className="space-y-3">
+                                {order.paymentSchedule.map((stage, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-gray-800">{stage.stageName}</p>
+                                            <p className="text-xs text-gray-500">Amount: {fmt(stage.amount)}</p>
+                                            {stage.paidAt && (
+                                                <p className="text-xs text-gray-400">Paid: {fmtDate(stage.paidAt)}</p>
+                                            )}
+                                        </div>
+                                        <Badge 
+                                            variant={stage.status === 'paid' ? 'success' : 'warning'}
+                                            className="ml-3"
+                                        >
+                                            {stage.status}
+                                        </Badge>
+                                    </div>
+                                ))}
+                                <div className="pt-3 border-t border-gray-200">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Total Paid</span>
+                                        <span className="font-medium text-green-600">{fmt(order.totalPaid || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Balance Due</span>
+                                        <span className="font-medium text-red-600">{fmt(order.grandTotal - (order.totalPaid || 0))}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    )}
+
                     {/* Credit Check */}
                     {order.creditCheck?.performed && (
                         <Card className={`p-5 border-l-4 ${order.creditCheck.passed ? 'border-l-green-500' : 'border-l-amber-500'}`}>

@@ -151,39 +151,32 @@ export const createOpeningStock = asyncHandler(async (req, res) => {
         res.status(400); throw new Error('At least one item is required');
     }
 
-    const session = await mongoose.startSession();
     const results = [];
 
-    try {
-        await session.withTransaction(async () => {
-            for (const item of items) {
-                if (!item.productId || !item.quantity) continue;
-                const result = await increaseStock({
-                    productId: item.productId,
-                    warehouseId,
-                    quantity: Number(item.quantity),
-                    costPerUnit: Number(item.costPerUnit) || 0,
-                    movementType: 'opening_stock',
-                    sourceDocument: { type: 'opening_stock', number: 'OPENING' },
-                    reason: 'Opening stock entry',
-                    notes,
-                    userId: req.user._id,
-                    session,
-                });
-                results.push(result);
-            }
+    for (const item of items) {
+        if (!item.productId || !item.quantity) continue;
+        const result = await increaseStock({
+            productId: item.productId,
+            warehouseId,
+            quantity: Number(item.quantity),
+            costPerUnit: Number(item.costPerUnit) || 0,
+            movementType: 'opening_stock',
+            sourceDocument: { type: 'opening_stock', number: 'OPENING' },
+            reason: 'Opening stock entry',
+            notes,
+            userId: req.user._id,
         });
-        res.status(201).json({
-            success: true,
-            message: `Opening stock recorded for ${results.length} items`,
-            data: results.map((r) => ({
-                stockItem: r.stockItem,
-                movementNumber: r.movement.movementNumber,
-            })),
-        });
-    } finally {
-        session.endSession();
+        results.push(result);
     }
+
+    res.status(201).json({
+        success: true,
+        message: `Opening stock recorded for ${results.length} items`,
+        data: results.map((r) => ({
+            stockItem: r.stockItem,
+            movementNumber: r.movement.movementNumber,
+        })),
+    });
 });
 
 /**
@@ -202,53 +195,44 @@ export const transferStock = asyncHandler(async (req, res) => {
     }
     if (!items?.length) { res.status(400); throw new Error('At least one item is required'); }
 
-    const session = await mongoose.startSession();
     const movements = [];
 
-    try {
-        await session.withTransaction(async () => {
-            for (const item of items) {
-                if (!item.productId || !item.quantity) continue;
+    for (const item of items) {
+        if (!item.productId || !item.quantity) continue;
 
-                // Decrease at source
-                const out = await decreaseStock({
-                    productId: item.productId,
-                    warehouseId: fromWarehouseId,
-                    quantity: Number(item.quantity),
-                    movementType: 'transfer_out',
-                    sourceDocument: { type: 'stock_transfer', number: 'TRF' },
-                    reason: 'Stock transfer',
-                    notes,
-                    userId: req.user._id,
-                    session,
-                });
-
-                // Increase at destination (use source cost to preserve valuation)
-                const inMove = await increaseStock({
-                    productId: item.productId,
-                    warehouseId: toWarehouseId,
-                    quantity: Number(item.quantity),
-                    costPerUnit: out.stockItem.costPerUnit,
-                    movementType: 'transfer_in',
-                    sourceDocument: { type: 'stock_transfer', number: 'TRF' },
-                    reason: 'Stock transfer',
-                    notes,
-                    userId: req.user._id,
-                    session,
-                });
-
-                movements.push({ out: out.movement, in: inMove.movement });
-            }
+        // Decrease at source
+        const out = await decreaseStock({
+            productId: item.productId,
+            warehouseId: fromWarehouseId,
+            quantity: Number(item.quantity),
+            movementType: 'transfer_out',
+            sourceDocument: { type: 'stock_transfer', number: 'TRF' },
+            reason: 'Stock transfer',
+            notes,
+            userId: req.user._id,
         });
 
-        res.status(201).json({
-            success: true,
-            message: `Transferred ${movements.length} items`,
-            data: movements,
+        // Increase at destination (use source cost to preserve valuation)
+        const inMove = await increaseStock({
+            productId: item.productId,
+            warehouseId: toWarehouseId,
+            quantity: Number(item.quantity),
+            costPerUnit: out.stockItem.costPerUnit,
+            movementType: 'transfer_in',
+            sourceDocument: { type: 'stock_transfer', number: 'TRF' },
+            reason: 'Stock transfer',
+            notes,
+            userId: req.user._id,
         });
-    } finally {
-        session.endSession();
+
+        movements.push({ out: out.movement, in: inMove.movement });
     }
+
+    res.status(201).json({
+        success: true,
+        message: `Transferred ${movements.length} items`,
+        data: movements,
+    });
 });
 
 /**
@@ -262,56 +246,47 @@ export const adjustStock = asyncHandler(async (req, res) => {
     if (!warehouseId) { res.status(400); throw new Error('warehouseId is required'); }
     if (!items?.length) { res.status(400); throw new Error('At least one item is required'); }
 
-    const session = await mongoose.startSession();
     const results = [];
 
-    try {
-        await session.withTransaction(async () => {
-            for (const item of items) {
-                const qty = Number(item.adjustmentQuantity);
-                if (!item.productId || !qty) continue;
+    for (const item of items) {
+        const qty = Number(item.adjustmentQuantity);
+        if (!item.productId || !qty) continue;
 
-                const absQty = Math.abs(qty);
+        const absQty = Math.abs(qty);
 
-                if (qty > 0) {
-                    const result = await increaseStock({
-                        productId: item.productId,
-                        warehouseId,
-                        quantity: absQty,
-                        costPerUnit: Number(item.costPerUnit) || 0,
-                        movementType: 'adjustment_in',
-                        sourceDocument: { type: 'stock_adjustment', number: 'ADJ' },
-                        reason: item.reason || reason || 'Stock adjustment',
-                        notes,
-                        userId: req.user._id,
-                        session,
-                    });
-                    results.push(result.movement);
-                } else {
-                    const result = await decreaseStock({
-                        productId: item.productId,
-                        warehouseId,
-                        quantity: absQty,
-                        movementType: 'adjustment_out',
-                        sourceDocument: { type: 'stock_adjustment', number: 'ADJ' },
-                        reason: item.reason || reason || 'Stock adjustment',
-                        notes,
-                        userId: req.user._id,
-                        session,
-                    });
-                    results.push(result.movement);
-                }
-            }
-        });
-
-        res.status(201).json({
-            success: true,
-            message: `Adjusted ${results.length} items`,
-            data: results,
-        });
-    } finally {
-        session.endSession();
+        if (qty > 0) {
+            const result = await increaseStock({
+                productId: item.productId,
+                warehouseId,
+                quantity: absQty,
+                costPerUnit: Number(item.costPerUnit) || 0,
+                movementType: 'adjustment_in',
+                sourceDocument: { type: 'stock_adjustment', number: 'ADJ' },
+                reason: item.reason || reason || 'Stock adjustment',
+                notes,
+                userId: req.user._id,
+            });
+            results.push(result.movement);
+        } else {
+            const result = await decreaseStock({
+                productId: item.productId,
+                warehouseId,
+                quantity: absQty,
+                movementType: 'adjustment_out',
+                sourceDocument: { type: 'stock_adjustment', number: 'ADJ' },
+                reason: item.reason || reason || 'Stock adjustment',
+                notes,
+                userId: req.user._id,
+            });
+            results.push(result.movement);
+        }
     }
+
+    res.status(201).json({
+        success: true,
+        message: `Adjusted ${results.length} items`,
+        data: results,
+    });
 });
 
 /**
@@ -370,106 +345,94 @@ export const convertStock = asyncHandler(async (req, res) => {
         throw new Error('Destination product not found');
     }
 
-    const session = await mongoose.startSession();
     let productionBatch = null;
 
-    try {
-        await session.withTransaction(async () => {
-            // 1. Decrease source product stock
-            const decResult = await decreaseStock({
-                productId: sourceProductId,
-                warehouseId,
-                quantity: Number(inputQuantity),
-                movementType: 'production_issue',
-                sourceDocument: { type: 'stock_conversion', number: 'CONV' },
-                reason: `Converted to ${destProduct.name}`,
-                notes,
-                userId: req.user._id,
-                session,
-                batchNumber: batchNumber || null,
-            });
+    // 1. Decrease source product stock
+    const decResult = await decreaseStock({
+        productId: sourceProductId,
+        warehouseId,
+        quantity: Number(inputQuantity),
+        movementType: 'production_issue',
+        sourceDocument: { type: 'stock_conversion', number: 'CONV' },
+        reason: `Converted to ${destProduct.name}`,
+        notes,
+        userId: req.user._id,
+        batchNumber: batchNumber || null,
+    });
 
-            // 2. Generate batch number & Increase destination product stock
-            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-            const batchCode = `${generateJulianBatchCode('CONV')}-${uniqueSuffix}`;
+    // 2. Generate batch number & Increase destination product stock
+    const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const batchCode = `${generateJulianBatchCode('CONV')}-${uniqueSuffix}`;
 
-            const sourceUnitCost = decResult.stockItem?.costPerUnit || sourceProduct.basePrice || 0;
-            const materialCost = sourceUnitCost * Number(inputQuantity);
+    const sourceUnitCost = decResult.stockItem?.costPerUnit || sourceProduct.basePrice || 0;
+    const materialCost = sourceUnitCost * Number(inputQuantity);
 
-            let machineCost = 0;
-            if (machineAssignments && machineAssignments.length > 0) {
-                const Machine = mongoose.model('Machine');
-                for (const assignment of machineAssignments) {
-                    if (assignment.machineId) {
-                        const machine = await Machine.findById(assignment.machineId);
-                        if (machine) {
-                            machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
-                        }
-                    }
+    let machineCost = 0;
+    if (machineAssignments && machineAssignments.length > 0) {
+        const Machine = mongoose.model('Machine');
+        for (const assignment of machineAssignments) {
+            if (assignment.machineId) {
+                const machine = await Machine.findById(assignment.machineId);
+                if (machine) {
+                    machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
                 }
             }
-
-            const totalProductionCost = materialCost + Number(laborCost) + Number(overheadCost) + machineCost;
-            const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
-
-            await increaseStock({
-                productId: destinationProductId,
-                warehouseId,
-                quantity: Number(outputQuantity),
-                costPerUnit: destCostPerUnit,
-                movementType: 'production_receipt',
-                batchNumber: batchCode,
-                sourceDocument: { type: 'stock_conversion', number: 'CONV' },
-                reason: `Converted from ${sourceProduct.name}`,
-                notes,
-                userId: req.user._id,
-                session,
-                openQuantity: openQuantity !== undefined && openQuantity !== null ? Number(openQuantity) : undefined, // pass openQuantity
-            });
-
-            // 3. Automatically log a completed ProductionBatch
-            const ProductionBatchModel = mongoose.model('ProductionBatch');
-            const batchResult = await ProductionBatchModel.create([{
-                batchNo: batchCode,
-                date: new Date(),
-                supplierShortCode: 'CONV',
-                product: destProduct.name,
-                productId: destinationProductId,
-                warehouseId,
-                inputWeight_day: Number(inputQuantity),
-                outputWeight_day: Number(outputQuantity),
-                materialCost: Number(materialCost.toFixed(2)),
-                laborCost: Number(Number(laborCost).toFixed(2)),
-                overheadCost: Number(Number(overheadCost).toFixed(2)),
-                machineAssignments,
-                processingStage: 'completed',
-                qcStatus: 'approved',
-                status: 'completed',
-                remark: notes || `Direct stock conversion from ${sourceProduct.name} (${inputQuantity} ${sourceProduct.unitOfMeasure || 'kg'}) to ${destProduct.name} (${outputQuantity} ${destProduct.unitOfMeasure || 'kg'})`,
-                createdBy: req.user._id,
-                updatedBy: req.user._id,
-            }], { session });
-            productionBatch = batchResult[0];
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Stock converted successfully and production batch logged',
-            data: {
-                sourceProductId,
-                destinationProductId,
-                warehouseId,
-                inputQuantity,
-                outputQuantity,
-                productionBatch
-            }
-        });
-    } catch (error) {
-        res.status(400);
-        throw new Error(error.message || 'Stock conversion failed');
-    } finally {
-        session.endSession();
+        }
     }
+
+    const totalProductionCost = materialCost + Number(laborCost) + Number(overheadCost) + machineCost;
+    const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
+
+    await increaseStock({
+        productId: destinationProductId,
+        warehouseId,
+        quantity: Number(outputQuantity),
+        costPerUnit: destCostPerUnit,
+        movementType: 'production_receipt',
+        batchNumber: batchCode,
+        sourceDocument: { type: 'stock_conversion', number: 'CONV' },
+        reason: `Converted from ${sourceProduct.name}`,
+        notes,
+        userId: req.user._id,
+        openQuantity: openQuantity !== undefined && openQuantity !== null ? Number(openQuantity) : undefined, // pass openQuantity
+    });
+
+    // 3. Automatically log a completed ProductionBatch
+    const ProductionBatchModel = mongoose.model('ProductionBatch');
+    const batchResult = await ProductionBatchModel.create([{
+        batchNo: batchCode,
+        date: new Date(),
+        supplierShortCode: 'CONV',
+        product: destProduct.name,
+        productId: destinationProductId,
+        warehouseId,
+        inputWeight_day: Number(inputQuantity),
+        outputWeight_day: Number(outputQuantity),
+        materialCost: Number(materialCost.toFixed(2)),
+        laborCost: Number(Number(laborCost).toFixed(2)),
+        overheadCost: Number(Number(overheadCost).toFixed(2)),
+        machineAssignments,
+        processingStage: 'completed',
+        qcStatus: 'approved',
+        status: 'completed',
+        remark: notes || `Direct stock conversion from ${sourceProduct.name} (${inputQuantity} ${sourceProduct.unitOfMeasure || 'kg'}) to ${destProduct.name} (${outputQuantity} ${destProduct.unitOfMeasure || 'kg'})`,
+        createdBy: req.user._id,
+        updatedBy: req.user._id,
+    }]);
+    productionBatch = batchResult[0];
+
+    res.status(201).json({
+        success: true,
+        message: 'Stock converted successfully and production batch logged',
+        data: {
+            sourceProductId,
+            destinationProductId,
+            warehouseId,
+            inputQuantity,
+            outputQuantity,
+            productionBatch
+        }
+    });
 });
 
 /**
@@ -524,120 +487,106 @@ export const convertStockBom = asyncHandler(async (req, res) => {
     const multiplier = Number(inputQuantity) / component.quantity;
     const outputQuantity = multiplier * bom.outputQuantity;
 
-    // Start mongoose transaction session
-    const session = await mongoose.startSession();
     let productionBatch = null;
+    let totalMaterialCost = 0;
 
-    try {
-        await session.withTransaction(async () => {
-            let totalMaterialCost = 0;
+    // 1. Decrease stock for all components in the BOM
+    for (const comp of bom.components) {
+        if (!comp.productId) continue;
 
-            // 1. Decrease stock for all components in the BOM
-            for (const comp of bom.components) {
-                if (!comp.productId) continue;
+        const reqQty = comp.quantity * multiplier;
+        const decResult = await decreaseStock({
+            productId: comp.productId,
+            warehouseId,
+            quantity: reqQty,
+            movementType: 'production_issue',
+            sourceDocument: { type: 'stock_conversion', number: 'CONV-BOM' },
+            reason: `Consumed in BOM conversion: ${bom.bomCode}`,
+            notes,
+            userId: req.user._id,
+            allowNegative: warehouse.settings?.allowNegativeStock || false
+        });
 
-                const reqQty = comp.quantity * multiplier;
-                const decResult = await decreaseStock({
-                    productId: comp.productId,
-                    warehouseId,
-                    quantity: reqQty,
-                    movementType: 'production_issue',
-                    sourceDocument: { type: 'stock_conversion', number: 'CONV-BOM' },
-                    reason: `Consumed in BOM conversion: ${bom.bomCode}`,
-                    notes,
-                    userId: req.user._id,
-                    session,
-                    allowNegative: warehouse.settings?.allowNegativeStock || false
-                });
+        const unitCost = decResult.stockItem?.costPerUnit || comp.standardCost || 0;
+        totalMaterialCost += unitCost * reqQty;
+    }
 
-                const unitCost = decResult.stockItem?.costPerUnit || comp.standardCost || 0;
-                totalMaterialCost += unitCost * reqQty;
-            }
+    // 2. Generate unique batch code
+    const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const finishedProductCode = bom.finishedProductCode || 'FIN';
+    const batchCode = `${generateJulianBatchCode(finishedProductCode)}-${uniqueSuffix}`;
 
-            // 2. Generate unique batch code
-            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-            const finishedProductCode = bom.finishedProductCode || 'FIN';
-            const batchCode = `${generateJulianBatchCode(finishedProductCode)}-${uniqueSuffix}`;
-
-            // 3. Calculate destination cost per unit
-            const finalLaborCost = req.body.laborCost !== undefined ? Number(req.body.laborCost) : ((bom.totalLaborCost || 0) * multiplier);
-            const finalOverheadCost = req.body.overheadCost !== undefined ? Number(req.body.overheadCost) : ((bom.totalOverheadCost || 0) * multiplier);
-            
-            let machineCost = 0;
-            if (machineAssignments && machineAssignments.length > 0) {
-                const Machine = mongoose.model('Machine');
-                for (const assignment of machineAssignments) {
-                    if (assignment.machineId) {
-                        const machine = await Machine.findById(assignment.machineId);
-                        if (machine) {
-                            machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
-                        }
-                    }
+    // 3. Calculate destination cost per unit
+    const finalLaborCost = req.body.laborCost !== undefined ? Number(req.body.laborCost) : ((bom.totalLaborCost || 0) * multiplier);
+    const finalOverheadCost = req.body.overheadCost !== undefined ? Number(req.body.overheadCost) : ((bom.totalOverheadCost || 0) * multiplier);
+    
+    let machineCost = 0;
+    if (machineAssignments && machineAssignments.length > 0) {
+        const Machine = mongoose.model('Machine');
+        for (const assignment of machineAssignments) {
+            if (assignment.machineId) {
+                const machine = await Machine.findById(assignment.machineId);
+                if (machine) {
+                    machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
                 }
             }
-
-            const totalProductionCost = totalMaterialCost + finalLaborCost + finalOverheadCost + machineCost;
-            const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
-
-            // 4. Increase stock for finished goods
-            await increaseStock({
-                productId: bom.finishedProductId._id,
-                warehouseId,
-                quantity: outputQuantity,
-                costPerUnit: destCostPerUnit,
-                movementType: 'production_receipt',
-                batchNumber: batchCode,
-                sourceDocument: { type: 'stock_conversion', number: 'CONV-BOM' },
-                reason: `Produced from BOM conversion: ${bom.bomCode}`,
-                notes,
-                userId: req.user._id,
-                session,
-            });
-
-            // 5. Create completed ProductionBatch
-            const ProductionBatchModel = mongoose.model('ProductionBatch');
-            const batchResult = await ProductionBatchModel.create([{
-                batchNo: batchCode,
-                date: new Date(),
-                supplierShortCode: 'CONV',
-                product: bom.finishedProductName,
-                productId: bom.finishedProductId._id,
-                warehouseId,
-                inputWeight_day: Number(inputQuantity),
-                outputWeight_day: Number(outputQuantity),
-                materialCost: Number(totalMaterialCost.toFixed(2)),
-                laborCost: Number(finalLaborCost.toFixed(2)),
-                overheadCost: Number(finalOverheadCost.toFixed(2)),
-                machineAssignments,
-                processingStage: 'completed',
-                qcStatus: 'approved',
-                status: 'completed',
-                remark: notes || `BOM conversion using ${bom.bomCode} (${bom.name}) with ${inputQuantity} ${component.unitOfMeasure || 'kg'} of ${component.productName}`,
-                createdBy: req.user._id,
-                updatedBy: req.user._id,
-            }], { session });
-            
-            productionBatch = batchResult[0];
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Stock converted using BOM successfully and production batch logged',
-            data: {
-                bomId,
-                warehouseId,
-                mainProductId,
-                inputQuantity,
-                outputQuantity,
-                productionBatch
-            }
-        });
-    } catch (error) {
-        res.status(400);
-        throw new Error(error.message || 'BOM-based stock conversion failed');
-    } finally {
-        session.endSession();
+        }
     }
+
+    const totalProductionCost = totalMaterialCost + finalLaborCost + finalOverheadCost + machineCost;
+    const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
+
+    // 4. Increase stock for finished goods
+    await increaseStock({
+        productId: bom.finishedProductId._id,
+        warehouseId,
+        quantity: outputQuantity,
+        costPerUnit: destCostPerUnit,
+        movementType: 'production_receipt',
+        batchNumber: batchCode,
+        sourceDocument: { type: 'stock_conversion', number: 'CONV-BOM' },
+        reason: `Produced from BOM conversion: ${bom.bomCode}`,
+        notes,
+        userId: req.user._id,
+    });
+
+    // 5. Create completed ProductionBatch
+    const ProductionBatchModel = mongoose.model('ProductionBatch');
+    const batchResult = await ProductionBatchModel.create([{
+        batchNo: batchCode,
+        date: new Date(),
+        supplierShortCode: 'CONV',
+        product: bom.finishedProductName,
+        productId: bom.finishedProductId._id,
+        warehouseId,
+        inputWeight_day: Number(inputQuantity),
+        outputWeight_day: Number(outputQuantity),
+        materialCost: Number(totalMaterialCost.toFixed(2)),
+        laborCost: Number(finalLaborCost.toFixed(2)),
+        overheadCost: Number(finalOverheadCost.toFixed(2)),
+        machineAssignments,
+        processingStage: 'completed',
+        qcStatus: 'approved',
+        status: 'completed',
+        remark: notes || `BOM conversion using ${bom.bomCode} (${bom.name}) with ${inputQuantity} ${component.unitOfMeasure || 'kg'} of ${component.productName}`,
+        createdBy: req.user._id,
+        updatedBy: req.user._id,
+    }]);
+    
+    productionBatch = batchResult[0];
+
+    res.status(201).json({
+        success: true,
+        message: 'Stock converted using BOM successfully and production batch logged',
+        data: {
+            bomId,
+            warehouseId,
+            mainProductId,
+            inputQuantity,
+            outputQuantity,
+            productionBatch
+        }
+    });
 });
 
 /**
@@ -688,109 +637,97 @@ export const convertStockRecipe = asyncHandler(async (req, res) => {
     const multiplier = Number(inputQuantity) / recipe.inputQuantity;
     const outputQuantity = multiplier * recipe.outputQuantity;
 
-    const session = await mongoose.startSession();
     let productionBatch = null;
 
-    try {
-        await session.withTransaction(async () => {
-            // 1. Decrease source product stock
-            const decResult = await decreaseStock({
-                productId: sourceProduct._id,
-                warehouseId,
-                quantity: Number(inputQuantity),
-                movementType: 'production_issue',
-                sourceDocument: { type: 'stock_conversion', number: 'CONV-RECIPE' },
-                reason: `Consumed in Recipe: ${recipe.recipeCode} (${recipe.name})`,
-                notes,
-                userId: req.user._id,
-                session,
-                allowNegative: warehouse.settings?.allowNegativeStock || false,
-                batchNumber: batchNumber || null,
-            });
+    // 1. Decrease source product stock
+    const decResult = await decreaseStock({
+        productId: sourceProduct._id,
+        warehouseId,
+        quantity: Number(inputQuantity),
+        movementType: 'production_issue',
+        sourceDocument: { type: 'stock_conversion', number: 'CONV-RECIPE' },
+        reason: `Consumed in Recipe: ${recipe.recipeCode} (${recipe.name})`,
+        notes,
+        userId: req.user._id,
+        allowNegative: warehouse.settings?.allowNegativeStock || false,
+        batchNumber: batchNumber || null,
+    });
 
-            const sourceUnitCost = decResult.stockItem?.costPerUnit || sourceProduct.basePrice || 0;
-            const materialCost = sourceUnitCost * Number(inputQuantity);
+    const sourceUnitCost = decResult.stockItem?.costPerUnit || sourceProduct.basePrice || 0;
+    const materialCost = sourceUnitCost * Number(inputQuantity);
 
-            let machineCost = 0;
-            if (machineAssignments && machineAssignments.length > 0) {
-                const Machine = mongoose.model('Machine');
-                for (const assignment of machineAssignments) {
-                    if (assignment.machineId) {
-                        const machine = await Machine.findById(assignment.machineId);
-                        if (machine) {
-                            machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
-                        }
-                    }
+    let machineCost = 0;
+    if (machineAssignments && machineAssignments.length > 0) {
+        const Machine = mongoose.model('Machine');
+        for (const assignment of machineAssignments) {
+            if (assignment.machineId) {
+                const machine = await Machine.findById(assignment.machineId);
+                if (machine) {
+                    machineCost += (Number(assignment.hours) || 0) * (machine.hourlyCost || 0);
                 }
             }
-
-            const totalProductionCost = materialCost + Number(laborCost) + Number(overheadCost) + machineCost;
-            const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
-
-            // 2. Generate batch number
-            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-            const finishedProductCode = destProduct.productCode || 'FIN';
-            const batchCode = `${generateJulianBatchCode(finishedProductCode)}-${uniqueSuffix}`;
-
-            // 3. Increase destination product stock
-            await increaseStock({
-                productId: destProduct._id,
-                warehouseId,
-                quantity: outputQuantity,
-                costPerUnit: destCostPerUnit,
-                movementType: 'production_receipt',
-                batchNumber: batchCode,
-                sourceDocument: { type: 'stock_conversion', number: 'CONV-RECIPE' },
-                reason: `Produced from Recipe: ${recipe.recipeCode} (${recipe.name})`,
-                notes,
-                userId: req.user._id,
-                session,
-                openQuantity: openQuantity !== undefined && openQuantity !== null ? Number(openQuantity) : undefined, // pass openQuantity
-            });
-
-            // 4. Log ProductionBatch with costing details
-            const ProductionBatchModel = mongoose.model('ProductionBatch');
-            const batchResult = await ProductionBatchModel.create([{
-                batchNo: batchCode,
-                date: new Date(),
-                supplierShortCode: 'CONV',
-                product: destProduct.name,
-                productId: destProduct._id,
-                warehouseId,
-                inputWeight_day: Number(inputQuantity),
-                outputWeight_day: Number(outputQuantity),
-                materialCost: Number(materialCost.toFixed(2)),
-                laborCost: Number(Number(laborCost).toFixed(2)),
-                overheadCost: Number(Number(overheadCost).toFixed(2)),
-                machineAssignments,
-                processingStage: 'completed',
-                qcStatus: 'approved',
-                status: 'completed',
-                remark: notes || `Recipe conversion using ${recipe.recipeCode} (${recipe.name}) with ${inputQuantity} ${sourceProduct.unitOfMeasure || 'kg'} of ${sourceProduct.name}`,
-                createdBy: req.user._id,
-                updatedBy: req.user._id,
-            }], { session });
-
-            productionBatch = batchResult[0];
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Stock converted using recipe successfully and production batch logged',
-            data: {
-                recipeId,
-                warehouseId,
-                inputQuantity,
-                outputQuantity,
-                productionBatch
-            }
-        });
-    } catch (error) {
-        res.status(400);
-        throw new Error(error.message || 'Recipe conversion failed');
-    } finally {
-        session.endSession();
+        }
     }
+
+    const totalProductionCost = materialCost + Number(laborCost) + Number(overheadCost) + machineCost;
+    const destCostPerUnit = outputQuantity > 0 ? +(totalProductionCost / outputQuantity).toFixed(2) : 0;
+
+    // 2. Generate batch number
+    const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const finishedProductCode = destProduct.productCode || 'FIN';
+    const batchCode = `${generateJulianBatchCode(finishedProductCode)}-${uniqueSuffix}`;
+
+    // 3. Increase destination product stock
+    await increaseStock({
+        productId: destProduct._id,
+        warehouseId,
+        quantity: outputQuantity,
+        costPerUnit: destCostPerUnit,
+        movementType: 'production_receipt',
+        batchNumber: batchCode,
+        sourceDocument: { type: 'stock_conversion', number: 'CONV-RECIPE' },
+        reason: `Produced from Recipe: ${recipe.recipeCode} (${recipe.name})`,
+        notes,
+        userId: req.user._id,
+        openQuantity: openQuantity !== undefined && openQuantity !== null ? Number(openQuantity) : undefined, // pass openQuantity
+    });
+
+    // 4. Log ProductionBatch with costing details
+    const ProductionBatchModel = mongoose.model('ProductionBatch');
+    const batchResult = await ProductionBatchModel.create([{
+        batchNo: batchCode,
+        date: new Date(),
+        supplierShortCode: 'CONV',
+        product: destProduct.name,
+        productId: destProduct._id,
+        warehouseId,
+        inputWeight_day: Number(inputQuantity),
+        outputWeight_day: Number(outputQuantity),
+        materialCost: Number(materialCost.toFixed(2)),
+        laborCost: Number(Number(laborCost).toFixed(2)),
+        overheadCost: Number(Number(overheadCost).toFixed(2)),
+        machineAssignments,
+        processingStage: 'completed',
+        qcStatus: 'approved',
+        status: 'completed',
+        remark: notes || `Recipe conversion using ${recipe.recipeCode} (${recipe.name}) with ${inputQuantity} ${sourceProduct.unitOfMeasure || 'kg'} of ${sourceProduct.name}`,
+        createdBy: req.user._id,
+        updatedBy: req.user._id,
+    }]);
+
+    productionBatch = batchResult[0];
+
+    res.status(201).json({
+        success: true,
+        message: 'Stock converted using recipe successfully and production batch logged',
+        data: {
+            recipeId,
+            warehouseId,
+            inputQuantity,
+            outputQuantity,
+            productionBatch
+        }
+    });
 });
 
 /**

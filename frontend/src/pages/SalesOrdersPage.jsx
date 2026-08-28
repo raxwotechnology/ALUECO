@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, ShoppingCart } from 'lucide-react';
+import { Plus, Search, Eye, ShoppingCart, CheckCircle, Truck, PackageCheck, Ban, FileText, MoreVertical } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -9,7 +9,7 @@ import Table from '../components/ui/Table';
 import Badge from '../components/ui/Badge';
 import Pagination from '../components/ui/Pagination';
 import EmptyState from '../components/ui/EmptyState';
-import { useSalesOrders } from '../features/salesOrders/useSalesOrders';
+import { useSalesOrders, useChangeOrderStatus } from '../features/salesOrders/useSalesOrders';
 import { useAuthStore } from '../store/authStore';
 
 const statusVariant = {
@@ -29,7 +29,11 @@ const statusVariant = {
 export default function SalesOrdersPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
+    const changeStatus = useChangeOrderStatus();
     const canCreate = ['admin', 'manager', 'sales_manager', 'sales_rep'].includes(user?.role);
+    const canApprove = ['admin', 'manager', 'sales_manager', 'accountant'].includes(user?.role);
+    const canDispatch = ['admin', 'manager', 'warehouse_staff'].includes(user?.role);
+    const canCancel = ['admin', 'manager', 'sales_manager'].includes(user?.role);
 
     const [filters, setFilters] = useState({
         search: '', status: '',
@@ -44,6 +48,80 @@ export default function SalesOrdersPage() {
     const fmt = (n) => new Intl.NumberFormat('en-LK', {
         style: 'currency', currency: 'LKR', minimumFractionDigits: 2,
     }).format(n || 0);
+
+    const handleStatusChange = async (orderId, newStatus, reason = '') => {
+        try {
+            await changeStatus.mutateAsync({ id: orderId, status: newStatus, reason });
+        } catch (error) {
+            // Error handled by mutation
+        }
+    };
+
+    const getAvailableActions = (order) => {
+        const actions = [];
+        
+        if (['draft', 'pending_approval', 'pending'].includes(order.status) && canApprove) {
+            actions.push({
+                label: 'Approve',
+                icon: CheckCircle,
+                variant: 'primary',
+                onClick: () => handleStatusChange(order._id, 'approved'),
+            });
+        }
+        if (order.status === 'approved' && canDispatch) {
+            actions.push({
+                label: 'Dispatch',
+                icon: Truck,
+                variant: 'primary',
+                onClick: () => handleStatusChange(order._id, 'dispatched'),
+            });
+        }
+        if (order.status === 'dispatched' && canDispatch) {
+            actions.push({
+                label: 'Mark Delivered',
+                icon: PackageCheck,
+                variant: 'primary',
+                onClick: () => handleStatusChange(order._id, 'delivered'),
+            });
+        }
+        if (order.status === 'delivered' && canApprove) {
+            actions.push({
+                label: 'Complete',
+                icon: CheckCircle,
+                variant: 'success',
+                onClick: () => handleStatusChange(order._id, 'completed'),
+            });
+        }
+        if (order.status === 'delivered' && !order.invoiceId && canApprove) {
+            actions.push({
+                label: 'Create Invoice',
+                icon: FileText,
+                variant: 'outline',
+                onClick: () => navigate(`/invoices/from-sales-order?orderIds=${order._id}`),
+            });
+        }
+        if (order.invoiceId) {
+            actions.push({
+                label: 'View Invoice',
+                icon: FileText,
+                variant: 'outline',
+                onClick: () => navigate(`/invoices/${order.invoiceId._id || order.invoiceId}`),
+            });
+        }
+        if (!['completed', 'cancelled'].includes(order.status) && canCancel) {
+            actions.push({
+                label: 'Cancel',
+                icon: Ban,
+                variant: 'danger',
+                onClick: () => {
+                    const reason = prompt('Enter cancellation reason:');
+                    if (reason) handleStatusChange(order._id, 'cancelled', reason);
+                },
+            });
+        }
+        
+        return actions;
+    };
 
     const columns = [
         {
@@ -88,12 +166,52 @@ export default function SalesOrdersPage() {
             render: (r) => <Badge variant={statusVariant[r.status]}>{r.status.replace(/_/g, ' ')}</Badge>,
         },
         {
-            key: 'actions', label: '', width: '60px',
+            key: 'actions', label: 'Actions', width: '200px',
+            render: (r) => {
+                const actions = getAvailableActions(r);
+                if (actions.length === 0) return <span className="text-gray-400 text-sm">—</span>;
+                
+                return (
+                    <div className="flex items-center gap-1">
+                        {actions.slice(0, 2).map((action, idx) => (
+                            <button
+                                key={idx}
+                                onClick={(e) => { e.stopPropagation(); action.onClick(); }}
+                                className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 ${
+                                    action.variant === 'primary' 
+                                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                                        : action.variant === 'success'
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        : action.variant === 'danger'
+                                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                                title={action.label}
+                            >
+                                <action.icon size={14} />
+                                <span className="hidden sm:inline">{action.label}</span>
+                            </button>
+                        ))}
+                        {actions.length > 2 && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/sales-orders/${r._id}`); }}
+                                className="p-1.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                title="View all actions"
+                            >
+                                <MoreVertical size={14} />
+                            </button>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'view', label: '', width: '50px',
             render: (r) => (
                 <button
                     onClick={(e) => { e.stopPropagation(); navigate(`/sales-orders/${r._id}`); }}
                     className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded"
-                    title="View"
+                    title="View details"
                 >
                     <Eye size={16} />
                 </button>
@@ -108,9 +226,6 @@ export default function SalesOrdersPage() {
                 description="Manage customer orders"
                 actions={canCreate && (
                     <div className="flex gap-2">
-                        {/* <Button variant="primary" onClick={() => navigate('/sales-orders/new')}>
-                            <Plus size={16} className="mr-1.5" /> New Order
-                        </Button> */}
                         <Button variant="outline" onClick={() => navigate('/pos')}>
                             <ShoppingCart size={16} className="mr-1.5" /> POS Mode
                         </Button>

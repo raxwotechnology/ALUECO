@@ -21,6 +21,7 @@ import { useCategories } from '../features/products/useProducts';
 import { useCreateSalesOrder } from '../features/salesOrders/useSalesOrders';
 import QuickCreateCustomerModal from '../features/customers/QuickCreateCustomerModal';
 import PosReceiptPrintModal from '../components/print/PosReceiptPrintModal';
+import ProductFormModal from '../features/products/ProductFormModal';
 import api from '../api/axios';
 import Modal from '../components/ui/Modal';
 
@@ -32,7 +33,8 @@ export default function PosPage() {
     // Cashier Shift state
     const [activeShift, setActiveShift] = useState(null);
     const [checkingShift, setCheckingShift] = useState(true);
-    const [openingFloatVal, setOpeningFloatVal] = useState('5000');
+    const [openingFloatVal, setOpeningFloatVal] = useState('');
+    const [terminalId, setTerminalId] = useState('POS-01');
     const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
     const [closingActualCash, setClosingActualCash] = useState(0);
     const [closingActualCard, setClosingActualCard] = useState(0);
@@ -68,7 +70,7 @@ export default function PosPage() {
         try {
             const { data } = await api.post('/pos-shifts/open', {
                 openingFloat: Number(openingFloatVal),
-                terminalId: 'TERM-01'
+                terminalId: terminalId
             });
             if (data.success) {
                 toast.success('POS Cashier Shift Opened Successfully!');
@@ -119,6 +121,7 @@ export default function PosPage() {
     const [taxMode, setTaxMode] = useState('item');
     const [overrideTaxRate, setOverrideTaxRate] = useState(18);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+    const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
     // Payment states
     const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -130,6 +133,7 @@ export default function PosPage() {
     const [chequeStatus, setChequeStatus] = useState('pending');
     const [advancePaidAmount, setAdvancePaidAmount] = useState('');
     const [advanceMethod, setAdvanceMethod] = useState('cash');
+    const [partialPaidAmount, setPartialPaidAmount] = useState('');
 
     // POS Print Receipt Modal state
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -401,13 +405,29 @@ export default function PosPage() {
         if (!saveAsDraft) {
             if (paymentMethod === 'advance') {
                 const advVal = Number(advancePaidAmount);
-                if (!advancePaidAmount || isNaN(advVal) || advVal < 0) {
-                    toast.error('Please enter a valid advance payment amount');
+                if (advancePaidAmount === '' || isNaN(advVal) || advVal <= 0) {
+                    toast.error('Please enter a valid advance payment amount greater than 0');
                     return;
                 }
-            } else if (paymentMethod !== 'cash' && !bankAccountId) {
-                toast.error('Select Bank/Cash Account');
-                return;
+                if (advVal > totals.grandTotal) {
+                    toast.error('Advance amount cannot exceed total order amount');
+                    return;
+                }
+            } else if (paymentMethod !== 'cash') {
+                // For card, bank_transfer, cheque - these are partial payments
+                const partialVal = Number(partialPaidAmount);
+                if (partialPaidAmount === '' || isNaN(partialVal) || partialVal <= 0) {
+                    toast.error('Please enter a valid partial payment amount greater than 0');
+                    return;
+                }
+                if (partialVal > totals.grandTotal) {
+                    toast.error('Partial payment amount cannot exceed total order amount');
+                    return;
+                }
+                if (!bankAccountId) {
+                    toast.error('Select Bank/Cash Account');
+                    return;
+                }
             }
 
             if (paymentMethod === 'cheque') {
@@ -417,9 +437,15 @@ export default function PosPage() {
             }
         }
 
-        const effectiveAdvance = paymentMethod === 'advance' 
-            ? Number(advancePaidAmount || 0) 
-            : totals.grandTotal;
+        // Calculate effective advance/partial payment
+        let effectiveAdvance = 0;
+        if (paymentMethod === 'advance') {
+            effectiveAdvance = Number(advancePaidAmount || 0);
+        } else if (paymentMethod !== 'cash') {
+            // Card, bank_transfer, cheque are partial payments
+            effectiveAdvance = Number(partialPaidAmount || 0);
+        }
+        // Cash = full payment, so advancePaidAmount = 0
 
         const payload = {
             customerId: activeCustomerId,
@@ -511,6 +537,21 @@ export default function PosPage() {
                     <form onSubmit={handleOpenShift} className="space-y-6 text-left">
                         <div className="space-y-2">
                             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Terminal ID
+                            </label>
+                            <select
+                                value={terminalId}
+                                onChange={(e) => setTerminalId(e.target.value)}
+                                className="w-full bg-slate-950/80 border border-slate-800/80 rounded-2xl py-3.5 px-4 text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-mono"
+                            >
+                                <option value="POS-01">POS-01 (Main Counter)</option>
+                                <option value="POS-02">POS-02 (Experience Center)</option>
+                                <option value="POS-03">POS-03 (Mobile)</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">
                                 Initial Cash Float
                             </label>
                             <div className="relative group">
@@ -524,8 +565,20 @@ export default function PosPage() {
                                     value={openingFloatVal}
                                     onChange={(e) => setOpeningFloatVal(e.target.value)}
                                     className="w-full bg-slate-950/80 border border-slate-800/80 rounded-2xl py-3.5 pl-14 pr-4 text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-mono placeholder-slate-700"
-                                    placeholder="e.g., 5000"
+                                    placeholder="Enter initial float amount"
                                 />
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                                {[1000, 2500, 5000, 10000, 15000].map((amount) => (
+                                    <button
+                                        key={amount}
+                                        type="button"
+                                        onClick={() => setOpeningFloatVal(amount.toString())}
+                                        className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-300 text-xs font-medium hover:bg-indigo-600/20 hover:border-indigo-500/50 hover:text-indigo-300 transition-all"
+                                    >
+                                        {amount.toLocaleString()}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -596,6 +649,14 @@ export default function PosPage() {
                 {/* Collapsible settings panel */}
                 {isSettingsOpen && (
                     <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-3 items-center text-sm">
+                        <button
+                            onClick={() => setIsProductModalOpen(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-xs font-semibold"
+                        >
+                            <Plus size={14} />
+                            Add Product
+                        </button>
+
                         <div className="flex items-center gap-2 min-w-[180px] flex-1">
                             <Package size={14} className="text-gray-400 flex-shrink-0" />
                             <div className="flex-1">
@@ -961,6 +1022,14 @@ export default function PosPage() {
                 onCreated={(c) => setCustomerId(c._id)}
             />
 
+            <ProductFormModal
+                isOpen={isProductModalOpen}
+                onClose={() => {
+                    setIsProductModalOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['products', 'active', 'pos'] });
+                }}
+            />
+
             <PosReceiptPrintModal
                 isOpen={isReceiptModalOpen}
                 onClose={() => setIsReceiptModalOpen(false)}
@@ -1231,6 +1300,9 @@ function CartPanel({
                                         if (pm.id === 'advance' && (!advancePaidAmount || +advancePaidAmount === 0)) {
                                             setAdvancePaidAmount((totals.grandTotal * 0.5).toFixed(2));
                                         }
+                                        if (['card', 'bank_transfer', 'cheque'].includes(pm.id) && (!partialPaidAmount || +partialPaidAmount === 0)) {
+                                            setPartialPaidAmount((totals.grandTotal * 0.5).toFixed(2));
+                                        }
                                     }}
                                     className={`py-1.5 px-0.5 rounded-xl text-[11px] font-bold border-2 transition-all flex flex-col items-center justify-center gap-1 ${
                                         paymentMethod === pm.id
@@ -1297,6 +1369,49 @@ function CartPanel({
                                                 {m === 'bank_transfer' ? 'Bank' : m}
                                             </button>
                                         ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Partial Payment UI Section for Card/Bank Transfer/Cheque */}
+                        {['card', 'bank_transfer', 'cheque'].includes(paymentMethod) && (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5 my-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-amber-900">Partial Payment Amount (LKR)</span>
+                                    <div className="flex gap-1">
+                                        {[20, 30, 50, 70, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                type="button"
+                                                onClick={() => setPartialPaidAmount((totals.grandTotal * (pct / 100)).toFixed(2))}
+                                                className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-amber-700 border border-amber-200 rounded hover:bg-amber-100"
+                                            >
+                                                {pct}%
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={totals.grandTotal}
+                                    step="0.01"
+                                    value={partialPaidAmount}
+                                    onChange={(e) => setPartialPaidAmount(e.target.value)}
+                                    placeholder="Enter partial LKR amount"
+                                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm font-bold text-amber-950 font-mono bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                />
+
+                                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-amber-200/60 font-mono">
+                                    <div>
+                                        <span className="text-gray-500 block text-[10px] font-sans uppercase">Paid Now</span>
+                                        <span className="font-bold text-emerald-700">{fmt(+partialPaidAmount || 0)}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-gray-500 block text-[10px] font-sans uppercase">Balance Due</span>
+                                        <span className="font-bold text-rose-700">{fmt(Math.max(0, totals.grandTotal - (+partialPaidAmount || 0)))}</span>
                                     </div>
                                 </div>
                             </div>

@@ -168,6 +168,7 @@ const salesOrderSchema = new mongoose.Schema(
         // Status
         status: {
             type: String,
+            enum: ['draft', 'pending_approval', 'approved', 'Confirmed', 'In Production', 'Installation', 'Completed', 'completed', 'invoiced', 'pending', 'dispatched', 'delivered', 'cancelled', 'on_hold', 'cutting', 'assembly', 'glazing', 'qa', 'ready'],
             default: 'draft',
         },
 
@@ -221,6 +222,15 @@ const salesOrderSchema = new mongoose.Schema(
             paidAt: Date
         }],
         totalPaid: { type: Number, default: 0 },
+
+        // Alueco project fields
+        businessType: { type: String, enum: ['standard', 'alueco'], default: 'standard' },
+        quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'AluQuotation' },
+        projectName: { type: String, trim: true },
+        customerName: { type: String, trim: true },
+        invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+        deliveryDate: { type: Date },
+
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         deletedAt: { type: Date, default: null },

@@ -13,6 +13,39 @@ export const createQuotation = asyncHandler(async (req, res) => {
     if (req.body.inquiryId === '') delete req.body.inquiryId;
     if (req.body.inquiry === '') delete req.body.inquiry;
 
+    // Clean up items array - remove empty product IDs
+    if (req.body.items && Array.isArray(req.body.items)) {
+        req.body.items = req.body.items.map(item => ({
+            ...item,
+            product: item.product && item.product !== '' ? item.product : undefined
+        }));
+    }
+
+    // Map frontend field names to backend schema
+    if (req.body.expiryDate) {
+        req.body.terms = {
+            ...req.body.terms,
+            validUntil: req.body.expiryDate
+        };
+        delete req.body.expiryDate;
+    }
+
+    if (req.body.incoterms) {
+        req.body.terms = {
+            ...req.body.terms,
+            incoterm: req.body.incoterms
+        };
+        delete req.body.incoterms;
+    }
+
+    if (req.body.portOfLoading) {
+        req.body.terms = {
+            ...req.body.terms,
+            notes: req.body.portOfLoading
+        };
+        delete req.body.portOfLoading;
+    }
+
     // Auto-register unregistered customer if customerName is provided but customerId is not
     if (!req.body.customerId && req.body.customerName) {
         const { default: Customer } = await import('../models/Customer.js');
@@ -116,7 +149,15 @@ export const createQuotation = asyncHandler(async (req, res) => {
         req
     });
 
-    res.status(201).json({ success: true, data: quotation });
+    // Transform data to match frontend field names
+    const transformedQuotation = {
+        ...quotation.toObject(),
+        expiryDate: quotation.terms?.validUntil || null,
+        incoterms: quotation.terms?.incoterm || 'FOB',
+        portOfLoading: quotation.terms?.notes || ''
+    };
+
+    res.status(201).json({ success: true, data: transformedQuotation });
 });
 
 /**
@@ -141,9 +182,16 @@ export const getQuotations = asyncHandler(async (req, res) => {
         Quotation.countDocuments(filter)
     ]);
 
+    // Transform data to match frontend field names
+    const transformedQuotations = quotations.map(q => ({
+        ...q.toObject(),
+        expiryDate: q.terms?.validUntil || null,
+        incoterms: q.terms?.incoterm || 'FOB'
+    }));
+
     res.json({
         success: true,
-        data: quotations,
+        data: transformedQuotations,
         total,
         page: Number(page),
         pages: Math.ceil(total / Number(limit))
@@ -166,7 +214,14 @@ export const getQuotationById = asyncHandler(async (req, res) => {
         throw new Error('Quotation not found');
     }
 
-    res.json({ success: true, data: quotation });
+    // Transform data to match frontend field names
+    const transformedQuotation = {
+        ...quotation.toObject(),
+        expiryDate: quotation.terms?.validUntil || null,
+        incoterms: quotation.terms?.incoterm || 'FOB'
+    };
+
+    res.json({ success: true, data: transformedQuotation });
 });
 
 /**
@@ -178,6 +233,39 @@ export const updateQuotation = asyncHandler(async (req, res) => {
     if (req.body.customerId === '') delete req.body.customerId;
     if (req.body.inquiryId === '') delete req.body.inquiryId;
     if (req.body.inquiry === '') delete req.body.inquiry;
+
+    // Clean up items array - remove empty product IDs
+    if (req.body.items && Array.isArray(req.body.items)) {
+        req.body.items = req.body.items.map(item => ({
+            ...item,
+            product: item.product && item.product !== '' ? item.product : undefined
+        }));
+    }
+
+    // Map frontend field names to backend schema
+    if (req.body.expiryDate) {
+        req.body.terms = {
+            ...req.body.terms,
+            validUntil: req.body.expiryDate
+        };
+        delete req.body.expiryDate;
+    }
+
+    if (req.body.incoterms) {
+        req.body.terms = {
+            ...req.body.terms,
+            incoterm: req.body.incoterms
+        };
+        delete req.body.incoterms;
+    }
+
+    if (req.body.portOfLoading) {
+        req.body.terms = {
+            ...req.body.terms,
+            notes: req.body.portOfLoading
+        };
+        delete req.body.portOfLoading;
+    }
 
     // Auto-register unregistered customer if customerName is provided but customerId is not
     if (!req.body.customerId && req.body.customerName) {

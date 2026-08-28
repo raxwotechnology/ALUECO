@@ -49,8 +49,15 @@ const ShipmentsPage = () => {
     const fetchShipments = async () => {
         try {
             const { data } = await api.get('/export-shipments');
+            console.log('Fetched shipments:', data.data);
+            if (data.data && data.data.length > 0) {
+                console.log('First shipment data:', data.data[0]);
+                console.log('First shipment logistics:', data.data[0].logistics);
+                console.log('First shipment eta:', data.data[0].logistics?.eta);
+            }
             setShipments(data.data || []);
         } catch (error) {
+            console.error('Error fetching shipments:', error);
             toast.error('Failed to load shipments');
         } finally {
             setLoading(false);
@@ -65,12 +72,12 @@ const ShipmentsPage = () => {
         if (shipment) {
             setSelectedShipment(shipment);
             setFormData({
-                bookingReference: shipment.bookingReference || '',
-                destinationCountry: shipment.destinationCountry || '',
-                vesselName: shipment.vesselName || '',
-                containerNumber: shipment.containerNumber || '',
-                sealNumber: shipment.sealNumber || '',
-                estimatedArrivalDate: shipment.estimatedArrivalDate ? new Date(shipment.estimatedArrivalDate).toISOString().split('T')[0] : '',
+                bookingReference: shipment.shipmentCode || shipment.bookingReference || '',
+                destinationCountry: shipment.logistics?.portOfDischarge || shipment.destinationCountry || '',
+                vesselName: shipment.logistics?.vesselName || shipment.vesselName || '',
+                containerNumber: shipment.containerDetails?.containerNumber || shipment.containerNumber || '',
+                sealNumber: shipment.containerDetails?.sealNumber || shipment.sealNumber || '',
+                estimatedArrivalDate: shipment.logistics?.eta ? new Date(shipment.logistics.eta).toISOString().split('T')[0] : (shipment.estimatedArrivalDate ? new Date(shipment.estimatedArrivalDate).toISOString().split('T')[0] : ''),
                 status: shipment.status || 'booked'
             });
         } else {
@@ -91,6 +98,7 @@ const ShipmentsPage = () => {
     const handleSubmit = async (e) => {
         setSaving(true);
         try {
+            console.log('Submitting form data:', formData);
             if (selectedShipment) {
                 await api.put(`/export-shipments/${selectedShipment._id}`, formData);
                 toast.success('Shipment updated');
@@ -101,6 +109,7 @@ const ShipmentsPage = () => {
             setIsModalOpen(false);
             fetchShipments();
         } catch (error) {
+            console.error('Error saving shipment:', error);
             toast.error(error.response?.data?.message || 'Failed to save shipment');
         } finally {
             setSaving(false);
@@ -156,8 +165,8 @@ const ShipmentsPage = () => {
                                             <Ship size={20} className="text-slate-600" />
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-gray-900">{shipment.bookingReference}</h4>
-                                            <p className="text-xs text-gray-500">{shipment.vesselName || 'TBA'}</p>
+                                            <h4 className="font-bold text-gray-900">{shipment.shipmentCode || shipment.bookingReference}</h4>
+                                            <p className="text-xs text-gray-500">{shipment.logistics?.vesselName || shipment.vesselName || 'TBA'}</p>
                                         </div>
                                     </div>
 
@@ -169,7 +178,7 @@ const ShipmentsPage = () => {
                                         <div className="h-px w-8 bg-gray-200"></div>
                                         <div className="flex items-center gap-1.5">
                                             <MapPin size={14} className="text-gray-400" />
-                                            {shipment.destinationCountry}
+                                            {shipment.logistics?.portOfDischarge || shipment.destinationCountry}
                                         </div>
                                     </div>
                                 </div>
@@ -178,12 +187,21 @@ const ShipmentsPage = () => {
                                 <div className="flex gap-10">
                                     <div className="text-center px-4 border-l border-gray-100">
                                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Container</p>
-                                        <p className="text-sm font-mono font-bold text-gray-700">{shipment.containerNumber || 'PENDING'}</p>
+                                        <p className="text-sm font-mono font-bold text-gray-700">{shipment.containerDetails?.containerNumber || shipment.containerNumber || 'PENDING'}</p>
                                     </div>
                                     <div className="text-center px-4 border-l border-gray-100">
                                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">ETA</p>
                                         <p className="text-sm font-bold text-gray-700">
-                                            {shipment.estimatedArrivalDate ? format(new Date(shipment.estimatedArrivalDate), 'MMM dd') : '--'}
+                                            {(() => {
+                                                const etaDate = shipment.logistics?.eta || shipment.estimatedArrivalDate;
+                                                if (!etaDate) return '--';
+                                                try {
+                                                    return format(new Date(etaDate), 'MMM dd');
+                                                } catch (error) {
+                                                    console.error('Date formatting error:', error, etaDate);
+                                                    return '--';
+                                                }
+                                            })()}
                                         </p>
                                     </div>
                                     <div className="text-center px-4 border-l border-gray-100">
@@ -217,10 +235,10 @@ const ShipmentsPage = () => {
                                  <div className="mt-6 pt-6 border-t border-gray-150 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-700 bg-gray-50/50 p-4 rounded-xl">
                                      <div>
                                          <h5 className="font-bold text-gray-900 mb-2">Shipment Details</h5>
-                                         <p className="mb-1"><span className="text-gray-500">Seal Number:</span> <span className="font-mono font-semibold">{shipment.sealNumber || 'N/A'}</span></p>
-                                         <p className="mb-1"><span className="text-gray-500">Container Number:</span> <span className="font-mono font-semibold">{shipment.containerNumber || 'N/A'}</span></p>
-                                         <p className="mb-1"><span className="text-gray-500">Vessel Name:</span> <span className="font-semibold">{shipment.vesselName || 'N/A'}</span></p>
-                                         <p className="mb-1"><span className="text-gray-500">Destination:</span> <span className="font-semibold">{shipment.destinationCountry || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Seal Number:</span> <span className="font-mono font-semibold">{shipment.containerDetails?.sealNumber || shipment.sealNumber || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Container Number:</span> <span className="font-mono font-semibold">{shipment.containerDetails?.containerNumber || shipment.containerNumber || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Vessel Name:</span> <span className="font-semibold">{shipment.logistics?.vesselName || shipment.vesselName || 'N/A'}</span></p>
+                                         <p className="mb-1"><span className="text-gray-500">Destination:</span> <span className="font-semibold">{shipment.logistics?.portOfDischarge || shipment.destinationCountry || 'N/A'}</span></p>
                                      </div>
                                      <div>
                                          <h5 className="font-bold text-gray-900 mb-2">Transit Timeline</h5>

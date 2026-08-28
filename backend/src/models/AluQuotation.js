@@ -90,7 +90,9 @@ const aluQuotationSchema = new mongoose.Schema({
     discount: { type: Number, default: 0 },
     manualAdjustment: { type: Number, default: 0 }, // can be positive or negative special pricing
     
-    finalSellingPrice: { type: Number, default: 0 }, // final client-facing price
+    finalSellingPrice: { type: Number, default: 0 }, // final client-facing price (before VAT)
+    vatAmount: { type: Number, default: 0 }, // calculated VAT amount (18%)
+    finalPriceWithVat: { type: Number, default: 0 }, // final price including VAT
     
     status: {
         type: String,

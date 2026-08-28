@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getMe, logout, changePassword } from '../controllers/authController.js';
+import { register, login, getMe, logout, changePassword, verifyAdminPassword } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
 import { validate } from '../middleware/validateMiddleware.js';
@@ -30,5 +30,6 @@ router.post('/login', validate(loginSchema), login);
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 router.post('/change-password', protect, changePassword);
+router.post('/verify-admin-password', protect, verifyAdminPassword);
 
 export default router;

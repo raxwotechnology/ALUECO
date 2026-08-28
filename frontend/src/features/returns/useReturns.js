@@ -35,7 +35,7 @@ export const useApplyCreditNote = () => { const qc = useQueryClient(); return us
 // Damages
 export const useDamages = (filters = {}) => useQuery({ queryKey: ['damages', filters], queryFn: () => damagesApi.list(filters), keepPreviousData: true });
 export const useDamage = (id) => useQuery({ queryKey: ['damage', id], queryFn: () => damagesApi.getById(id), enabled: !!id });
-export const useCreateDamage = () => { const qc = useQueryClient(); return useMutation({ mutationFn: damagesApi.create, onSuccess: success(qc, ['damages', 'stock'], 'Damage recorded'), onError }); };
+export const useCreateDamage = () => { const qc = useQueryClient(); return useMutation({ mutationFn: damagesApi.create, onSuccess: success(qc, ['damages', 'stock', 'repairs'], 'Damage recorded'), onError }); };
 export const useWriteOffDamage = () => { const qc = useQueryClient(); return useMutation({ mutationFn: damagesApi.writeOff, onSuccess: success(qc, ['damages'], 'Written off'), onError }); };
 export const useDamageSummary = () => useQuery({ queryKey: ['damageSummary'], queryFn: damagesApi.summary });
 
@@ -49,5 +49,6 @@ export const useRecordSupplierCredit = () => { const qc = useQueryClient(); retu
 // Repairs
 export const useRepairs = (filters = {}) => useQuery({ queryKey: ['repairs', filters], queryFn: () => repairsApi.list(filters) });
 export const useRepair = (id) => useQuery({ queryKey: ['repair', id], queryFn: () => repairsApi.getById(id), enabled: !!id });
+export const useCreateRepair = () => { const qc = useQueryClient(); return useMutation({ mutationFn: repairsApi.create, onSuccess: success(qc, ['repairs'], 'Repair created'), onError }); };
 export const useStartRepair = () => { const qc = useQueryClient(); return useMutation({ mutationFn: ({ id, data }) => repairsApi.start(id, data), onSuccess: success(qc, ['repairs', 'repair'], 'Started'), onError }); };
 export const useCompleteRepair = () => { const qc = useQueryClient(); return useMutation({ mutationFn: ({ id, data }) => repairsApi.complete(id, data), onSuccess: success(qc, ['repairs', 'repair', 'stock'], 'Completed'), onError }); };

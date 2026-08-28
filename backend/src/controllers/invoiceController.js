@@ -5,6 +5,8 @@ import Customer from '../models/Customer.js';
 import SalesOrder from '../models/SalesOrder.js';
 import Warehouse from '../models/Warehouse.js';
 import { decreaseStock } from '../services/stockService.js';
+import AuditLog from '../models/AuditLog.js';
+import { broadcast } from '../services/socketService.js';
 
 const deductStockForInvoice = async (invoice, userId) => {
     if (invoice.invoiceType === 'proforma') return; // Proforma NEVER impacts stock
@@ -385,6 +387,94 @@ export const changeInvoiceStatus = asyncHandler(async (req, res) => {
     await updateCustomerBalance(invoice.customerId);
 
     res.json({ success: true, data: invoice });
+});
+
+/**
+ * PATCH /api/invoices/:id/payment-status
+ * Manually update payment status (for write-offs, disputes, etc.)
+ */
+export const updateInvoicePaymentStatus = asyncHandler(async (req, res) => {
+    const { paymentStatus, amountPaid, reason } = req.body;
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) { res.status(404); throw new Error('Invoice not found'); }
+
+    const validStatuses = ['unpaid', 'partially_paid', 'paid', 'overdue', 'cancelled', 'written_off'];
+    if (!validStatuses.includes(paymentStatus)) {
+        res.status(400);
+        throw new Error(`Invalid payment status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    // Store previous state for audit log
+    const previousStatus = invoice.paymentStatus;
+    const previousAmountPaid = invoice.amountPaid;
+    const previousBalanceDue = invoice.balanceDue;
+
+    // Update payment status
+    invoice.paymentStatus = paymentStatus;
+
+    // If amountPaid is provided, update it
+    if (amountPaid !== undefined) {
+        invoice.amountPaid = Number(amountPaid);
+        invoice.balanceDue = Math.max(0, +(invoice.grandTotal - invoice.amountPaid).toFixed(2));
+    }
+
+    // If marked as paid or written_off, set fullyPaidAt
+    if (['paid', 'written_off'].includes(paymentStatus) && !invoice.fullyPaidAt) {
+        invoice.fullyPaidAt = new Date();
+    }
+
+    // If written_off, add to notes
+    if (paymentStatus === 'written_off' && reason) {
+        invoice.internalNotes = (invoice.internalNotes || '') + `\n\nWritten off on ${new Date().toLocaleDateString()}: ${reason}`;
+    }
+
+    await invoice.save();
+    await updateCustomerBalance(invoice.customerId);
+
+    // Create audit log entry
+    await AuditLog.create({
+        action: 'PAYMENT_STATUS_UPDATE',
+        module: 'invoices',
+        documentId: invoice._id,
+        documentCode: invoice.invoiceNumber,
+        description: `Invoice payment status changed from ${previousStatus} to ${paymentStatus}`,
+        changes: {
+            paymentStatus: { from: previousStatus, to: paymentStatus },
+            amountPaid: { from: previousAmountPaid, to: invoice.amountPaid },
+            balanceDue: { from: previousBalanceDue, to: invoice.balanceDue },
+        },
+        previousData: {
+            paymentStatus: previousStatus,
+            amountPaid: previousAmountPaid,
+            balanceDue: previousBalanceDue,
+        },
+        performedBy: req.user._id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+    });
+
+    // Broadcast payment status change notification
+    try {
+        broadcast('payment_status_changed', {
+            invoiceId: invoice._id,
+            invoiceNumber: invoice.invoiceNumber,
+            customerId: invoice.customerId,
+            previousStatus: previousStatus,
+            newStatus: paymentStatus,
+            amountPaid: invoice.amountPaid,
+            balanceDue: invoice.balanceDue,
+            changedBy: req.user._id,
+            timestamp: new Date(),
+        });
+        
+        broadcast('financial_update', {
+            message: `Invoice ${invoice.invoiceNumber} payment status changed to ${paymentStatus}`,
+        });
+    } catch (error) {
+        console.error('Failed to broadcast payment status change:', error);
+    }
+
+    res.json({ success: true, data: invoice, message: `Payment status updated to ${paymentStatus}` });
 });
 
 /**

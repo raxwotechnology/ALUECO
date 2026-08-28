@@ -27,7 +27,7 @@ export const createTripLog = asyncHandler(async (req, res) => {
 
     // Update vehicle odometer if provided
     if (req.body.startOdometer) {
-        await Vehicle.findByIdAndUpdate(req.body.vehicleId, { 
+        await Vehicle.findByIdAndUpdate(req.body.vehicleId, {
             currentOdometer: req.body.startOdometer,
             status: 'in_use'
         });
@@ -85,10 +85,18 @@ export const completeTripLog = asyncHandler(async (req, res) => {
  */
 export const getTripLogs = asyncHandler(async (req, res) => {
     const trips = await TripLog.find({ deletedAt: null })
-        .populate('vehicleId', 'licensePlate make model')
-        .populate('driverId', 'firstName lastName')
         .sort({ startDate: -1 });
-    res.json({ success: true, data: trips });
+
+    // Manually populate vehicle data to ensure it works correctly
+    const tripsWithVehicles = await Promise.all(trips.map(async (trip) => {
+        const vehicle = await Vehicle.findById(trip.vehicleId).select('registrationNo make model');
+        return {
+            ...trip.toObject(),
+            vehicleId: vehicle || null
+        };
+    }));
+
+    res.json({ success: true, data: tripsWithVehicles });
 });
 
 /**
