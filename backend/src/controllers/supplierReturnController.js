@@ -5,6 +5,23 @@ import Supplier from '../models/Supplier.js';
 import Product from '../models/Product.js';
 import { decreaseStock } from '../services/stockService.js';
 
+/**
+ * PATCH /api/supplier-returns/:id/status
+ */
+export const updateSupplierReturnStatus = asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    const returnRecord = await SupplierReturn.findByIdAndUpdate(
+        req.params.id,
+        { status },
+        { new: true }
+    );
+    if (!returnRecord) {
+        res.status(404);
+        throw new Error('Supplier return not found');
+    }
+    res.json({ success: true, data: returnRecord });
+});
+
 export const createSupplierReturn = asyncHandler(async (req, res) => {
     const { supplierId, warehouseId, items, ...rest } = req.body;
 
@@ -98,46 +115,35 @@ export const sendSupplierReturn = asyncHandler(async (req, res) => {
         res.status(400); throw new Error(`Cannot send return with status '${sr.status}'`);
     }
 
-    const session = await mongoose.startSession();
-
-    try {
-        await session.withTransaction(async () => {
-            for (const item of sr.items) {
-                const result = await decreaseStock({
-                    productId: item.productId,
-                    warehouseId: sr.warehouseId,
-                    quantity: item.quantity,
-                    movementType: 'supplier_return',
-                    sourceDocument: {
-                        type: 'supplier_return',
-                        id: sr._id,
-                        number: sr.returnNumber,
-                    },
-                    reason: `Returned to supplier ${sr.supplierSnapshot.name}`,
-                    userId: req.user._id,
-                    session,
-                });
-                item.stockMovementId = result.movement._id;
-            }
-
-            // Deduct from supplier active accounts payable ledger
-            const supplier = await Supplier.findById(sr.supplierId).session(session);
-            if (supplier) {
-                supplier.balanceDueLKR = +(Math.max(0, (supplier.balanceDueLKR || 0) - sr.totalReturnValue)).toFixed(2);
-                await supplier.save({ session });
-            }
-
-            sr.status = 'sent';
-            sr.approvedBy = req.user._id;
-            await sr.save({ session });
+    for (const item of sr.items) {
+        const result = await decreaseStock({
+            productId: item.productId,
+            warehouseId: sr.warehouseId,
+            quantity: item.quantity,
+            movementType: 'supplier_return',
+            sourceDocument: {
+                type: 'supplier_return',
+                id: sr._id,
+                number: sr.returnNumber,
+            },
+            reason: `Returned to supplier ${sr.supplierSnapshot.name}`,
+            userId: req.user._id,
         });
-
-        res.json({ success: true, message: 'Supplier return sent, stock decreased', data: sr });
-    } catch (err) {
-        res.status(400); throw new Error(err.message);
-    } finally {
-        session.endSession();
+        item.stockMovementId = result.movement._id;
     }
+
+    // Deduct from supplier active accounts payable ledger
+    const supplier = await Supplier.findById(sr.supplierId);
+    if (supplier) {
+        supplier.balanceDueLKR = +(Math.max(0, (supplier.balanceDueLKR || 0) - sr.totalReturnValue)).toFixed(2);
+        await supplier.save();
+    }
+
+    sr.status = 'sent';
+    sr.approvedBy = req.user._id;
+    await sr.save();
+
+    res.json({ success: true, message: 'Supplier return sent, stock decreased', data: sr });
 });
 
 /**

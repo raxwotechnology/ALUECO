@@ -128,24 +128,32 @@ customerReturnSchema.pre('save', async function () {
         this.rmaNumber = `RMA-${seq}`;
     }
 
-    // Calculate line totals
-    this.items.forEach((item, idx) => {
-        item.lineNumber = idx + 1;
-        const lineValue = item.quantityReturned * item.unitPrice;
-        item.restockingFee = +(lineValue * (item.restockingFeePercent || 0) / 100).toFixed(2);
-        if (!item.refundAmount || item.refundAmount === 0) {
-            item.refundAmount = item.refundable
-                ? +(lineValue - item.restockingFee).toFixed(2)
-                : 0;
-        }
-    });
+    // Calculate line totals only if items exist
+    if (this.items && this.items.length > 0) {
+        this.items.forEach((item, idx) => {
+            item.lineNumber = idx + 1;
+            const lineValue = item.quantityReturned * item.unitPrice;
+            item.restockingFee = +(lineValue * (item.restockingFeePercent || 0) / 100).toFixed(2);
+            if (!item.refundAmount || item.refundAmount === 0) {
+                item.refundAmount = item.refundable
+                    ? +(lineValue - item.restockingFee).toFixed(2)
+                    : 0;
+            }
+        });
 
-    this.totalReturnValue = +this.items.reduce(
-        (s, i) => s + (i.quantityReturned * i.unitPrice), 0
-    ).toFixed(2);
-    this.totalRefundAmount = +this.items.reduce((s, i) => s + (i.refundAmount || 0), 0).toFixed(2);
-    this.totalRestockingFees = +this.items.reduce((s, i) => s + (i.restockingFee || 0), 0).toFixed(2);
-    this.netRefundAmount = this.totalRefundAmount;
+        this.totalReturnValue = +this.items.reduce(
+            (s, i) => s + (i.quantityReturned * i.unitPrice), 0
+        ).toFixed(2);
+        this.totalRefundAmount = +this.items.reduce((s, i) => s + (i.refundAmount || 0), 0).toFixed(2);
+        this.totalRestockingFees = +this.items.reduce((s, i) => s + (i.restockingFee || 0), 0).toFixed(2);
+        this.netRefundAmount = this.totalRefundAmount;
+    } else {
+        // Handle empty items case for simple returns
+        this.totalReturnValue = this.totalRefundAmount || 0;
+        this.totalRefundAmount = this.totalRefundAmount || 0;
+        this.totalRestockingFees = 0;
+        this.netRefundAmount = this.totalRefundAmount || 0;
+    }
 });
 
 customerReturnSchema.pre(/^find/, function (next) {

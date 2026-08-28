@@ -16,6 +16,7 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Textarea from '../components/ui/Textarea';
+import AluGrnModal from '../components/aluminium/AluGrnModal';
 
 const MATERIAL_TYPES = [
     { value: 'profile', label: 'Aluminium Profile (Bar)' },
@@ -192,7 +193,9 @@ export default function AluPurchaseOrdersPage() {
     // Modal States
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isSingleItemModalOpen, setIsSingleItemModalOpen] = useState(false);
+    const [isGrnModalOpen, setIsGrnModalOpen] = useState(false);
     const [targetPoId, setTargetPoId] = useState(null);
+    const [selectedPoForGrn, setSelectedPoForGrn] = useState(null);
 
     // Form for Single Item
     const [itemForm, setItemForm] = useState({
@@ -327,7 +330,8 @@ export default function AluPurchaseOrdersPage() {
                     ...it,
                     itemCode: it.itemCode.trim().toUpperCase(),
                     requiredQuantity: Number(it.requiredQuantity),
-                    estimatedUnitCost: Number(it.estimatedUnitCost || 0)
+                    estimatedUnitCost: Number(it.estimatedUnitCost || 0),
+                    supplierId: it.supplierId && it.supplierId !== '' ? it.supplierId : null
                 }))
             });
             toast.success('AluEco PO created successfully');
@@ -568,6 +572,20 @@ export default function AluPurchaseOrdersPage() {
                                                 <span className="font-bold text-gray-900 text-sm">Rs. {(po.totalEstimatedCost || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
                                             </div>
 
+                                            {(po.status === 'pending' || po.status === 'partially_received') && (
+                                                <Button
+                                                    variant="success"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedPoForGrn(po);
+                                                        setIsGrnModalOpen(true);
+                                                    }}
+                                                >
+                                                    <PackageCheck size={14} className="mr-1" />
+                                                    Add GRN
+                                                </Button>
+                                            )}
+
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -643,6 +661,17 @@ export default function AluPurchaseOrdersPage() {
                     </div>
                 )}
             </Card>
+
+            {/* Modal: AluEco GRN */}
+            <AluGrnModal
+                isOpen={isGrnModalOpen}
+                onClose={() => {
+                    setIsGrnModalOpen(false);
+                    setSelectedPoForGrn(null);
+                }}
+                onSuccess={fetchData}
+                selectedPo={selectedPoForGrn}
+            />
 
             {/* Modal: Add Manual Shortage Item */}
             <Modal

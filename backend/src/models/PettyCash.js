@@ -39,6 +39,12 @@ const pettyCashSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 }, // running balance snapshot
   status:  { type: String, default: 'approved' },
 
+  // ── Alueco project expense fields ─────────────────────────────────────────
+  isAlueco:       { type: Boolean, default: false },
+  department:     { type: String },
+  salesOrderId:   { type: mongoose.Schema.Types.ObjectId, ref: 'SalesOrder' },
+  paymentMethod:  { type: String, default: 'Cash' },
+
   deletedAt: { type: Date, default: null },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

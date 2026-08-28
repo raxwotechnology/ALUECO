@@ -1,6 +1,21 @@
 import mongoose from 'mongoose';
 import { getNextSequence } from './Counter.js';
 
+// Define subdocument schemas explicitly
+const earningSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    amount: { type: Number, required: true },
+    type: { type: String, required: true }, // 'fixed', 'overtime', 'commission', 'bonus', 'allowance'
+    isTaxable: { type: Boolean, default: true },
+    isEpfable: { type: Boolean, default: true },
+}, { _id: false });
+
+const deductionSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    amount: { type: Number, required: true },
+    type: { type: String, required: true }, // 'epf', 'loan', 'advance', 'apit', 'unpaid_leave', 'other'
+}, { _id: false });
+
 const payslipSchema = new mongoose.Schema({
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false },
     employeeCode: String,
@@ -16,19 +31,11 @@ const payslipSchema = new mongoose.Schema({
 
     // Earnings
     basicSalary: { type: Number, default: 0 },
-    earnings: [{
-        name: String,
-        amount: Number,
-        type: String, // 'fixed', 'overtime', 'commission', 'bonus'
-    }],
+    earnings: [earningSchema],
     grossEarnings: { type: Number, default: 0 },
 
     // Deductions
-    deductions: [{
-        name: String,
-        amount: Number,
-        type: String, // 'epf', 'loan', 'advance', 'apit', 'unpaid_leave'
-    }],
+    deductions: [deductionSchema],
     totalDeductions: { type: Number, default: 0 },
 
     // Statutory (Sri Lanka)

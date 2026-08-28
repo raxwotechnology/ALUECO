@@ -24,6 +24,7 @@ export default function HolidaysPage() {
     const [form, setForm] = useState({ name: '', date: '', type: 'public' });
 
     const holidays = data?.data || [];
+    const showAll = year === 'all';
 
     const openNew = () => { setEditing(null); setForm({ name: '', date: '', type: 'public' }); setIsOpen(true); };
     const openEdit = (h) => {
@@ -37,6 +38,9 @@ export default function HolidaysPage() {
         try {
             if (editing) await updateM.mutateAsync({ id: editing._id, data: form });
             else await createM.mutateAsync(form);
+            // Update year filter to match the holiday date
+            const holidayYear = new Date(form.date).getFullYear();
+            setYear(holidayYear);
             setIsOpen(false);
         } catch { }
     };
@@ -62,12 +66,22 @@ export default function HolidaysPage() {
 
             <Card>
                 <div className="p-4 border-b">
-                    <div className="w-32">
-                        <Input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
+                    <div className="w-40">
+                        <Select
+                            label="Filter by Year"
+                            value={year}
+                            onChange={(e) => setYear(e.target.value)}
+                            options={[
+                                { value: 'all', label: 'All Years' },
+                                { value: String(new Date().getFullYear()), label: String(new Date().getFullYear()) },
+                                { value: String(new Date().getFullYear() + 1), label: String(new Date().getFullYear() + 1) },
+                                { value: String(new Date().getFullYear() - 1), label: String(new Date().getFullYear() - 1) },
+                            ]}
+                        />
                     </div>
                 </div>
                 {holidays.length === 0
-                    ? <p className="text-center py-16 text-gray-500">No holidays in {year}</p>
+                    ? <p className="text-center py-16 text-gray-500">{showAll ? 'No holidays found' : `No holidays in ${year}`}</p>
                     : <Table columns={columns} data={holidays} />}
             </Card>
 

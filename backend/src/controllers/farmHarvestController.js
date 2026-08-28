@@ -8,7 +8,7 @@ import { createAuditLog } from '../utils/auditLogger.js';
 import { getIO } from '../services/socketService.js';
 import mongoose from 'mongoose';
 
-const autoGenerateBillFromHarvest = async (harvest, farm, userId, session) => {
+const autoGenerateBillFromHarvest = async (harvest, farm, userId, session = null) => {
     const billItems = harvest.items.map(item => ({
         productId: item.productId,
         productCode: item.productCode,
@@ -46,7 +46,7 @@ const autoGenerateBillFromHarvest = async (harvest, farm, userId, session) => {
         createdBy: userId,
     });
 
-    await bill.save({ session });
+    await bill.save();
 };
 
 export const createFarmHarvest = asyncHandler(async (req, res) => {
@@ -89,45 +89,34 @@ export const createFarmHarvest = asyncHandler(async (req, res) => {
     });
 
     if (harvest.status === 'approved') {
-        const session = await mongoose.startSession();
-        try {
-            await session.withTransaction(async () => {
-                await harvest.save({ session });
-                for (const item of harvest.items) {
-                    const farmCode = farm.farmCode || 'FRM';
-                    const productObj = await Product.findById(item.productId);
-                    const prodShort = productObj?.productShortCode || 'PRD';
-                    const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-                    const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
-                    item.batchNumber = item.batchNumber || batchCode;
+        await harvest.save();
+        for (const item of harvest.items) {
+            const farmCode = farm.farmCode || 'FRM';
+            const productObj = await Product.findById(item.productId);
+            const prodShort = productObj?.productShortCode || 'PRD';
+            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
+            item.batchNumber = item.batchNumber || batchCode;
 
-                    const result = await increaseStock({
-                        productId: item.productId,
-                        warehouseId: harvest.warehouseId,
-                        quantity: item.quantity,
-                        costPerUnit: item.unitPrice,
-                        movementType: 'farm_harvest',
-                        batchNumber: item.batchNumber,
-                        sourceDocument: {
-                            type: 'farm_harvest',
-                            id: harvest._id,
-                            number: harvest.harvestNumber,
-                        },
-                        reason: `Farm harvest intake from: ${farm.name}`,
-                        userId: req.user._id,
-                        session,
-                    });
-                    item.stockMovementId = result.movement._id;
-                }
-                await harvest.save({ session });
-                await autoGenerateBillFromHarvest(harvest, farm, req.user._id, session);
+            const result = await increaseStock({
+                productId: item.productId,
+                warehouseId: harvest.warehouseId,
+                quantity: item.quantity,
+                costPerUnit: item.unitPrice,
+                movementType: 'farm_harvest',
+                batchNumber: item.batchNumber,
+                sourceDocument: {
+                    type: 'farm_harvest',
+                    id: harvest._id,
+                    number: harvest.harvestNumber,
+                },
+                reason: `Farm harvest intake from: ${farm.name}`,
+                userId: req.user._id,
             });
-        } catch (err) {
-            res.status(400);
-            throw new Error(err.message || 'Harvest intake failed');
-        } finally {
-            session.endSession();
+            item.stockMovementId = result.movement._id;
         }
+        await harvest.save();
+        await autoGenerateBillFromHarvest(harvest, farm, req.user._id);
     } else {
         await harvest.save();
     }
@@ -174,51 +163,40 @@ export const approveFarmHarvest = asyncHandler(async (req, res) => {
         throw new Error('Farm not found');
     }
 
-    const session = await mongoose.startSession();
-    try {
-        await session.withTransaction(async () => {
-            for (const item of harvest.items) {
-                const farmCode = farm.farmCode || 'FRM';
-                const productObj = await Product.findById(item.productId);
-                const prodShort = productObj?.productShortCode || 'PRD';
-                const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-                const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
-                item.batchNumber = item.batchNumber || batchCode;
+    for (const item of harvest.items) {
+        const farmCode = farm.farmCode || 'FRM';
+        const productObj = await Product.findById(item.productId);
+        const prodShort = productObj?.productShortCode || 'PRD';
+        const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const batchCode = `${generateJulianBatchCode(`${farmCode}-${prodShort}`, harvest.harvestDate)}-${uniqueSuffix}`;
+        item.batchNumber = item.batchNumber || batchCode;
 
-                const result = await increaseStock({
-                    productId: item.productId,
-                    warehouseId: harvest.warehouseId,
-                    quantity: item.quantity,
-                    costPerUnit: item.unitPrice,
-                    movementType: 'farm_harvest',
-                    batchNumber: item.batchNumber,
-                    sourceDocument: {
-                        type: 'farm_harvest',
-                        id: harvest._id,
-                        number: harvest.harvestNumber,
-                    },
-                    reason: `Farm harvest intake from: ${farm.name}`,
-                    userId: req.user._id,
-                    session,
-                });
-                item.stockMovementId = result.movement._id;
-            }
-            harvest.status = 'approved';
-            await harvest.save({ session });
-            await autoGenerateBillFromHarvest(harvest, farm, req.user._id, session);
+        const result = await increaseStock({
+            productId: item.productId,
+            warehouseId: harvest.warehouseId,
+            quantity: item.quantity,
+            costPerUnit: item.unitPrice,
+            movementType: 'farm_harvest',
+            batchNumber: item.batchNumber,
+            sourceDocument: {
+                type: 'farm_harvest',
+                id: harvest._id,
+                number: harvest.harvestNumber,
+            },
+            reason: `Farm harvest intake from: ${farm.name}`,
+            userId: req.user._id,
         });
-
-        // Broadcast stock update
-        try {
-            const io = getIO();
-            io.emit('stock_update', { message: `Farm harvest ${harvest.harvestNumber} approved.` });
-        } catch (err) {}
-
-        res.json({ success: true, message: 'Harvest approved, stock updated', data: harvest });
-    } catch (err) {
-        res.status(400);
-        throw new Error(err.message || 'QA approval failed');
-    } finally {
-        session.endSession();
+        item.stockMovementId = result.movement._id;
     }
+    harvest.status = 'approved';
+    await harvest.save();
+    await autoGenerateBillFromHarvest(harvest, farm, req.user._id);
+
+    // Broadcast stock update
+    try {
+        const io = getIO();
+        io.emit('stock_update', { message: `Farm harvest ${harvest.harvestNumber} approved.` });
+    } catch (err) {}
+
+    res.json({ success: true, message: 'Harvest approved, stock updated', data: harvest });
 });

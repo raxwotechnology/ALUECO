@@ -194,11 +194,20 @@ const QuotationsPage = () => {
 
         setSaving(true);
         try {
+            // Clean up items - remove empty product IDs before sending
+            const cleanedFormData = {
+                ...formData,
+                items: formData.items.map(item => ({
+                    ...item,
+                    product: item.product && item.product !== '' ? item.product : undefined
+                }))
+            };
+
             if (editing) {
-                await api.put(`/crm/quotations/${editing._id}`, formData);
+                await api.put(`/crm/quotations/${editing._id}`, cleanedFormData);
                 toast.success('Quotation updated');
             } else {
-                await api.post('/crm/quotations', formData);
+                await api.post('/crm/quotations', cleanedFormData);
                 toast.success('Quotation created');
             }
             setIsFormOpen(false);

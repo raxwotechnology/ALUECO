@@ -136,7 +136,7 @@ export const checkStockAndShortages = async (salesOrderId, warehouseId) => {
 /**
  * Create actual reservations in the database for the sales order.
  */
-export const reserveStockForProject = async (salesOrderId, warehouseId, userId, session) => {
+export const reserveStockForProject = async (salesOrderId, warehouseId, userId, session = null) => {
     const check = await checkStockAndShortages(salesOrderId, warehouseId);
     const reservationsCreated = [];
 
@@ -146,12 +146,12 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
             const stockItem = await StockItem.findOne({
                 productId: item.productId,
                 warehouseId
-            }).session(session);
+            });
 
             if (stockItem) {
                 // Deduct from open stock & increase reserved
                 stockItem.quantities.reserved = +(stockItem.quantities.reserved + item.toReserve).toFixed(2);
-                await stockItem.save({ session });
+                await stockItem.save();
 
                 // Create StockReservation entry
                 const reservation = await StockReservation.create([{
@@ -166,7 +166,7 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
                     },
                     reservedBy: userId,
                     status: 'active'
-                }], { session });
+                }]);
 
                 reservationsCreated.push(reservation[0]);
             }
@@ -184,27 +184,27 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
 /**
  * Release all active reservations for a project.
  */
-export const releaseProjectReservations = async (salesOrderId, reason, session) => {
+export const releaseProjectReservations = async (salesOrderId, reason, session = null) => {
     const reservations = await StockReservation.find({
         'sourceDocument.id': salesOrderId,
         status: 'active'
-    }).session(session);
+    });
 
     for (const r of reservations) {
         const stockItem = await StockItem.findOne({
             productId: r.productId,
             warehouseId: r.warehouseId
-        }).session(session);
+        });
 
         if (stockItem) {
             stockItem.quantities.reserved = Math.max(0, +(stockItem.quantities.reserved - r.quantity).toFixed(2));
-            await stockItem.save({ session });
+            await stockItem.save();
         }
 
         r.status = 'cancelled';
         r.cancelledAt = new Date();
         r.cancellationReason = reason || 'Manual release / cancellation';
-        await r.save({ session });
+        await r.save();
     }
 
     return reservations.length;
@@ -214,15 +214,15 @@ export const releaseProjectReservations = async (salesOrderId, reason, session) 
  * Issue reserved materials from warehouse store to production.
  * Decreases physical onHand inventory and clears the reservations.
  */
-export const issueMaterialsToProduction = async (salesOrderId, warehouseId, userId, session) => {
-    const salesOrder = await SalesOrder.findById(salesOrderId).session(session);
+export const issueMaterialsToProduction = async (salesOrderId, warehouseId, userId, session = null) => {
+    const salesOrder = await SalesOrder.findById(salesOrderId);
     if (!salesOrder) throw new Error('Sales Order not found');
 
     const reservations = await StockReservation.find({
         'sourceDocument.id': salesOrderId,
         warehouseId,
         status: 'active'
-    }).session(session);
+    });
 
     if (reservations.length === 0) {
         throw new Error('No active stock reservations found for this project in the selected warehouse. Please reserve materials first.');
@@ -233,11 +233,11 @@ export const issueMaterialsToProduction = async (salesOrderId, warehouseId, user
         const stockItem = await StockItem.findOne({
             productId: r.productId,
             warehouseId: r.warehouseId
-        }).session(session);
+        });
 
         if (stockItem) {
             stockItem.quantities.reserved = Math.max(0, +(stockItem.quantities.reserved - r.quantity).toFixed(2));
-            await stockItem.save({ session });
+            await stockItem.save();
         }
 
         // Physically decrease stock
@@ -253,18 +253,17 @@ export const issueMaterialsToProduction = async (salesOrderId, warehouseId, user
             },
             reason: `Issued materials to production for project ${salesOrder.orderNumber}`,
             userId,
-            session
         });
 
         // Mark reservation as fulfilled
         r.status = 'fulfilled';
         r.fulfilledAt = new Date();
-        await r.save({ session });
+        await r.save();
     }
 
     // Update sales order production status
     salesOrder.productionStatus = 'in_production';
-    await salesOrder.save({ session });
+    await salesOrder.save();
 
     return {
         success: true,

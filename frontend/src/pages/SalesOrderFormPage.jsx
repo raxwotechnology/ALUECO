@@ -52,9 +52,8 @@ export default function SalesOrderFormPage() {
     const { data: warehousesData } = useWarehouses({ isActive: true });
 
     const customers = customersData?.data || [];
-    const NON_SELLABLE_TYPES = ['raw_material', 'packaging', 'consumable', 'service'];
     const products = (productsData?.data || []).filter(
-        (p) => p.canBeSold !== false && !NON_SELLABLE_TYPES.includes(p.productType)
+        (p) => p.canBeSold !== false
     );
     const warehouses = warehousesData?.data || [];
 

@@ -43,6 +43,12 @@ const damageRecordSchema = new mongoose.Schema({
     stockMovementId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockMovement' },
     stockAdjusted: { type: Boolean, default: false },
 
+    // Link to repair order if disposition is 'repair'
+    repairOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'RepairOrder' },
+
+    // Link to supplier return if disposition is 'return_to_supplier'
+    supplierReturnId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupplierReturn' },
+
     photos: [String],
     notes: String,
 

@@ -11,6 +11,8 @@ import Textarea from '../../components/ui/Textarea';
 import { productFormSchema } from './productSchemas';
 import { useCategories, useBrands, useUoms, useCreateProduct, useUpdateProduct } from './useProducts';
 import { productsApi } from './productsApi';
+import { suppliersApi } from '../suppliers/suppliersApi';
+import { useQuery } from '@tanstack/react-query';
 
 const DEFAULT_UOMS = [
     { value: 'pc', label: 'Piece (pc)' },
@@ -49,6 +51,10 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
     const { data: categoriesData } = useCategories();
     const { data: brandsData } = useBrands();
     const { data: uomsData } = useUoms();
+    const { data: suppliersData } = useQuery({
+        queryKey: ['suppliers', 'all'],
+        queryFn: () => suppliersApi.list({ limit: 500 }),
+    });
     const createProduct = useCreateProduct();
     const updateProduct = useUpdateProduct();
 
@@ -236,6 +242,10 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
         value: b._id,
         label: b.name,
     }));
+    const supplierOptions = (suppliersData?.data || []).map((s) => ({
+        value: s._id,
+        label: s.displayName || s.companyName || s.supplierCode,
+    }));
     const fetchedUoms = (uomsData?.data || []).map((u) => ({
         value: u.symbol || u.code || u.name,
         label: `${u.name} (${u.symbol || u.code || u.name})`,
@@ -329,7 +339,7 @@ export default function ProductFormModal({ isOpen, onClose, product = null, forc
                                 <Select
                                     label="Brand / Supplier"
                                     error={errors.brandId?.message}
-                                    options={brandOptions}
+                                    options={supplierOptions}
                                     {...register('brandId')}
                                 />
                                 <Select

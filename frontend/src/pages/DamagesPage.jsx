@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, AlertTriangle } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -16,10 +17,14 @@ import toast from 'react-hot-toast';
 import { useDamages, useCreateDamage, useDamageSummary } from '../features/returns/useReturns';
 import { productsApi } from '../features/products/productsApi';
 import { useWarehouses } from '../features/warehouses/useWarehouses';
+import { damagesApi } from '../features/returns/returnsApi';
 
 export default function DamagesPage() {
+    const navigate = useNavigate();
     const [filters, setFilters] = useState({ source: '', page: 1, limit: 15 });
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [editingDamage, setEditingDamage] = useState(null);
 
     const [productId, setProductId] = useState('');
     const [quantity, setQuantity] = useState(0);
@@ -29,6 +34,8 @@ export default function DamagesPage() {
     const [disposition, setDisposition] = useState('pending');
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [adjustStock, setAdjustStock] = useState(true);
+    const [editDisposition, setEditDisposition] = useState('pending');
+    const [editDescription, setEditDescription] = useState('');
 
     const { data, isLoading } = useDamages(filters);
     const { data: summaryData } = useDamageSummary();
@@ -51,6 +58,20 @@ export default function DamagesPage() {
         { key: 'source', label: 'Source', render: (r) => <Badge>{r.source.replace(/_/g, ' ')}</Badge> },
         { key: 'disposition', label: 'Disposition', render: (r) => r.disposition.replace(/_/g, ' ') },
         { key: 'writtenOff', label: 'Written off', render: (r) => r.writtenOff ? <Badge variant="danger">Yes</Badge> : <Badge>No</Badge> },
+        { 
+            key: 'actions', 
+            label: '', 
+            width: '50px', 
+            render: (r) => (
+                <button 
+                    onClick={() => handleEdit(r)}
+                    className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-blue-600"
+                    title="Edit disposition"
+                >
+                    ✏️
+                </button>
+            ) 
+        },
     ];
 
     const submit = async () => {
@@ -63,6 +84,28 @@ export default function DamagesPage() {
             setIsFormOpen(false);
             setProductId(''); setQuantity(0); setWarehouseId(''); setDescription('');
         } catch { }
+    };
+
+    const handleEdit = (damage) => {
+        setEditingDamage(damage);
+        setEditDisposition(damage.disposition);
+        setEditDescription(damage.description || '');
+        setIsEditOpen(true);
+    };
+
+    const submitEdit = async () => {
+        if (!editingDamage) return;
+        try {
+            await damagesApi.update(editingDamage._id, {
+                disposition: editDisposition,
+                description: editDescription,
+            });
+            toast.success('Damage record updated');
+            setIsEditOpen(false);
+            setEditingDamage(null);
+        } catch (error) {
+            toast.error('Failed to update damage record');
+        }
     };
 
     return (
@@ -148,6 +191,44 @@ export default function DamagesPage() {
                 <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
                     <Button variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
                     <Button variant="primary" onClick={submit} loading={createMutation.isPending}>Record</Button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Damage Disposition" size="md">
+                <div className="p-6 space-y-4">
+                    {editingDamage && (
+                        <>
+                            <div className="bg-gray-50 p-3 rounded text-sm">
+                                <p className="font-medium">{editingDamage.productName}</p>
+                                <p className="text-gray-500">{editingDamage.damageNumber} • Qty: {editingDamage.quantity}</p>
+                            </div>
+                            <Select label="Disposition"
+                                options={[
+                                    { value: 'pending', label: 'Pending' },
+                                    { value: 'scrap', label: 'Scrap' },
+                                    { value: 'repair', label: 'Send to repair' },
+                                    { value: 'return_to_supplier', label: 'Return to supplier' },
+                                    { value: 'write_off', label: 'Write off' },
+                                ]}
+                                value={editDisposition}
+                                onChange={(e) => setEditDisposition(e.target.value)} />
+                            <Textarea label="Description" rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+                            {editDisposition === 'repair' && (
+                                <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                                    ℹ️ A repair order will be created and linked to this damage record.
+                                </p>
+                            )}
+                            {editDisposition === 'return_to_supplier' && (
+                                <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                                    ℹ️ A supplier return will be created and linked to this damage record.
+                                </p>
+                            )}
+                        </>
+                    )}
+                </div>
+                <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+                    <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={submitEdit}>Update</Button>
                 </div>
             </Modal>
         </div>

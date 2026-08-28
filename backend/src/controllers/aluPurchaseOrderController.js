@@ -85,20 +85,24 @@ export const createAluPurchaseOrder = asyncHandler(async (req, res) => {
         throw new Error('At least one material item is required');
     }
 
-    // Validate 15-char item code limit & uppercase
+    // Validate 50-char item code limit & uppercase (matching database schema)
     for (const item of items) {
         if (!item.itemCode) {
             res.status(400);
             throw new Error('Item Code is required for all material entries');
         }
         item.itemCode = item.itemCode.trim().toUpperCase();
-        if (item.itemCode.length > 15) {
+        if (item.itemCode.length > 50) {
             res.status(400);
-            throw new Error(`Item Code "${item.itemCode}" exceeds maximum allowed length of 15 characters`);
+            throw new Error(`Item Code "${item.itemCode}" exceeds maximum allowed length of 50 characters`);
         }
         item.requiredQuantity = Number(item.requiredQuantity) || 0;
         item.receivedQuantity = Number(item.receivedQuantity) || 0;
         item.pendingQuantity = Math.max(0, item.requiredQuantity - item.receivedQuantity);
+        // Convert empty string supplierId to null to avoid ObjectId casting error
+        if (item.supplierId === '' || item.supplierId === undefined) {
+            item.supplierId = null;
+        }
     }
 
     const order = await AluPurchaseOrder.create({
@@ -148,10 +152,14 @@ export const updateAluPurchaseOrder = asyncHandler(async (req, res) => {
         for (const item of items) {
             if (item.itemCode) {
                 item.itemCode = item.itemCode.trim().toUpperCase();
-                if (item.itemCode.length > 15) {
+                if (item.itemCode.length > 50) {
                     res.status(400);
-                    throw new Error(`Item Code "${item.itemCode}" exceeds maximum allowed length of 15 characters`);
+                    throw new Error(`Item Code "${item.itemCode}" exceeds maximum allowed length of 50 characters`);
                 }
+            }
+            // Convert empty string supplierId to null to avoid ObjectId casting error
+            if (item.supplierId === '' || item.supplierId === undefined) {
+                item.supplierId = null;
             }
         }
         order.items = items;
@@ -175,9 +183,9 @@ export const addManualItemToAluPO = asyncHandler(async (req, res) => {
     }
 
     itemCode = itemCode.trim().toUpperCase();
-    if (itemCode.length > 15) {
+    if (itemCode.length > 50) {
         res.status(400);
-        throw new Error(`Item Code "${itemCode}" exceeds maximum allowed length of 15 characters`);
+        throw new Error(`Item Code "${itemCode}" exceeds maximum allowed length of 50 characters`);
     }
 
     let order;
@@ -214,7 +222,7 @@ export const addManualItemToAluPO = asyncHandler(async (req, res) => {
         unitOfMeasure: unitOfMeasure || 'pcs',
         estimatedUnitCost: cost,
         estimatedTotalCost: +(qty * cost).toFixed(2),
-        supplierId: supplierId || null,
+        supplierId: (supplierId && supplierId !== '') ? supplierId : null,
         status: 'pending',
         notes: notes || '',
     });
@@ -276,6 +284,125 @@ export const getAluPOSummaryStats = asyncHandler(async (req, res) => {
             totalFulfilled,
             totalPendingItemCount: +totalPendingItemCount.toFixed(2),
             totalShortageValue: +totalShortageValue.toFixed(2)
+        }
+    });
+});
+
+/**
+ * Create GRN from AluPurchaseOrder - Process material receipt against a specific PO
+ */
+export const createGrnFromAluPO = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { warehouseId, supplierName, invoiceNumber, notes, items = [] } = req.body;
+
+    const order = await AluPurchaseOrder.findById(id);
+    if (!order) {
+        res.status(404);
+        throw new Error('AluEco Purchase Order not found');
+    }
+
+    if (!warehouseId) {
+        res.status(400);
+        throw new Error('Warehouse ID is required');
+    }
+
+    const { increaseStock } = await import('../services/stockService.js');
+    const Product = (await import('../models/Product.js')).default;
+
+    const grnNumber = `ALU-GRN-${Date.now().toString().slice(-6)}`;
+    const results = [];
+
+    // If items provided in request, use those; otherwise use all pending items from PO
+    const itemsToProcess = items.length > 0 ? items : order.items.filter(i => i.pendingQuantity > 0);
+
+    for (const item of itemsToProcess) {
+        const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
+        const poItem = order.items.find(i => 
+            (i.itemCode || '').toUpperCase() === targetCode || 
+            (i._id && i._id.toString() === item.itemId)
+        );
+
+        if (!poItem) {
+            continue;
+        }
+
+        const receivedQty = Number(item.quantityReceived || item.receivedQuantity || 0);
+        if (receivedQty <= 0) continue;
+
+        // Find or create product
+        let pId = poItem.productId;
+        if (!pId && targetCode) {
+            let found = await Product.findOne({
+                $or: [{ productCode: targetCode }, { sku: targetCode }]
+            });
+
+            if (!found) {
+                found = new Product({
+                    productCode: targetCode,
+                    name: poItem.productName || `AluEco Material (${targetCode})`,
+                    productType: 'raw_material',
+                    businessType: 'alueco',
+                    unitOfMeasure: poItem.unitOfMeasure || 'pcs',
+                    costPrice: poItem.estimatedUnitCost || 0,
+                    status: 'active'
+                });
+                await found.save();
+            }
+            pId = found._id;
+        }
+
+        if (!pId) continue;
+
+        const cost = Number(poItem.estimatedUnitCost || item.unitCost || 0);
+
+        // Increase stock
+        const stockResult = await increaseStock({
+            productId: pId,
+            warehouseId,
+            quantity: receivedQty,
+            costPerUnit: cost,
+            movementType: 'grn',
+            sourceDocument: { type: 'alu_grn', number: grnNumber, poId: order._id },
+            reason: `GRN for AluEco PO ${order.poNumber} - ${order.projectName}`,
+            notes: invoiceNumber ? `Invoice #${invoiceNumber}` : notes,
+            userId: req.user?._id,
+        });
+
+        // Update PO item received quantity
+        poItem.receivedQuantity = (poItem.receivedQuantity || 0) + receivedQty;
+        poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
+        
+        if (poItem.pendingQuantity === 0) {
+            poItem.status = 'fulfilled';
+        } else {
+            poItem.status = 'partially_received';
+        }
+
+        results.push({
+            itemId: poItem._id,
+            itemCode: poItem.itemCode,
+            productName: poItem.productName,
+            receivedQuantity: receivedQty,
+            pendingQuantity: poItem.pendingQuantity,
+            stockMovement: stockResult.movement.movementNumber
+        });
+    }
+
+    // Update PO status
+    const allFulfilled = order.items.every(i => i.status === 'fulfilled' || i.pendingQuantity === 0);
+    const anyReceived = order.items.some(i => i.receivedQuantity > 0);
+    order.status = allFulfilled ? 'fulfilled' : (anyReceived ? 'partially_received' : 'pending');
+    order.updatedBy = req.user._id;
+    await order.save();
+
+    res.status(201).json({
+        success: true,
+        message: `GRN ${grnNumber} processed successfully for PO ${order.poNumber}. ${results.length} items received.`,
+        data: {
+            grnNumber,
+            poNumber: order.poNumber,
+            projectName: order.projectName,
+            items: results
         }
     });
 });

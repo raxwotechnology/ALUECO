@@ -55,6 +55,10 @@ const paymentSchema = new mongoose.Schema({
     notes: String,
     receiptImageUrl: String,
 
+    // Alueco project payment link
+    salesOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesOrder' },
+    isAlueco: { type: Boolean, default: false },
+
     receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     deletedAt: { type: Date, default: null },

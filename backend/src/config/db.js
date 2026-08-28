@@ -1,4 +1,13 @@
 import mongoose from 'mongoose';
+import dns from 'dns';
+
+// Some local networks / mobile hotspot routers (e.g. the default gateway's DNS
+// resolver) do not support SRV/TXT DNS record lookups, which are required to
+// resolve "mongodb+srv://" connection strings. This causes:
+//   ✗ MongoDB Connection Error: querySrv ENOTFOUND _mongodb._tcp.<cluster>.mongodb.net
+// Prepending reliable public DNS resolvers (Google & Cloudflare) fixes SRV
+// lookups without requiring any Windows network configuration changes.
+dns.setServers(['8.8.8.8', '1.1.1.1', ...dns.getServers()]);
 
 const connectDB = async () => {
     try {

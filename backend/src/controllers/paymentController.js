@@ -1,10 +1,10 @@
 import asyncHandler from 'express-async-handler';
-import mongoose from 'mongoose';
 import Payment from '../models/Payment.js';
 import Invoice from '../models/Invoice.js';
 import Bill from '../models/Bill.js';
 import Customer from '../models/Customer.js';
 import BankAccount from '../models/BankAccount.js';
+import AuditLog from '../models/AuditLog.js';
 import { broadcast } from '../services/socketService.js';
 import { updateCustomerBalance } from './invoiceController.js';
 
@@ -22,131 +22,128 @@ export const createPayment = asyncHandler(async (req, res) => {
         res.status(400); throw new Error('supplierId required for paid payments');
     }
 
-    const session = await mongoose.startSession();
     let payment;
     const isChequePending = method === 'cheque' && chequeStatus !== 'cleared';
 
     try {
-        await session.withTransaction(async () => {
-            // Validate & adjust allocations
-            for (const alloc of allocations) {
-                if (alloc.documentType === 'invoice') {
-                    const inv = await Invoice.findById(alloc.documentId).session(session);
-                    if (!inv) throw new Error(`Invoice ${alloc.documentId} not found`);
-                    if (alloc.amount > inv.balanceDue) {
-                        throw new Error(`Cannot allocate ${alloc.amount} to invoice ${inv.invoiceNumber}, balance is ${inv.balanceDue}`);
-                    }
-                    alloc.documentNumber = inv.invoiceNumber;
-                } else if (alloc.documentType === 'bill') {
-                    const bill = await Bill.findById(alloc.documentId).session(session);
-                    if (!bill) throw new Error(`Bill ${alloc.documentId} not found`);
-                    if (alloc.amount > bill.balanceDue) {
-                        throw new Error(`Cannot allocate ${alloc.amount} to bill ${bill.billNumber}, balance is ${bill.balanceDue}`);
-                    }
-                    alloc.documentNumber = bill.billNumber;
-                } else if (alloc.documentType === 'sales_order') {
-                    const SalesOrder = (await import('../models/SalesOrder.js')).default;
-                    const so = await SalesOrder.findById(alloc.documentId).session(session);
-                    if (!so) throw new Error(`Sales Order ${alloc.documentId} not found`);
-                    const balanceDue = so.grandTotal - so.totalPaid;
-                    if (alloc.amount > balanceDue + 0.01) { // allowance for small floats
-                        throw new Error(`Cannot allocate ${alloc.amount} to sales order ${so.orderNumber}, balance is ${balanceDue}`);
-                    }
-                    alloc.documentNumber = so.orderNumber;
+        // Validate & adjust allocations
+        for (const alloc of allocations) {
+            if (alloc.documentType === 'invoice') {
+                const inv = await Invoice.findById(alloc.documentId);
+                if (!inv) throw new Error(`Invoice ${alloc.documentId} not found`);
+                if (alloc.amount > inv.balanceDue) {
+                    throw new Error(`Cannot allocate ${alloc.amount} to invoice ${inv.invoiceNumber}, balance is ${inv.balanceDue}`);
                 }
+                alloc.documentNumber = inv.invoiceNumber;
+            } else if (alloc.documentType === 'bill') {
+                const bill = await Bill.findById(alloc.documentId);
+                if (!bill) throw new Error(`Bill ${alloc.documentId} not found`);
+                if (alloc.amount > bill.balanceDue) {
+                    throw new Error(`Cannot allocate ${alloc.amount} to bill ${bill.billNumber}, balance is ${bill.balanceDue}`);
+                }
+                alloc.documentNumber = bill.billNumber;
+            } else if (alloc.documentType === 'sales_order') {
+                const SalesOrder = (await import('../models/SalesOrder.js')).default;
+                const so = await SalesOrder.findById(alloc.documentId);
+                if (!so) throw new Error(`Sales Order ${alloc.documentId} not found`);
+                const balanceDue = so.grandTotal - so.totalPaid;
+                if (alloc.amount > balanceDue + 0.01) { // allowance for small floats
+                    throw new Error(`Cannot allocate ${alloc.amount} to sales order ${so.orderNumber}, balance is ${balanceDue}`);
+                }
+                alloc.documentNumber = so.orderNumber;
             }
+        }
 
-            // Get party name
-            let partyName = '';
+        // Get party name
+        let partyName = '';
+        if (direction === 'received') {
+            const c = await Customer.findById(customerId);
+            partyName = c?.displayName;
+        } else {
+            const Supplier = (await import('../models/Supplier.js')).default;
+            const s = await Supplier.findById(supplierId);
+            partyName = s?.displayName;
+        }
+
+        // Update bank account balance if bankAccountId is provided and not a pending cheque
+        if (bankAccountId && !isChequePending) {
+            const bankAccount = await BankAccount.findById(bankAccountId);
+            if (!bankAccount) throw new Error('Company bank account not found');
+            
+            const payAmount = Number(amount || 0);
             if (direction === 'received') {
-                const c = await Customer.findById(customerId).session(session);
-                partyName = c?.displayName;
-            } else {
-                const Supplier = (await import('../models/Supplier.js')).default;
-                const s = await Supplier.findById(supplierId).session(session);
-                partyName = s?.displayName;
+                bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
+            } else if (direction === 'paid') {
+                bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
             }
+            await bankAccount.save();
+        }
 
-            // Update bank account balance if bankAccountId is provided and not a pending cheque
-            if (bankAccountId && !isChequePending) {
-                const bankAccount = await BankAccount.findById(bankAccountId).session(session);
-                if (!bankAccount) throw new Error('Company bank account not found');
+        payment = new Payment({
+            direction,
+            customerId: direction === 'received' ? customerId : undefined,
+            supplierId: direction === 'paid' ? supplierId : undefined,
+            bankAccountId,
+            amount,
+            method,
+            chequeStatus: method === 'cheque' ? (chequeStatus || 'pending') : undefined,
+            partyName,
+            allocations,
+            receivedBy: req.user._id,
+            createdBy: req.user._id,
+            ...rest,
+        });
+
+        await payment.save();
+
+        // Apply allocations to invoices/bills/sales_orders
+        for (const alloc of allocations) {
+            if (alloc.documentType === 'invoice') {
+                const inv = await Invoice.findById(alloc.documentId);
+                inv.amountPaid = +(inv.amountPaid + alloc.amount).toFixed(2);
+                inv.lastPaymentDate = payment.paymentDate;
+                await inv.save();
+            } else if (alloc.documentType === 'bill') {
+                const bill = await Bill.findById(alloc.documentId);
+                bill.amountPaid = +(bill.amountPaid + alloc.amount).toFixed(2);
+                bill.lastPaymentDate = payment.paymentDate;
+                await bill.save();
+            } else if (alloc.documentType === 'sales_order') {
+                const SalesOrder = (await import('../models/SalesOrder.js')).default;
+                const so = await SalesOrder.findById(alloc.documentId);
+                so.totalPaid = +(so.totalPaid + alloc.amount).toFixed(2);
                 
-                const payAmount = Number(amount || 0);
-                if (direction === 'received') {
-                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
-                } else if (direction === 'paid') {
-                    bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
-                }
-                await bankAccount.save({ session });
-            }
-
-            payment = new Payment({
-                direction,
-                customerId: direction === 'received' ? customerId : undefined,
-                supplierId: direction === 'paid' ? supplierId : undefined,
-                bankAccountId,
-                amount,
-                method,
-                chequeStatus: method === 'cheque' ? (chequeStatus || 'pending') : undefined,
-                partyName,
-                allocations,
-                receivedBy: req.user._id,
-                createdBy: req.user._id,
-                ...rest,
-            });
-
-            await payment.save({ session });
-
-            // Apply allocations to invoices/bills/sales_orders
-            for (const alloc of allocations) {
-                if (alloc.documentType === 'invoice') {
-                    const inv = await Invoice.findById(alloc.documentId).session(session);
-                    inv.amountPaid = +(inv.amountPaid + alloc.amount).toFixed(2);
-                    inv.lastPaymentDate = payment.paymentDate;
-                    await inv.save({ session });
-                } else if (alloc.documentType === 'bill') {
-                    const bill = await Bill.findById(alloc.documentId).session(session);
-                    bill.amountPaid = +(bill.amountPaid + alloc.amount).toFixed(2);
-                    bill.lastPaymentDate = payment.paymentDate;
-                    await bill.save({ session });
-                } else if (alloc.documentType === 'sales_order') {
-                    const SalesOrder = (await import('../models/SalesOrder.js')).default;
-                    const so = await SalesOrder.findById(alloc.documentId).session(session);
-                    so.totalPaid = +(so.totalPaid + alloc.amount).toFixed(2);
-                    
-                    let remainingAlloc = alloc.amount;
-                    for (const stage of so.paymentSchedule) {
-                        if (stage.status === 'pending' && remainingAlloc > 0) {
-                            if (remainingAlloc >= stage.amount) {
-                                stage.status = 'paid';
-                                stage.paidAt = payment.paymentDate;
-                                remainingAlloc -= stage.amount;
-                            } else {
-                                remainingAlloc = 0;
-                            }
+                let remainingAlloc = alloc.amount;
+                for (const stage of so.paymentSchedule) {
+                    if (stage.status === 'pending' && remainingAlloc > 0) {
+                        if (remainingAlloc >= stage.amount) {
+                            stage.status = 'paid';
+                            stage.paidAt = payment.paymentDate;
+                            remainingAlloc -= stage.amount;
+                        } else {
+                            remainingAlloc = 0;
                         }
                     }
-                    
-                    if (so.totalPaid >= so.advanceAmount && !so.advanceReceived) {
-                        so.advanceReceived = true;
-                        so.productionStatus = 'ready_for_production';
-                    }
-                    
-                    await so.save({ session });
                 }
+                
+                if (so.totalPaid >= so.advanceAmount && !so.advanceReceived) {
+                    so.advanceReceived = true;
+                    so.productionStatus = 'ready_for_production';
+                }
+                
+                await so.save();
             }
+        }
 
-            // Update customer balance if received
-            if (direction === 'received') {
-                await updateCustomerBalance(customerId, session);
-            }
-            try {
-                broadcast('financial_update', {
-                    message: 'Financial accounts updated via new payment log',
-                });
-            } catch (_) {}
-        });
+        // Update customer balance if received
+        if (direction === 'received') {
+            await updateCustomerBalance(customerId);
+        }
+        try {
+            broadcast('financial_update', {
+                message: 'Financial accounts updated via new payment log',
+            });
+        } catch (_) {}
 
         // Broadcast bank account balance change after successful transaction commit
         if (bankAccountId && !isChequePending) {
@@ -168,8 +165,6 @@ export const createPayment = asyncHandler(async (req, res) => {
     } catch (err) {
         res.status(400);
         throw new Error(err.message || 'Failed to create payment');
-    } finally {
-        session.endSession();
     }
 });
 
@@ -192,25 +187,22 @@ export const clearPaymentCheque = asyncHandler(async (req, res) => {
         throw new Error('Cheque is already cleared');
     }
 
-    const session = await mongoose.startSession();
     try {
-        await session.withTransaction(async () => {
-            payment.chequeStatus = 'cleared';
-            await payment.save({ session });
+        payment.chequeStatus = 'cleared';
+        await payment.save();
 
-            if (payment.bankAccountId) {
-                const bankAccount = await BankAccount.findById(payment.bankAccountId).session(session);
-                if (!bankAccount) throw new Error('Associated company bank account not found');
+        if (payment.bankAccountId) {
+            const bankAccount = await BankAccount.findById(payment.bankAccountId);
+            if (!bankAccount) throw new Error('Associated company bank account not found');
 
-                const payAmount = Number(payment.amount || 0);
-                if (payment.direction === 'received') {
-                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
-                } else if (payment.direction === 'paid') {
-                    bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
-                }
-                await bankAccount.save({ session });
+            const payAmount = Number(payment.amount || 0);
+            if (payment.direction === 'received') {
+                bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
+            } else if (payment.direction === 'paid') {
+                bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
             }
-        });
+            await bankAccount.save();
+        }
 
         // Broadcast bank balance update
         if (payment.bankAccountId) {
@@ -245,14 +237,13 @@ export const clearPaymentCheque = asyncHandler(async (req, res) => {
     } catch (err) {
         res.status(400);
         throw new Error(err.message || 'Failed to clear cheque');
-    } finally {
-        session.endSession();
     }
 });
 
 /**
  * PUT /api/payments/:id/status
  * Update the chequeStatus of a payment, adjusting bank account balance based on status transition.
+ * Also updates related invoice payment status when cheque status changes.
  */
 export const updatePaymentChequeStatus = asyncHandler(async (req, res) => {
     const { chequeStatus } = req.body;
@@ -278,37 +269,100 @@ export const updatePaymentChequeStatus = asyncHandler(async (req, res) => {
         return res.json({ success: true, message: 'Status is already set to ' + newStatus, data: payment });
     }
 
-    const session = await mongoose.startSession();
+    const affectedInvoices = [];
+
     try {
-        await session.withTransaction(async () => {
-            payment.chequeStatus = newStatus;
-            await payment.save({ session });
+        payment.chequeStatus = newStatus;
+        await payment.save();
 
-            if (payment.bankAccountId) {
-                const bankAccount = await BankAccount.findById(payment.bankAccountId).session(session);
-                if (!bankAccount) throw new Error('Associated company bank account not found');
+        if (payment.bankAccountId) {
+            const bankAccount = await BankAccount.findById(payment.bankAccountId);
+            if (!bankAccount) throw new Error('Associated company bank account not found');
 
-                const payAmount = Number(payment.amount || 0);
+            const payAmount = Number(payment.amount || 0);
 
-                // If transitioning from cleared -> non-cleared, reverse the bank balance adjustment
-                if (oldStatus === 'cleared' && newStatus !== 'cleared') {
-                    if (payment.direction === 'received') {
-                        bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
-                    } else if (payment.direction === 'paid') {
-                        bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
-                    }
-                    await bankAccount.save({ session });
+            // If transitioning from cleared -> non-cleared, reverse the bank balance adjustment
+            if (oldStatus === 'cleared' && newStatus !== 'cleared') {
+                if (payment.direction === 'received') {
+                    bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
+                } else if (payment.direction === 'paid') {
+                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
                 }
-                // If transitioning from non-cleared -> cleared, apply the bank balance adjustment
-                else if (oldStatus !== 'cleared' && newStatus === 'cleared') {
-                    if (payment.direction === 'received') {
-                        bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
-                    } else if (payment.direction === 'paid') {
-                        bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
+                await bankAccount.save();
+            }
+            // If transitioning from non-cleared -> cleared, apply the bank balance adjustment
+            else if (oldStatus !== 'cleared' && newStatus === 'cleared') {
+                if (payment.direction === 'received') {
+                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
+                } else if (payment.direction === 'paid') {
+                    bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
+                }
+                await bankAccount.save();
+            }
+        }
+
+        // Update related invoice payment status based on cheque status change
+        if (payment.allocations && payment.allocations.length > 0) {
+            for (const alloc of payment.allocations) {
+                if (alloc.documentType === 'invoice') {
+                    const invoice = await Invoice.findById(alloc.documentId);
+                    if (invoice) {
+                        const previousInvoiceStatus = invoice.paymentStatus;
+                        const previousAmountPaid = invoice.amountPaid;
+                        
+                        // If cheque bounced, reverse the payment from invoice
+                        if (newStatus === 'bounced' && oldStatus !== 'bounced') {
+                            invoice.amountPaid = Math.max(0, +(invoice.amountPaid - alloc.amount).toFixed(2));
+                            invoice.balanceDue = +(invoice.grandTotal - invoice.amountPaid).toFixed(2);
+                            
+                            // Update payment status based on remaining amount
+                            if (invoice.amountPaid >= invoice.grandTotal) {
+                                invoice.paymentStatus = 'paid';
+                            } else if (invoice.amountPaid > 0) {
+                                invoice.paymentStatus = 'partially_paid';
+                            } else {
+                                invoice.paymentStatus = 'unpaid';
+                            }
+                            
+                            await invoice.save();
+                            affectedInvoices.push({
+                                invoiceId: invoice._id,
+                                invoiceNumber: invoice.invoiceNumber,
+                                previousStatus: previousInvoiceStatus,
+                                newStatus: invoice.paymentStatus,
+                                previousAmountPaid: previousAmountPaid,
+                                newAmountPaid: invoice.amountPaid,
+                            });
+                        }
+                        // If cheque cleared from pending, payment was already accounted for during creation
+                        // No additional invoice status change needed
                     }
-                    await bankAccount.save({ session });
                 }
             }
+            
+            // Update customer balance if any invoices were affected
+            if (payment.direction === 'received' && payment.customerId) {
+                await updateCustomerBalance(payment.customerId);
+            }
+        }
+
+        // Create audit log entry
+        await AuditLog.create({
+            action: 'CHEQUE_STATUS_UPDATE',
+            module: 'payments',
+            documentId: payment._id,
+            documentCode: payment.paymentNumber,
+            description: `Payment cheque status changed from ${oldStatus} to ${newStatus}`,
+            changes: {
+                chequeStatus: { from: oldStatus, to: newStatus },
+                affectedInvoices: affectedInvoices,
+            },
+            previousData: {
+                chequeStatus: oldStatus,
+            },
+            performedBy: req.user._id,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
         });
 
         // Broadcast bank balance update if bankAccountId was adjusted
@@ -334,7 +388,28 @@ export const updatePaymentChequeStatus = asyncHandler(async (req, res) => {
             broadcast('financial_update', {
                 message: `Financial accounts updated via cheque status change to ${newStatus}`,
             });
-        } catch (_) {}
+            
+            // Send specific notification for invoice payment status changes
+            if (affectedInvoices.length > 0) {
+                affectedInvoices.forEach(affectedInvoice => {
+                    broadcast('payment_status_changed', {
+                        invoiceId: affectedInvoice.invoiceId,
+                        invoiceNumber: affectedInvoice.invoiceNumber,
+                        paymentId: payment._id,
+                        paymentNumber: payment.paymentNumber,
+                        previousStatus: affectedInvoice.previousStatus,
+                        newStatus: affectedInvoice.newStatus,
+                        amountPaid: affectedInvoice.newAmountPaid,
+                        balanceDue: affectedInvoice.newAmountPaid - (affectedInvoice.invoiceNumber ? 0 : 0), // Will be fetched from actual invoice
+                        reason: `Cheque status changed to ${newStatus}`,
+                        changedBy: req.user._id,
+                        timestamp: new Date(),
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Failed to broadcast payment status change:', error);
+        }
 
         const populated = await Payment.findById(payment._id)
             .populate('customerId', 'displayName customerCode')
@@ -345,11 +420,8 @@ export const updatePaymentChequeStatus = asyncHandler(async (req, res) => {
     } catch (err) {
         res.status(400);
         throw new Error(err.message || 'Failed to update cheque status');
-    } finally {
-        session.endSession();
     }
 });
-
 
 export const getPayments = asyncHandler(async (req, res) => {
     const {

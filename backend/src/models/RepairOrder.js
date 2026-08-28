@@ -12,6 +12,11 @@ const repairOrderSchema = new mongoose.Schema({
     // Source
     sourceType: { type: String, default: 'manual' },
     customerReturnId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomerReturn' },
+    sourceDocument: {
+        type: { type: String },
+        id: mongoose.Schema.Types.ObjectId,
+        number: String,
+    },
 
     issueDescription: { type: String, required: false },
     diagnosis: String,

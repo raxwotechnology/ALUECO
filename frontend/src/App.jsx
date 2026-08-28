@@ -69,6 +69,11 @@ import AluSurveyPage from './pages/AluSurveyPage';
 import AluAgreementsPage from './pages/AluAgreementsPage';
 import AluAgreementFormPage from './pages/AluAgreementFormPage';
 import AluProjectMaterialsPage from './pages/AluProjectMaterialsPage';
+import AluProjectsPage from './pages/AluProjectsPage';
+import AluFinancePage from './pages/AluFinancePage';
+import AluReturnsPage from './pages/AluReturnsPage';
+import AluProjectPnLPage from './pages/AluProjectPnLPage';
+import AluAgingPage from './pages/AluAgingPage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import PettyCashPage from './pages/PettyCashPage';
 import FixedAssetsPage from './pages/FixedAssetsPage';
@@ -205,6 +210,7 @@ function App() {
         <Route path="/crm/quotations" element={<ProtectedRoute requiredPermission="sales.view"><QuotationsPage /></ProtectedRoute>} />
         
         {/* ALUECO Aluminium System Routes */}
+        <Route path="/alu/projects" element={<ProtectedRoute requiredPermission="sales.view"><AluProjectsPage /></ProtectedRoute>} />
         <Route path="/alu/quotations" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationsPage /></ProtectedRoute>} />
         <Route path="/alu/quotations/new" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationFormPage /></ProtectedRoute>} />
         <Route path="/alu/quotations/:id" element={<ProtectedRoute requiredPermission="sales.view"><AluQuotationDetailPage /></ProtectedRoute>} />
@@ -221,6 +227,21 @@ function App() {
         <Route path="/alu/agreements/new" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
         <Route path="/alu/agreements/:id" element={<ProtectedRoute requiredPermission="sales.view"><AluAgreementFormPage /></ProtectedRoute>} />
         <Route path="/alu/project-materials" element={<ProtectedRoute requiredPermission="inventory.view"><AluProjectMaterialsPage /></ProtectedRoute>} />
+        
+        {/* Alueco Finance Subcategory Routes */}
+        <Route path="/alu/finance/income" element={<ProtectedRoute requiredPermission="payments.view"><AluFinancePage defaultTab="income" /></ProtectedRoute>} />
+        <Route path="/alu/finance/expenses" element={<ProtectedRoute requiredPermission="payments.view"><AluFinancePage defaultTab="expenses" /></ProtectedRoute>} />
+        <Route path="/alu/finance/invoices" element={<ProtectedRoute requiredPermission="invoices.view"><AluFinancePage defaultTab="invoices" /></ProtectedRoute>} />
+        <Route path="/alu/finance/profit-engine" element={<ProtectedRoute requiredPermission="payments.view"><AluFinancePage defaultTab="profit-engine" /></ProtectedRoute>} />
+
+        {/* Alueco Returns Routes */}
+        <Route path="/alu/returns/customer" element={<ProtectedRoute requiredPermission="returns.view"><AluReturnsPage defaultTab="customer" /></ProtectedRoute>} />
+        <Route path="/alu/returns/supplier" element={<ProtectedRoute requiredPermission="supplier_returns.view"><AluReturnsPage defaultTab="supplier" /></ProtectedRoute>} />
+
+        {/* Alueco Reports Routes */}
+        <Route path="/alu/reports/project-pnl" element={<ProtectedRoute requiredPermission="reports.financial"><AluProjectPnLPage /></ProtectedRoute>} />
+        <Route path="/alu/reports/analytics" element={<ProtectedRoute requiredPermission="reports.financial"><AluProjectPnLPage /></ProtectedRoute>} />
+        <Route path="/alu/reports/aging" element={<ProtectedRoute requiredPermission="reports.financial"><AluAgingPage /></ProtectedRoute>} />
 
         <Route path="/logistics/shipments" element={<ProtectedRoute requiredPermission="inventory.view"><ShipmentsPage /></ProtectedRoute>} />
         <Route path="/logistics/gate-passes" element={<ProtectedRoute requiredPermission="inventory.view"><GatePassPage /></ProtectedRoute>} />

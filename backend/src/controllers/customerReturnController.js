@@ -12,15 +12,67 @@ import { increaseStock } from '../services/stockService.js';
 import { updateCustomerBalance } from './invoiceController.js';
 
 /**
+ * PATCH /api/customer-returns/:id/status
+ */
+export const updateReturnStatus = asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    const returnRecord = await CustomerReturn.findByIdAndUpdate(
+        req.params.id,
+        { status },
+        { new: true }
+    );
+    if (!returnRecord) {
+        res.status(404);
+        throw new Error('Return not found');
+    }
+    res.json({ success: true, data: returnRecord });
+});
+
+/**
  * POST /api/customer-returns
  */
 export const createReturn = asyncHandler(async (req, res) => {
     const { customerId, items, salesOrderIds = [], invoiceIds = [], ...rest } = req.body;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) { res.status(404); throw new Error('Customer not found'); }
+    let customer = null;
+    if (customerId) {
+        customer = await Customer.findById(customerId);
+        if (!customer) { res.status(404); throw new Error('Customer not found'); }
+    }
 
-    // Enrich items
+    // Handle simple returns without items (for basic return logging)
+    if (!items || items.length === 0) {
+        const ret = new CustomerReturn({
+            customerId: customer?._id,
+            customerSnapshot: customer ? {
+                name: customer.displayName,
+                code: customer.customerCode,
+                phone: customer.primaryContact?.phone,
+            } : {
+                name: rest.customerName || 'Unknown',
+                code: '',
+                phone: '',
+            },
+            salesOrderIds,
+            invoiceIds,
+            items: [], // Empty items array for simple returns
+            ...rest,
+            createdBy: req.user._id,
+        });
+
+        await ret.save();
+
+        const populated = await CustomerReturn.findById(ret._id)
+            .populate('customerId', 'displayName customerCode');
+
+        res.status(201).json({ success: true, data: populated });
+        return;
+    }
+
+    // Complex returns with items require customer
+    if (!customer) { res.status(400); throw new Error('Customer is required for returns with items'); }
+
+    // Enrich items for complex returns with product details
     const productIds = items.filter((i) => i.productId).map((i) => i.productId);
     const productCodes = items.filter((i) => !i.productId && i.productCode).map((i) => i.productCode);
 
@@ -209,104 +261,92 @@ export const processReturn = asyncHandler(async (req, res) => {
 
     const updatesMap = new Map(itemUpdates.map((u) => [u.itemId, u]));
 
-    const session = await mongoose.startSession();
+    for (const item of ret.items) {
+        const update = updatesMap.get(item._id.toString());
+        if (!update) continue;
 
-    try {
-        await session.withTransaction(async () => {
-            for (const item of ret.items) {
-                const update = updatesMap.get(item._id.toString());
-                if (!update) continue;
+        item.condition = update.condition || item.condition;
+        item.disposition = update.disposition || item.disposition;
+        item.inspectionNotes = update.inspectionNotes;
+        if (update.refundAmount !== undefined) item.refundAmount = +update.refundAmount;
+        if (update.refundable !== undefined) item.refundable = update.refundable;
 
-                item.condition = update.condition || item.condition;
-                item.disposition = update.disposition || item.disposition;
-                item.inspectionNotes = update.inspectionNotes;
-                if (update.refundAmount !== undefined) item.refundAmount = +update.refundAmount;
-                if (update.refundable !== undefined) item.refundable = update.refundable;
+        // DISPOSITION: restock → add stock back
+        if (item.disposition === 'restock' && !item.restockedAt) {
+            const product = await Product.findById(item.productId).setOptions({ includeDeleted: true });
+            const result = await increaseStock({
+                productId: item.productId,
+                warehouseId: ret.returnToWarehouseId,
+                quantity: item.quantityReturned,
+                costPerUnit: product?.costs?.averageCost || product?.costs?.lastPurchaseCost || item.unitPrice,
+                movementType: 'sale_return',
+                sourceDocument: {
+                    type: 'customer_return',
+                    id: ret._id,
+                    number: ret.rmaNumber,
+                },
+                reason: `Restocked from return ${ret.rmaNumber}`,
+                userId: req.user._id,
+            });
+            item.stockMovementId = result.movement._id;
+            item.restockedAt = new Date();
+            item.restockedToWarehouseId = ret.returnToWarehouseId;
+        }
 
-                // DISPOSITION: restock → add stock back
-                if (item.disposition === 'restock' && !item.restockedAt) {
-                    const product = await Product.findById(item.productId).setOptions({ includeDeleted: true }).session(session);
-                    const result = await increaseStock({
-                        productId: item.productId,
-                        warehouseId: ret.returnToWarehouseId,
-                        quantity: item.quantityReturned,
-                        costPerUnit: product?.costs?.averageCost || product?.costs?.lastPurchaseCost || item.unitPrice,
-                        movementType: 'sale_return',
-                        sourceDocument: {
-                            type: 'customer_return',
-                            id: ret._id,
-                            number: ret.rmaNumber,
-                        },
-                        reason: `Restocked from return ${ret.rmaNumber}`,
-                        userId: req.user._id,
-                        session,
-                    });
-                    item.stockMovementId = result.movement._id;
-                    item.restockedAt = new Date();
-                    item.restockedToWarehouseId = ret.returnToWarehouseId;
-                }
+        // DISPOSITION: scrap → damage register
+        if (item.disposition === 'scrap' && !item.damageRecordId) {
+            const damage = new DamageRecord({
+                productId: item.productId,
+                productCode: item.productCode,
+                productName: item.productName,
+                quantity: item.quantityReturned,
+                unitOfMeasure: item.unitOfMeasure,
+                costPerUnit: item.unitPrice,
+                warehouseId: ret.returnToWarehouseId,
+                source: 'customer_return',
+                sourceDocument: {
+                    type: 'customer_return',
+                    id: ret._id,
+                    number: ret.rmaNumber,
+                },
+                description: item.inspectionNotes || `From return ${ret.rmaNumber}`,
+                disposition: 'scrap',
+                reportedBy: req.user._id,
+                approvedBy: req.user._id,
+                approvedAt: new Date(),
+            });
+            await damage.save();
+            item.damageRecordId = damage._id;
+        }
 
-                // DISPOSITION: scrap → damage register
-                if (item.disposition === 'scrap' && !item.damageRecordId) {
-                    const damage = new DamageRecord({
-                        productId: item.productId,
-                        productCode: item.productCode,
-                        productName: item.productName,
-                        quantity: item.quantityReturned,
-                        unitOfMeasure: item.unitOfMeasure,
-                        costPerUnit: item.unitPrice,
-                        warehouseId: ret.returnToWarehouseId,
-                        source: 'customer_return',
-                        sourceDocument: {
-                            type: 'customer_return',
-                            id: ret._id,
-                            number: ret.rmaNumber,
-                        },
-                        description: item.inspectionNotes || `From return ${ret.rmaNumber}`,
-                        disposition: 'scrap',
-                        reportedBy: req.user._id,
-                        approvedBy: req.user._id,
-                        approvedAt: new Date(),
-                    });
-                    await damage.save({ session });
-                    item.damageRecordId = damage._id;
-                }
-
-                // DISPOSITION: repair → create repair order
-                if (item.disposition === 'repair' && !item.repairOrderId) {
-                    const repair = new RepairOrder({
-                        productId: item.productId,
-                        productCode: item.productCode,
-                        productName: item.productName,
-                        quantity: item.quantityReturned,
-                        sourceType: 'customer_return',
-                        customerReturnId: ret._id,
-                        issueDescription: item.inspectionNotes || item.reasonDescription || 'Returned item needs repair',
-                        createdBy: req.user._id,
-                    });
-                    await repair.save({ session });
-                    item.repairOrderId = repair._id;
-                }
-            }
-
-            ret.status = 'processed';
-            ret.inspectedBy = req.user._id;
-            if (refundMethod) ret.refundMethod = refundMethod;
-
-            await ret.save({ session });
-        });
-
-        const populated = await CustomerReturn.findById(ret._id)
-            .populate('customerId', 'displayName customerCode')
-            .populate('items.productId', 'name productCode');
-
-        res.json({ success: true, message: 'Return processed. Stock and records updated.', data: populated });
-    } catch (err) {
-        res.status(400);
-        throw new Error(err.message || 'Failed to process return');
-    } finally {
-        session.endSession();
+        // DISPOSITION: repair → create repair order
+        if (item.disposition === 'repair' && !item.repairOrderId) {
+            const repair = new RepairOrder({
+                productId: item.productId,
+                productCode: item.productCode,
+                productName: item.productName,
+                quantity: item.quantityReturned,
+                sourceType: 'customer_return',
+                customerReturnId: ret._id,
+                issueDescription: item.inspectionNotes || item.reasonDescription || 'Returned item needs repair',
+                createdBy: req.user._id,
+            });
+            await repair.save();
+            item.repairOrderId = repair._id;
+        }
     }
+
+    ret.status = 'processed';
+    ret.inspectedBy = req.user._id;
+    if (refundMethod) ret.refundMethod = refundMethod;
+
+    await ret.save();
+
+    const populated = await CustomerReturn.findById(ret._id)
+        .populate('customerId', 'displayName customerCode')
+        .populate('items.productId', 'name productCode');
+
+    res.json({ success: true, message: 'Return processed. Stock and records updated.', data: populated });
 });
 
 /**

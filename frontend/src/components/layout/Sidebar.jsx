@@ -29,16 +29,43 @@ const menuGroups = [
         label: 'ALUECO ALUMINIUM',
         icon: Layers,
         items: [
-            { label: 'Alu Quotations', icon: FileText, path: '/alu/quotations', permission: 'sales.view' },
-            { label: 'Project Materials & Shortages', icon: PackageCheck, path: '/alu/project-materials', permission: 'inventory.view' },
-            { label: 'AluEco PO', icon: ShoppingBag, path: '/alu/po', permission: 'purchasing.view' },
-            { label: 'Alu Raw Materials', icon: Boxes, path: '/alu/raw-materials', permission: 'inventory.view' },
-            { label: 'Project Agreements', icon: FileText, path: '/alu/agreements', permission: 'sales.view' },
-            { label: 'Alu Scrap Inventory', icon: History, path: '/alu/scrap', permission: 'sales.view' },
+            // 1. Project Management
+            { label: '1. PROJECT MANAGEMENT', isSubHeader: true },
+            { label: 'Project Profiles & Jobs', icon: Layers, path: '/alu/projects', permission: 'sales.view' },
             { label: 'Production Kanban', icon: ClipboardList, path: '/alu/kanban', permission: 'sales.view' },
-            { label: '2D Visual Configurator', icon: Sparkles, path: '/alu/configurator', permission: 'sales.view' },
+            { label: 'Alu Quotations', icon: FileText, path: '/alu/quotations', permission: 'sales.view' },
+            { label: 'Project Agreements', icon: FileText, path: '/alu/agreements', permission: 'sales.view' },
+            { label: 'Project Materials & Shortages', icon: PackageCheck, path: '/alu/project-materials', permission: 'inventory.view' },
             { label: 'On-Site Site Surveys', icon: Navigation, path: '/alu/surveys', permission: 'sales.view' },
+            { label: '2D Visual Configurator', icon: Sparkles, path: '/alu/configurator', permission: 'sales.view' },
             { label: 'Application BOM Templates', icon: Settings, path: '/alu/database', permission: 'sales.view' },
+
+            // 2. Procurement & Supplier Management
+            { label: '2. PROCUREMENT & SUPPLIERS', isSubHeader: true },
+            { label: 'Supplier Profiles', icon: Truck, path: '/suppliers', permission: 'suppliers.view' },
+            { label: 'Alu Raw Materials Inventory', icon: Boxes, path: '/alu/raw-materials', permission: 'inventory.view' },
+            { label: 'AluEco PO & Shortages', icon: ShoppingBag, path: '/alu/po', permission: 'purchasing.view' },
+            { label: 'GRN Intake', icon: PackageCheck, path: '/grns', permission: 'grn.manage' },
+            { label: 'Supplier Bills', icon: Receipt, path: '/bills', permission: 'bills.view' },
+
+            // 3. Finance & Accounting
+            { label: '3. FINANCE & ACCOUNTING', isSubHeader: true },
+            { label: 'Income & Milestone Receipts', icon: Wallet, path: '/alu/finance/income', permission: 'payments.view' },
+            { label: 'Expense Management', icon: DollarSign, path: '/alu/finance/expenses', permission: 'payments.view' },
+            { label: 'Customer Invoices', icon: FileText, path: '/alu/finance/invoices', permission: 'invoices.view' },
+            { label: 'Profit Margin Engine', icon: Calculator, path: '/alu/finance/profit-engine', permission: 'payments.view' },
+
+            // 4. Returns Management
+            { label: '4. RETURNS MANAGEMENT', isSubHeader: true },
+            { label: 'Customer Project Returns', icon: RotateCcw, path: '/alu/returns/customer', permission: 'returns.view' },
+            { label: 'Supplier Raw Material Returns', icon: RotateCcw, path: '/alu/returns/supplier', permission: 'supplier_returns.view' },
+
+            // 5. Reports & Analytics
+            { label: '5. REPORTS & ANALYTICS', isSubHeader: true },
+            { label: 'Project-wise Profit & Loss (P&L)', icon: BarChart3, path: '/alu/reports/project-pnl', permission: 'reports.financial' },
+            { label: 'Separated Reporting Engine', icon: LineChart, path: '/alu/reports/analytics', permission: 'reports.financial' },
+            { label: 'Supplier & Customer Aging', icon: Clock, path: '/alu/reports/aging', permission: 'reports.financial' },
+            { label: 'Alu Scrap Inventory', icon: History, path: '/alu/scrap', permission: 'sales.view' },
         ],
     },
     {
@@ -243,7 +270,7 @@ const approvalCategories = [
 // ── Helper: Check if any item in a category is on the active route ──────────
 function useIsCategoryActive(items) {
     const location = useLocation();
-    return items.some((item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
+    return items.some((item) => item.path && (location.pathname === item.path || location.pathname.startsWith(item.path + '/')));
 }
 
 // ── Approval accordion sub-category component ────────────────────────────────
@@ -380,7 +407,14 @@ function MenuGroup({ group, searchQuery }) {
                 }}
             >
                 <div className="ml-3.5 pl-3 border-l border-slate-900 mt-1 space-y-0.5">
-                    {visibleItems.map((item) => {
+                    {visibleItems.map((item, idx) => {
+                        if (item.isSubHeader) {
+                            return (
+                                <div key={`subhead-${idx}`} className="pt-2.5 pb-1 px-1 text-[10px] font-black text-emerald-400 uppercase tracking-wider border-t border-slate-800/80 first:border-0 first:pt-1">
+                                    {item.label}
+                                </div>
+                            );
+                        }
                         const Icon = item.icon;
                         return (
                             <NavLink
@@ -394,7 +428,7 @@ function MenuGroup({ group, searchQuery }) {
                                     }`
                                 }
                             >
-                                <Icon size={15} className="flex-shrink-0" />
+                                {Icon && <Icon size={15} className="flex-shrink-0" />}
                                 <span className="truncate">{item.label}</span>
                             </NavLink>
                         );

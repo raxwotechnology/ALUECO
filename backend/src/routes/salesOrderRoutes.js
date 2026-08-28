@@ -25,7 +25,6 @@ router
     .get(requirePermission('sales.view'), getSalesOrderById)
     .put(
         requirePermission('sales.edit'),
-        validate(updateSalesOrderSchema),
         updateSalesOrder
     )
     .delete(requirePermission('sales.delete'), deleteSalesOrder);

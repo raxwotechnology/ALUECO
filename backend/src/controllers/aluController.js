@@ -240,16 +240,8 @@ export const reserveProjectMaterials = asyncHandler(async (req, res) => {
     }
     
     const { reserveStockForProject } = await import('../services/bomExplosionService.js');
-    const session = await mongoose.startSession();
-    let result;
-    try {
-        await session.withTransaction(async () => {
-            result = await reserveStockForProject(id, warehouseId, req.user._id, session);
-        });
-        res.json({ success: true, data: result });
-    } finally {
-        session.endSession();
-    }
+    const result = await reserveStockForProject(id, warehouseId, req.user._id);
+    res.json({ success: true, data: result });
 });
 
 export const issueProjectMaterials = asyncHandler(async (req, res) => {
@@ -262,16 +254,8 @@ export const issueProjectMaterials = asyncHandler(async (req, res) => {
     }
     
     const { issueMaterialsToProduction } = await import('../services/bomExplosionService.js');
-    const session = await mongoose.startSession();
-    let result;
-    try {
-        await session.withTransaction(async () => {
-            result = await issueMaterialsToProduction(id, warehouseId, req.user._id, session);
-        });
-        res.json({ success: true, data: result });
-    } finally {
-        session.endSession();
-    }
+    const result = await issueMaterialsToProduction(id, warehouseId, req.user._id);
+    res.json({ success: true, data: result });
 });
 
 // === DEDICATED ALUECO RAW MATERIALS & GRN ===
@@ -364,7 +348,6 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
         }
     }
 
-    const session = await mongoose.startSession();
     const createdProducts = [];
     const Warehouse = (await import('../models/Warehouse.js')).default;
 
@@ -386,74 +369,67 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
         }
     }
 
-    try {
-        await session.withTransaction(async () => {
-            for (const it of items) {
-                const cleanCode = (it.productCode || '').trim().toUpperCase();
-                const defaultWarehouseId = it.warehouseId || targetWhId;
-                const specs = it.specs || {};
+    for (const it of items) {
+        const cleanCode = (it.productCode || '').trim().toUpperCase();
+        const defaultWarehouseId = it.warehouseId || targetWhId;
+        const specs = it.specs || {};
 
-                const [product] = await Product.create([{
-                    productCode: cleanCode || undefined,
-                    name: it.name.trim(),
-                    businessType: 'alueco',
-                    aluCategory: it.aluCategory || 'profiles',
-                    aluSpecs: {
-                        series: specs.series || it.series || '',
-                        thickness: specs.thickness || it.thickness || '',
-                        finish: specs.finish || it.finish || '',
-                        lengthMm: Number(specs.lengthMm || it.lengthMm) || 0,
-                        brand: it.supplierName || specs.brand || '',
-                    },
-                    productType: 'raw_material',
-                    type: 'raw_material',
-                    canBeManufactured: false,
-                    canBePurchased: true,
-                    canBeSold: false,
-                    unitOfMeasure: it.unitOfMeasure || 'Lengths',
-                    basePrice: Number(it.purchaseCost) || 0,
-                    costs: {
-                        lastPurchaseCost: Number(it.purchaseCost) || 0,
-                        standardCost: Number(it.purchaseCost) || 0,
-                        averageCost: Number(it.purchaseCost) || 0,
-                    },
-                    stockLevels: {
-                        reorderLevel: Number(it.reorderLevel) || 5,
-                        minimumLevel: Number(it.minimumLevel) || 2,
-                    },
-                    notes: it.notes || '',
-                    createdBy: req.user?._id
-                }], { session });
+        const [product] = await Product.create([{
+            productCode: cleanCode || undefined,
+            name: it.name.trim(),
+            businessType: 'alueco',
+            aluCategory: it.aluCategory || 'profiles',
+            aluSpecs: {
+                series: specs.series || it.series || '',
+                thickness: specs.thickness || it.thickness || '',
+                finish: specs.finish || it.finish || '',
+                lengthMm: Number(specs.lengthMm || it.lengthMm) || 0,
+                brand: it.supplierName || specs.brand || '',
+            },
+            productType: 'raw_material',
+            type: 'raw_material',
+            canBeManufactured: false,
+            canBePurchased: true,
+            canBeSold: false,
+            unitOfMeasure: it.unitOfMeasure || 'Lengths',
+            basePrice: Number(it.purchaseCost) || 0,
+            costs: {
+                lastPurchaseCost: Number(it.purchaseCost) || 0,
+                standardCost: Number(it.purchaseCost) || 0,
+                averageCost: Number(it.purchaseCost) || 0,
+            },
+            stockLevels: {
+                reorderLevel: Number(it.reorderLevel) || 5,
+                minimumLevel: Number(it.minimumLevel) || 2,
+            },
+            notes: it.notes || '',
+            createdBy: req.user?._id
+        }]);
 
-                // If opening stock is specified and warehouse provided, create stock
-                const qty = Number(it.openingStockQuantity || it.quantity || 0);
-                if (qty > 0 && defaultWarehouseId) {
-                    await increaseStock({
-                        productId: product._id,
-                        warehouseId: defaultWarehouseId,
-                        quantity: qty,
-                        costPerUnit: Number(it.purchaseCost) || 0,
-                        movementType: 'opening_stock',
-                        sourceDocument: { type: 'opening_stock', number: 'ALU-BATCH-OPEN' },
-                        reason: 'AluEco Initial Opening Raw Material Stock',
-                        notes: `Opening balance for ${product.name} (${product.productCode})`,
-                        userId: req.user?._id,
-                        session,
-                    });
-                }
+        // If opening stock is specified and warehouse provided, create stock
+        const qty = Number(it.openingStockQuantity || it.quantity || 0);
+        if (qty > 0 && defaultWarehouseId) {
+            await increaseStock({
+                productId: product._id,
+                warehouseId: defaultWarehouseId,
+                quantity: qty,
+                costPerUnit: Number(it.purchaseCost) || 0,
+                movementType: 'opening_stock',
+                sourceDocument: { type: 'opening_stock', number: 'ALU-BATCH-OPEN' },
+                reason: 'AluEco Initial Opening Raw Material Stock',
+                notes: `Opening balance for ${product.name} (${product.productCode})`,
+                userId: req.user?._id,
+            });
+        }
 
-                createdProducts.push(product);
-            }
-        });
-
-        res.status(201).json({
-            success: true,
-            message: `Successfully created ${createdProducts.length} AluEco Raw Material(s) with initial stock!`,
-            data: createdProducts
-        });
-    } finally {
-        session.endSession();
+        createdProducts.push(product);
     }
+
+    res.status(201).json({
+        success: true,
+        message: `Successfully created ${createdProducts.length} AluEco Raw Material(s) with initial stock!`,
+        data: createdProducts
+    });
 });
 
 export const processAluGrn = asyncHandler(async (req, res) => {
@@ -470,119 +446,110 @@ export const processAluGrn = asyncHandler(async (req, res) => {
         throw new Error('Warehouse and at least one material item are required for GRN.');
     }
 
-    const mongoose = (await import('mongoose')).default;
     const { increaseStock } = await import('../services/stockService.js');
     const AluPurchaseOrder = (await import('../models/AluPurchaseOrder.js')).default;
     const Product = (await import('../models/Product.js')).default;
 
-    const session = await mongoose.startSession();
     const grnNumber = `ALU-GRN-${Date.now().toString().slice(-6)}`;
     const results = [];
 
-    try {
-        await session.withTransaction(async () => {
-            for (const item of items) {
-                const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
-                let pId = item.productId;
+    for (const item of items) {
+        const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
+        let pId = item.productId;
 
-                if (!pId && targetCode) {
-                    let found = await Product.findOne({
-                        $or: [{ productCode: targetCode }, { sku: targetCode }]
-                    }).session(session);
+        if (!pId && targetCode) {
+            let found = await Product.findOne({
+                $or: [{ productCode: targetCode }, { sku: targetCode }]
+            });
 
-                    if (!found) {
-                        // Auto-create raw material product entry if it doesn't exist
-                        found = new Product({
-                            productCode: targetCode,
-                            name: item.productName || item.description || `AluEco Raw Material (${targetCode})`,
-                            productType: 'raw_material',
-                            businessType: 'alueco',
-                            unitOfMeasure: item.unitOfMeasure || 'pcs',
-                            costPrice: Number(item.unitCost) || 0,
-                            status: 'active'
-                        });
-                        await found.save({ session });
-                    }
-                    pId = found._id;
-                }
-
-                if (!pId || !item.quantityReceived) continue;
-
-                const qty = Number(item.quantityReceived);
-                const cost = Number(item.unitCost) || 0;
-
-                const stockResult = await increaseStock({
-                    productId: pId,
-                    warehouseId,
-                    quantity: qty,
-                    costPerUnit: cost,
-                    movementType: 'grn',
-                    sourceDocument: { type: 'grn', number: grnNumber },
-                    reason: `AluEco GRN from ${supplierName || 'Supplier'}`,
-                    notes: invoiceNumber ? `Supplier Invoice #${invoiceNumber}` : notes,
-                    userId: req.user?._id,
-                    session
+            if (!found) {
+                // Auto-create raw material product entry if it doesn't exist
+                found = new Product({
+                    productCode: targetCode,
+                    name: item.productName || item.description || `AluEco Raw Material (${targetCode})`,
+                    productType: 'raw_material',
+                    businessType: 'alueco',
+                    unitOfMeasure: item.unitOfMeasure || 'pcs',
+                    costPrice: Number(item.unitCost) || 0,
+                    status: 'active'
                 });
+                await found.save();
+            }
+            pId = found._id;
+        }
 
-                // Auto fulfill any pending AluPurchaseOrder matching this item code
-                if (targetCode) {
-                    const matchingPos = await AluPurchaseOrder.find({
-                        status: { $in: ['pending', 'partially_received'] },
-                        $or: [
-                            { 'items.itemCode': targetCode },
-                            { 'items.productCode': targetCode }
-                        ]
-                    }).session(session);
+        if (!pId || !item.quantityReceived) continue;
 
-                    let remainingFulfill = qty;
-                    for (const po of matchingPos) {
-                        let poModified = false;
-                        for (const poItem of po.items) {
-                            const poCode = (poItem.itemCode || poItem.productCode || '').toUpperCase();
-                            const curPending = poItem.pendingQuantity ?? Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0));
+        const qty = Number(item.quantityReceived);
+        const cost = Number(item.unitCost) || 0;
 
-                            if (poCode === targetCode && curPending > 0 && remainingFulfill > 0) {
-                                const decr = Math.min(curPending, remainingFulfill);
-                                poItem.receivedQuantity = (poItem.receivedQuantity || 0) + decr;
-                                poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
-                                remainingFulfill -= decr;
+        const stockResult = await increaseStock({
+            productId: pId,
+            warehouseId,
+            quantity: qty,
+            costPerUnit: cost,
+            movementType: 'grn',
+            sourceDocument: { type: 'grn', number: grnNumber },
+            reason: `AluEco GRN from ${supplierName || 'Supplier'}`,
+            notes: invoiceNumber ? `Supplier Invoice #${invoiceNumber}` : notes,
+            userId: req.user?._id,
+        });
 
-                                if (poItem.pendingQuantity === 0) {
-                                    poItem.status = 'fulfilled';
-                                } else {
-                                    poItem.status = 'partially_received';
-                                }
-                                poModified = true;
-                            }
+        // Auto fulfill any pending AluPurchaseOrder matching this item code
+        if (targetCode) {
+            const matchingPos = await AluPurchaseOrder.find({
+                status: { $in: ['pending', 'partially_received'] },
+                $or: [
+                    { 'items.itemCode': targetCode },
+                    { 'items.productCode': targetCode }
+                ]
+            });
+
+            let remainingFulfill = qty;
+            for (const po of matchingPos) {
+                let poModified = false;
+                for (const poItem of po.items) {
+                    const poCode = (poItem.itemCode || poItem.productCode || '').toUpperCase();
+                    const curPending = poItem.pendingQuantity ?? Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0));
+
+                    if (poCode === targetCode && curPending > 0 && remainingFulfill > 0) {
+                        const decr = Math.min(curPending, remainingFulfill);
+                        poItem.receivedQuantity = (poItem.receivedQuantity || 0) + decr;
+                        poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
+                        remainingFulfill -= decr;
+
+                        if (poItem.pendingQuantity === 0) {
+                            poItem.status = 'fulfilled';
+                        } else {
+                            poItem.status = 'partially_received';
                         }
-
-                        if (poModified) {
-                            const allFulfilled = po.items.every(i => (i.pendingQuantity || 0) === 0 || i.status === 'fulfilled');
-                            po.status = allFulfilled ? 'fulfilled' : 'partially_received';
-                            await po.save({ session });
-                        }
+                        poModified = true;
                     }
                 }
 
-                results.push({
-                    productId: pId,
-                    quantity: qty,
-                    stockMovement: stockResult.movement.movementNumber
-                });
+                if (poModified) {
+                    const allFulfilled = po.items.every(i => (i.pendingQuantity || 0) === 0 || i.status === 'fulfilled');
+                    po.status = allFulfilled ? 'fulfilled' : 'partially_received';
+                    await po.save();
+                }
             }
-        });
+        }
 
-        res.status(201).json({
-            success: true,
-            message: `AluEco GRN processed successfully. Recorded ${results.length} materials into stock.`,
-            data: {
-                grnNumber,
-                items: results
-            }
+        results.push({
+            productId: pId,
+            quantity: qty,
+            stockMovement: stockResult.movement.movementNumber
         });
-    } finally {
-        session.endSession();
     }
+
+    res.status(201).json({
+        success: true,
+        message: `AluEco GRN processed successfully. Recorded ${results.length} materials into stock.`,
+        data: {
+            grnNumber,
+            items: results
+        }
+    });
 });
 
 // === PROJECT MATERIALS & SHORTAGE ALLOCATION SUMMARY ===

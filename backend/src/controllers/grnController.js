@@ -180,116 +180,113 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
         po = await PurchaseOrder.findById(grn.purchaseOrderId);
     }
 
-    const session = await mongoose.startSession();
     try {
-        await session.withTransaction(async () => {
-            const approvalsMap = new Map(itemApprovals.map(i => [i._id.toString(), i]));
-            let totalPayable = 0;
+        const approvalsMap = new Map(itemApprovals.map(i => [i._id.toString(), i]));
+        let totalPayable = 0;
 
-            for (const grnItem of grn.items) {
-                const approval = approvalsMap.get(grnItem._id.toString());
-                if (!approval) {
-                    throw new Error(`QA inspection details missing for product: ${grnItem.productName}`);
+        for (const grnItem of grn.items) {
+            const approval = approvalsMap.get(grnItem._id.toString());
+            if (!approval) {
+                throw new Error(`QA inspection details missing for product: ${grnItem.productName}`);
+            }
+
+            const acceptedQty = Number(approval.acceptedQuantity) || 0;
+            const rejectedQty = Number(approval.rejectedQuantity) || 0;
+
+            grnItem.acceptedQuantity = acceptedQty;
+            grnItem.rejectedQuantity = rejectedQty;
+            grnItem.qcStatus = rejectedQty > 0 ? 'failed' : 'approved';
+            grnItem.rejectionReason = approval.rejectionReason;
+
+            // 1. Generate Julian Tracking Batch Code
+            let codePrefix = 'SUP';
+            if (grn.sourceType === 'own_farm' && farm) {
+                codePrefix = farm.farmCode || farm.name;
+            } else if (supplier) {
+                codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
+            }
+            const ProductModel = mongoose.model('Product');
+            const productObj = await ProductModel.findById(grnItem.productId);
+            const prodShort = productObj?.productShortCode || 'PRD';
+            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const batchCode = `${generateJulianBatchCode(`${codePrefix}-${prodShort}`, grn.receiptDate)}-${uniqueSuffix}`;
+            grnItem.batchNumber = approval.batchNumber || batchCode;
+
+            totalPayable += acceptedQty * grnItem.unitPrice;
+
+            // 2. Increase stock for accepted quantity
+            if (acceptedQty > 0) {
+                const result = await increaseStock({
+                    productId: grnItem.productId,
+                    warehouseId: grn.warehouseId,
+                    quantity: acceptedQty,
+                    costPerUnit: grnItem.unitPrice,
+                    movementType: 'purchase_receipt',
+                    batchNumber: grnItem.batchNumber,
+                    sourceDocument: {
+                        type: 'purchase_receipt',
+                        id: grn._id,
+                        number: grn.grnNumber,
+                    },
+                    reason: `QA Approved material intake. Batch: ${grnItem.batchNumber}`,
+                    userId: req.user._id,
+                });
+                grnItem.stockMovementId = result.movement._id;
+            }
+
+            // 3. Update PO received quantity
+            if (po && grnItem.poLineItemId) {
+                const poLine = po.items.id(grnItem.poLineItemId);
+                if (poLine) {
+                    poLine.receivedQuantity = (poLine.receivedQuantity || 0) + acceptedQty;
                 }
+            }
 
-                const acceptedQty = Number(approval.acceptedQuantity) || 0;
-                const rejectedQty = Number(approval.rejectedQuantity) || 0;
+            // 4. Auto-fulfill matching items in open AluEco POs (AluPurchaseOrder)
+            if (acceptedQty > 0) {
+                const codeToMatch = (grnItem.productCode || '').toUpperCase().trim();
+                const aluOrders = await AluPurchaseOrder.find({
+                    status: { $in: ['pending', 'partially_received'] },
+                    $or: [
+                        { 'items.itemCode': codeToMatch },
+                        { 'items.productId': grnItem.productId }
+                    ]
+                });
 
-                grnItem.acceptedQuantity = acceptedQty;
-                grnItem.rejectedQuantity = rejectedQty;
-                grnItem.qcStatus = rejectedQty > 0 ? 'failed' : 'approved';
-                grnItem.rejectionReason = approval.rejectionReason;
+                let remainingToFulfill = acceptedQty;
+                for (const aluOrder of aluOrders) {
+                    if (remainingToFulfill <= 0) break;
+                    let orderModified = false;
 
-                // 1. Generate Julian Tracking Batch Code
-                let codePrefix = 'SUP';
-                if (grn.sourceType === 'own_farm' && farm) {
-                    codePrefix = farm.farmCode || farm.name;
-                } else if (supplier) {
-                    codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
-                }
-                const ProductModel = mongoose.model('Product');
-                const productObj = await ProductModel.findById(grnItem.productId);
-                const prodShort = productObj?.productShortCode || 'PRD';
-                const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-                const batchCode = `${generateJulianBatchCode(`${codePrefix}-${prodShort}`, grn.receiptDate)}-${uniqueSuffix}`;
-                grnItem.batchNumber = approval.batchNumber || batchCode;
+                    for (const item of aluOrder.items) {
+                        const isMatch = (item.itemCode && item.itemCode.toUpperCase() === codeToMatch) ||
+                            (item.productId && grnItem.productId && item.productId.toString() === grnItem.productId.toString());
 
-                totalPayable += acceptedQty * grnItem.unitPrice;
-
-                // 2. Increase stock for accepted quantity
-                if (acceptedQty > 0) {
-                    const result = await increaseStock({
-                        productId: grnItem.productId,
-                        warehouseId: grn.warehouseId,
-                        quantity: acceptedQty,
-                        costPerUnit: grnItem.unitPrice,
-                        movementType: 'purchase_receipt',
-                        batchNumber: grnItem.batchNumber,
-                        sourceDocument: {
-                            type: 'purchase_receipt',
-                            id: grn._id,
-                            number: grn.grnNumber,
-                        },
-                        reason: `QA Approved material intake. Batch: ${grnItem.batchNumber}`,
-                        userId: req.user._id,
-                        session,
-                    });
-                    grnItem.stockMovementId = result.movement._id;
-                }
-
-                // 3. Update PO received quantity
-                if (po && grnItem.poLineItemId) {
-                    const poLine = po.items.id(grnItem.poLineItemId);
-                    if (poLine) {
-                        poLine.receivedQuantity = (poLine.receivedQuantity || 0) + acceptedQty;
-                    }
-                }
-
-                // 4. Auto-fulfill matching items in open AluEco POs (AluPurchaseOrder)
-                if (acceptedQty > 0) {
-                    const codeToMatch = (grnItem.productCode || '').toUpperCase().trim();
-                    const aluOrders = await AluPurchaseOrder.find({
-                        status: { $in: ['pending', 'partially_received'] },
-                        $or: [
-                            { 'items.itemCode': codeToMatch },
-                            { 'items.productId': grnItem.productId }
-                        ]
-                    }).session(session);
-
-                    let remainingToFulfill = acceptedQty;
-                    for (const aluOrder of aluOrders) {
-                        if (remainingToFulfill <= 0) break;
-                        let orderModified = false;
-
-                        for (const item of aluOrder.items) {
-                            const isMatch = (item.itemCode && item.itemCode.toUpperCase() === codeToMatch) ||
-                                (item.productId && grnItem.productId && item.productId.toString() === grnItem.productId.toString());
-
-                            if (isMatch && item.pendingQuantity > 0 && remainingToFulfill > 0) {
-                                const fulfillAmount = Math.min(item.pendingQuantity, remainingToFulfill);
-                                item.receivedQuantity = +(item.receivedQuantity + fulfillAmount).toFixed(2);
-                                item.pendingQuantity = Math.max(0, +(item.pendingQuantity - fulfillAmount).toFixed(2));
-                                remainingToFulfill = +(remainingToFulfill - fulfillAmount).toFixed(2);
-                                
-                                if (item.pendingQuantity === 0) {
-                                    item.status = 'fulfilled';
-                                } else {
-                                    item.status = 'partially_received';
-                                }
-                                orderModified = true;
+                        if (isMatch && item.pendingQuantity > 0 && remainingToFulfill > 0) {
+                            const fulfillAmount = Math.min(item.pendingQuantity, remainingToFulfill);
+                            item.receivedQuantity = +(item.receivedQuantity + fulfillAmount).toFixed(2);
+                            item.pendingQuantity = Math.max(0, +(item.pendingQuantity - fulfillAmount).toFixed(2));
+                            remainingToFulfill = +(remainingToFulfill - fulfillAmount).toFixed(2);
+                            
+                            if (item.pendingQuantity === 0) {
+                                item.status = 'fulfilled';
+                            } else {
+                                item.status = 'partially_received';
                             }
+                            orderModified = true;
                         }
+                    }
 
-                        if (orderModified) {
-                            const allDone = aluOrder.items.every(it => it.status === 'fulfilled' || it.pendingQuantity === 0);
-                            const anyRec = aluOrder.items.some(it => it.receivedQuantity > 0);
-                            aluOrder.status = allDone ? 'fulfilled' : (anyRec ? 'partially_received' : 'pending');
-                            aluOrder.updatedBy = req.user._id;
-                            await aluOrder.save({ session });
-                        }
+                    if (orderModified) {
+                        const allDone = aluOrder.items.every(it => it.status === 'fulfilled' || it.pendingQuantity === 0);
+                        const anyRec = aluOrder.items.some(it => it.receivedQuantity > 0);
+                        aluOrder.status = allDone ? 'fulfilled' : (anyRec ? 'partially_received' : 'pending');
+                        aluOrder.updatedBy = req.user._id;
+                        await aluOrder.save();
                     }
                 }
             }
+        }
 
             // 4. Financial Splitting Calculations
             const balanceDue = totalPayable - paidAmountLKR;
@@ -300,7 +297,7 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
             grn.status = 'approved';
 
             // Save GRN and PO
-            await grn.save({ session });
+            await grn.save();
 
             // Auto-generate Bill from GRN
             const billItems = grn.items
@@ -358,16 +355,16 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                     createdBy: req.user._id,
                 });
 
-                await bill.save({ session });
+                await bill.save();
 
                 if (paymentType === 'paid' && paidAmountLKR > 0 && paymentMethod) {
                     const isChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
                     
                     if (bankAccountId && paymentMethod !== 'cash' && !isChequePending) {
-                        const bankAccount = await BankAccount.findById(bankAccountId).session(session);
+                        const bankAccount = await BankAccount.findById(bankAccountId);
                         if (!bankAccount) throw new Error('Company bank/cash account not found');
                         bankAccount.balance = +(bankAccount.balance - paidAmountLKR).toFixed(2);
-                        await bankAccount.save({ session });
+                        await bankAccount.save();
                     }
 
                     const payment = new Payment({
@@ -391,7 +388,7 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                         receivedBy: req.user._id,
                         createdBy: req.user._id,
                     });
-                    await payment.save({ session });
+                    await payment.save();
                 }
             }
             
@@ -405,13 +402,13 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
                 });
                 po.status = allReceived ? 'received' : 'partially_received';
                 po.grns = [...(po.grns || []), grn._id];
-                await po.save({ session });
+                await po.save();
             }
 
             // 5. Update Supplier Accounts Payable ledger
             if (supplier) {
                 supplier.balanceDueLKR = +( (supplier.balanceDueLKR || 0) + balanceDue ).toFixed(2);
-                await supplier.save({ session });
+                await supplier.save();
             }
 
             // 6. Broadcast Real-Time Stock & Balance via Socket.io
@@ -442,7 +439,6 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
             } catch (socketErr) {
                 console.warn('[GRN Approval] Socket broadcast error:', socketErr.message);
             }
-        });
 
         const populated = await GoodsReceiptNote.findById(grn._id)
             .populate('purchaseOrderId', 'poNumber')
@@ -460,8 +456,6 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
     } catch (err) {
         res.status(400);
         throw new Error(err.message || 'QA approval failed');
-    } finally {
-        session.endSession();
     }
 });
 

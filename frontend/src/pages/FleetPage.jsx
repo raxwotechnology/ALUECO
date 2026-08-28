@@ -43,7 +43,7 @@ const FleetPage = ({ defaultView = 'vehicles' }) => {
 
     const tripColumns = [
         { key: 'date', label: 'Date', render: (r) => new Date(r.startDate).toLocaleDateString() },
-        { key: 'vehicle', label: 'Vehicle', render: (r) => r.vehicleId?.registrationNo || r.vehicleId?.licensePlate || '—' },
+        { key: 'vehicle', label: 'Vehicle', render: (r) => r.vehicleId?.registrationNo || '—' },
         { key: 'route', label: 'Route', render: (r) => `${r.origin} → ${r.destination}` },
         { 
             key: 'shift', 

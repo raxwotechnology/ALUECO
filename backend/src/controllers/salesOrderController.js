@@ -150,189 +150,189 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
             chequeStatus,
         } = req.body;
 
-        const session = await mongoose.startSession();
-        try {
-            await session.withTransaction(async () => {
-                let targetWarehouse = null;
-                if (order.sourceWarehouseId) {
-                    targetWarehouse = await Warehouse.findById(order.sourceWarehouseId).session(session);
-                } else if (warehouse?._id) {
-                    targetWarehouse = await Warehouse.findById(warehouse._id).session(session);
-                }
-                
-                if (!targetWarehouse) {
-                    targetWarehouse = await Warehouse.findOne({ isDefault: true, isActive: true }).session(session);
-                }
+        // Helper function to execute operations with or without session
+        const executePOSOperations = async (session = null) => {
+            const sessionOptions = session ? { session } : {};
+            
+            let targetWarehouse = null;
+            if (order.sourceWarehouseId) {
+                targetWarehouse = await Warehouse.findById(order.sourceWarehouseId).session(session || null);
+            } else if (warehouse?._id) {
+                targetWarehouse = await Warehouse.findById(warehouse._id).session(session || null);
+            }
+            
+            if (!targetWarehouse) {
+                targetWarehouse = await Warehouse.findOne({ isDefault: true, isActive: true }).session(session || null);
+            }
 
-                if (!targetWarehouse) {
-                    throw new Error('Warehouse not found and no default warehouse exists.');
-                }
+            if (!targetWarehouse) {
+                throw new Error('Warehouse not found and no default warehouse exists.');
+            }
 
-                const warehouseId = targetWarehouse._id;
-                const allowNegative = targetWarehouse.settings?.allowNegativeStock || false;
+            const warehouseId = targetWarehouse._id;
+            const allowNegative = targetWarehouse.settings?.allowNegativeStock || false;
 
-                for (const item of order.items) {
-                    const stockItem = await StockItem.findOne({
-                        productId: item.productId,
-                        warehouseId,
-                        batchNumber: null,
-                    }).session(session);
+            for (const item of order.items) {
+                const stockItem = await StockItem.findOne({
+                    productId: item.productId,
+                    warehouseId,
+                    batchNumber: null,
+                }).session(session || null);
 
-                    if (!allowNegative) {
-                        if (!stockItem) {
-                            throw new Error(
-                                `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
-                            );
-                        }
-
-                        if (stockItem.quantities.openStock < item.orderedQuantity) {
-                            throw new Error(
-                                `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
-                            );
-                        }
+                if (!allowNegative) {
+                    if (!stockItem) {
+                        throw new Error(
+                            `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
+                        );
                     }
 
-                    await decreaseStock({
-                        productId: item.productId,
-                        warehouseId,
-                        quantity: item.orderedQuantity,
-                        movementType: 'sale_dispatch',
-                        sourceDocument: {
-                            type: 'sales_order',
-                            id: order._id,
-                            number: order.orderNumber,
-                        },
-                        reason: 'POS sale checkout',
-                        userId: req.user._id,
-                        session,
-                        allowNegative,
-                    });
-
-                    item.dispatchedQuantity = item.orderedQuantity;
-                    item.deliveredQuantity = item.orderedQuantity;
-                    item.lineStatus = 'delivered';
+                    if (stockItem.quantities.openStock < item.orderedQuantity) {
+                        throw new Error(
+                            `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
+                        );
+                    }
                 }
 
-                order.status = 'invoiced';
-                order.approvedBy = req.user._id;
-                order.approvedAt = new Date();
-                order.isOnHold = false;
-                order.holdReason = null;
-                await order.save({ session });
-
-                const invoiceItems = order.items.map((orderItem) => ({
-                    productId: orderItem.productId,
-                    productCode: orderItem.productCode,
-                    productName: orderItem.productName,
-                    description: orderItem.description,
-                    quantity: orderItem.orderedQuantity,
-                    unitOfMeasure: orderItem.unitOfMeasure,
-                    unitPrice: orderItem.unitPrice,
-                    discountPercent: orderItem.discountPercent,
-                    taxRate: orderItem.taxRate,
-                    taxable: orderItem.taxable,
-                    salesOrderLineId: orderItem._id,
-                }));
-
-                const isAdvance = paymentMethod === 'advance' || (req.body.advancePaidAmount !== undefined && Number(req.body.advancePaidAmount) < order.grandTotal);
-                const rawPayAmount = isAdvance ? Number(req.body.advancePaidAmount || 0) : order.grandTotal;
-                const payAmount = Math.min(order.grandTotal, Math.max(0, +rawPayAmount.toFixed(2)));
-                const balanceDue = Math.max(0, +(order.grandTotal - payAmount).toFixed(2));
-
-                order.advancePaidAmount = payAmount;
-                order.pendingBalance = balanceDue;
-                if (isAdvance) {
-                    order.paymentTerms = { type: 'advance' };
-                }
-
-                const isChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
-                const invPaymentStatus = payAmount >= order.grandTotal ? 'paid' : (payAmount > 0 ? 'partially_paid' : 'unpaid');
-
-                const invoice = new Invoice({
-                    customerId: foundCustomer._id,
-                    customerSnapshot: {
-                        name: foundCustomer.displayName,
-                        code: foundCustomer.customerCode,
-                        taxRegistrationNumber: foundCustomer.taxRegistrationNumber,
-                        contactName: foundCustomer.primaryContact?.name,
+                await decreaseStock({
+                    productId: item.productId,
+                    warehouseId,
+                    quantity: item.orderedQuantity,
+                    movementType: 'sale_dispatch',
+                    sourceDocument: {
+                        type: 'sales_order',
+                        id: order._id,
+                        number: order.orderNumber,
                     },
-                    billingAddress,
-                    shippingAddress,
-                    salesOrderIds: [order._id],
-                    salesOrderNumbers: [order.orderNumber],
-                    invoiceType: 'commercial',
-                    invoiceDate: new Date(),
-                    salesRepId: foundCustomer.assignedSalesRep || req.user._id,
-                    paymentTerms: {
-                        type: isAdvance ? 'advance' : (foundCustomer.paymentTerms?.type || 'cash'),
-                        creditDays: foundCustomer.paymentTerms?.creditDays || 0,
-                    },
-                    items: invoiceItems,
-                    status: 'approved',
-                    paymentStatus: invPaymentStatus,
-                    amountPaid: payAmount,
-                    balanceDue: balanceDue,
-                    stockDeducted: true,
-                    warehouseId: warehouseId,
-                    createdBy: req.user._id,
+                    reason: 'POS sale checkout',
+                    userId: req.user._id,
+                    session: session || undefined,
+                    allowNegative,
                 });
 
-                await invoice.save({ session });
+                item.dispatchedQuantity = item.orderedQuantity;
+                item.deliveredQuantity = item.orderedQuantity;
+                item.lineStatus = 'delivered';
+            }
 
-                if (paymentMethod && payAmount > 0) {
-                    if (bankAccountId && paymentMethod !== 'cash' && !isChequePending) {
-                        const bankAccount = await BankAccount.findById(bankAccountId).session(session);
-                        if (!bankAccount) throw new Error('Company bank/cash account not found');
-                        bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
-                        await bankAccount.save({ session });
-                    }
+            order.status = 'invoiced';
+            order.approvedBy = req.user._id;
+            order.approvedAt = new Date();
+            order.isOnHold = false;
+            order.holdReason = null;
+            
+            // Handle advance/partial payment for POS
+            const isAdvance = paymentMethod === 'advance' || (req.body.advancePaidAmount !== undefined && Number(req.body.advancePaidAmount) < order.grandTotal);
+            const rawPayAmount = isAdvance ? Number(req.body.advancePaidAmount || 0) : order.grandTotal;
+            const payAmount = Math.min(order.grandTotal, Math.max(0, +rawPayAmount.toFixed(2)));
+            const balanceDue = Math.max(0, +(order.grandTotal - payAmount).toFixed(2));
 
-                    const payment = new Payment({
-                        direction: 'received',
-                        customerId: foundCustomer._id,
-                        bankAccountId: paymentMethod !== 'cash' ? (bankAccountId || undefined) : undefined,
-                        amount: payAmount,
-                        method: paymentMethod === 'advance' ? (req.body.advanceMethod || 'cash') : paymentMethod,
-                        chequeNumber: paymentMethod === 'cheque' ? chequeNumber : undefined,
-                        chequeDate: paymentMethod === 'cheque' && chequeDate ? new Date(chequeDate) : undefined,
-                        chequeStatus: paymentMethod === 'cheque' ? (chequeStatus || 'pending') : undefined,
-                        bankName: paymentMethod === 'cheque' ? bankName : undefined,
-                        transactionReference: paymentMethod !== 'cheque' && paymentMethod !== 'cash' ? paymentReference : undefined,
-                        partyName: foundCustomer.displayName,
-                        allocations: [{
-                            documentType: 'invoice',
-                            documentId: invoice._id,
-                            documentNumber: invoice.invoiceNumber,
-                            amount: payAmount,
-                        }],
-                        receivedBy: req.user._id,
-                        createdBy: req.user._id,
-                    });
-                    await payment.save({ session });
-                }
+            order.advancePaidAmount = payAmount;
+            order.pendingBalance = balanceDue;
+            order.paymentMethod = paymentMethod;
+            if (isAdvance) {
+                order.paymentTerms = { type: 'advance' };
+            }
+            
+            await order.save(sessionOptions);
 
-                await updateCustomerBalance(foundCustomer._id, session);
-                await excelService.updateExcelRow('sales_order', order);
+            const invoiceItems = order.items.map((orderItem) => ({
+                productId: orderItem.productId,
+                productCode: orderItem.productCode,
+                productName: orderItem.productName,
+                description: orderItem.description,
+                quantity: orderItem.orderedQuantity,
+                unitOfMeasure: orderItem.unitOfMeasure,
+                unitPrice: orderItem.unitPrice,
+                discountPercent: orderItem.discountPercent,
+                taxRate: orderItem.taxRate,
+                taxable: orderItem.taxable,
+                salesOrderLineId: orderItem._id,
+            }));
+
+            const isChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
+            const invPaymentStatus = payAmount >= order.grandTotal ? 'paid' : (payAmount > 0 ? 'partially_paid' : 'unpaid');
+
+            const invoice = new Invoice({
+                customerId: foundCustomer._id,
+                customerSnapshot: {
+                    name: foundCustomer.displayName,
+                    code: foundCustomer.customerCode,
+                    taxRegistrationNumber: foundCustomer.taxRegistrationNumber,
+                    contactName: foundCustomer.primaryContact?.name,
+                },
+                billingAddress,
+                shippingAddress,
+                salesOrderIds: [order._id],
+                salesOrderNumbers: [order.orderNumber],
+                invoiceType: 'commercial',
+                invoiceDate: new Date(),
+                salesRepId: foundCustomer.assignedSalesRep || req.user._id,
+                paymentTerms: {
+                    type: isAdvance ? 'advance' : (foundCustomer.paymentTerms?.type || 'cash'),
+                    creditDays: foundCustomer.paymentTerms?.creditDays || 0,
+                },
+                items: invoiceItems,
+                status: 'approved',
+                paymentStatus: invPaymentStatus,
+                amountPaid: payAmount,
+                balanceDue: balanceDue,
+                stockDeducted: true,
+                warehouseId: warehouseId,
+                createdBy: req.user._id,
             });
 
-            const finalIsChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
-            if (paymentMethod && bankAccountId && paymentMethod !== 'cash' && !finalIsChequePending) {
-                try {
-                    const updatedAccount = await BankAccount.findById(bankAccountId);
-                    if (updatedAccount) {
-                        broadcast('bank_balance_update', {
-                            bankAccountId,
-                            balance: updatedAccount.balance,
-                        });
-                    }
-                } catch (_) {}
+            await invoice.save(sessionOptions);
+
+            if (paymentMethod && payAmount > 0) {
+                if (bankAccountId && paymentMethod !== 'cash' && !isChequePending) {
+                    const bankAccount = await BankAccount.findById(bankAccountId).session(session || null);
+                    if (!bankAccount) throw new Error('Company bank/cash account not found');
+                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
+                    await bankAccount.save(sessionOptions);
+                }
+
+                const payment = new Payment({
+                    direction: 'received',
+                    customerId: foundCustomer._id,
+                    bankAccountId: paymentMethod !== 'cash' ? (bankAccountId || undefined) : undefined,
+                    amount: payAmount,
+                    method: paymentMethod === 'advance' ? (req.body.advanceMethod || 'cash') : paymentMethod,
+                    chequeNumber: paymentMethod === 'cheque' ? chequeNumber : undefined,
+                    chequeDate: paymentMethod === 'cheque' && chequeDate ? new Date(chequeDate) : undefined,
+                    chequeStatus: paymentMethod === 'cheque' ? (chequeStatus || 'pending') : undefined,
+                    bankName: paymentMethod === 'cheque' ? bankName : undefined,
+                    transactionReference: paymentMethod !== 'cheque' && paymentMethod !== 'cash' ? paymentReference : undefined,
+                    partyName: foundCustomer.displayName,
+                    allocations: [{
+                        documentType: 'invoice',
+                        documentId: invoice._id,
+                        documentNumber: invoice.invoiceNumber,
+                        amount: payAmount,
+                    }],
+                    receivedBy: req.user._id,
+                    createdBy: req.user._id,
+                });
+                await payment.save(sessionOptions);
             }
-        } catch (error) {
-            await SalesOrder.deleteOne({ _id: order._id });
-            res.status(400);
-            throw new Error(error.message || 'POS Checkout Transaction Failed');
-        } finally {
-            session.endSession();
+
+            await updateCustomerBalance(foundCustomer._id, session);
+            await excelService.updateExcelRow('sales_order', order);
+        };
+
+        // Execute POS operations without transactions (standalone MongoDB)
+        await executePOSOperations(null);
+
+        const finalIsChequePending = paymentMethod === 'cheque' && chequeStatus !== 'cleared';
+        if (paymentMethod && bankAccountId && paymentMethod !== 'cash' && !finalIsChequePending) {
+            try {
+                const updatedAccount = await BankAccount.findById(bankAccountId);
+                if (updatedAccount) {
+                    broadcast('bank_balance_update', {
+                        bankAccountId,
+                        balance: updatedAccount.balance,
+                    });
+                }
+            } catch (_) {}
         }
     } else {
         // Credit check for credit-term customers
@@ -463,13 +463,16 @@ export const getSalesOrderById = asyncHandler(async (req, res) => {
 });
 
 /**
- * Update Sales Order (only if draft or pending)
+ * Update Sales Order
  */
 export const updateSalesOrder = asyncHandler(async (req, res) => {
     const order = await SalesOrder.findById(req.params.id);
     if (!order) { res.status(404); throw new Error('Sales order not found'); }
 
-    if (!['draft', 'pending_approval'].includes(order.status)) {
+    // ALUECO orders can be updated regardless of status (different workflow)
+    const isAluecoOrder = order.businessType === 'alueco' || order.quotationId;
+    
+    if (!isAluecoOrder && !['draft', 'pending_approval'].includes(order.status)) {
         res.status(400);
         throw new Error(`Cannot edit order with status '${order.status}'`);
     }
@@ -522,10 +525,21 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
         draft: ['approved', 'cancelled'],
         pending_approval: ['approved', 'cancelled'],
         pending: ['approved', 'cancelled'],
-        approved: ['dispatched', 'cancelled', 'on_hold'],
+        approved: ['dispatched', 'cancelled', 'on_hold', 'cutting', 'Confirmed', 'invoiced', 'delivered'],
         on_hold: ['approved', 'cancelled'],
-        dispatched: ['delivered', 'cancelled'],
-        delivered: ['completed'],
+        Confirmed: ['cutting', 'cancelled', 'In Production'],
+        'In Production': ['cutting', 'cancelled', 'Installation'],
+        cutting: ['assembly', 'cancelled'],
+        assembly: ['glazing', 'cancelled'],
+        glazing: ['qa', 'cancelled'],
+        qa: ['ready', 'cancelled'],
+        ready: ['dispatched', 'cancelled', 'Installation', 'delivered'],
+        Installation: ['Completed', 'cancelled', 'completed'],
+        dispatched: ['delivered', 'cancelled', 'invoiced', 'completed'],
+        delivered: ['completed', 'invoiced'],
+        invoiced: ['completed', 'cancelled', 'delivered'],
+        Completed: ['completed'],
+        completed: [],
     };
 
     if (!allowedTransitions[order.status]?.includes(status)) {
@@ -534,7 +548,7 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
     }
 
     // Role checks
-    if (status === 'approved' && !['admin', 'manager', 'sales_manager', 'accountant'].includes(req.user.role)) {
+    if (status === 'approved' && !['admin', 'manager', 'sales_manager', 'accountant', 'sales_rep'].includes(req.user.role)) {
         res.status(403); throw new Error('Not authorized to approve orders');
     }
 
@@ -549,143 +563,130 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
         warehouseId = defaultWarehouse?._id;
     }
 
-    const session = await mongoose.startSession();
-
-    try {
-        await session.withTransaction(async () => {
-            let targetWarehouse = null;
-            if (warehouseId) {
-                targetWarehouse = await Warehouse.findById(warehouseId).session(session);
-            } else {
-                targetWarehouse = await Warehouse.findOne({ isDefault: true, isActive: true }).session(session);
-            }
-            const allowNegative = targetWarehouse?.settings?.allowNegativeStock || false;
-            if (targetWarehouse) {
-                warehouseId = targetWarehouse._id;
-            }
-
-            // ─── APPROVE: deduct stock immediately from warehouse ───────────────
-            if (status === 'approved' && order.status !== 'approved') {
-                for (const item of order.items) {
-                    // Check that stock exists and is sufficient
-                    const stockItem = await StockItem.findOne({
-                        productId: item.productId,
-                        warehouseId,
-                        batchNumber: null,
-                    }).session(session);
-
-                    if (!allowNegative) {
-                        if (!stockItem) {
-                            throw new Error(
-                                `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
-                            );
-                        }
-
-                        if (stockItem.quantities.openStock < item.orderedQuantity) {
-                            throw new Error(
-                                `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
-                            );
-                        }
-                    }
-
-                    // Directly deduct onHand — stock leaves warehouse on approval
-                    await decreaseStock({
-                        productId: item.productId,
-                        warehouseId,
-                        quantity: item.orderedQuantity,
-                        movementType: 'sale_dispatch',
-                        sourceDocument: {
-                            type: 'sales_order',
-                            id: order._id,
-                            number: order.orderNumber,
-                        },
-                        reason: 'Sales order approved',
-                        userId: req.user._id,
-                        session,
-                        allowNegative,
-                    });
-
-                    item.dispatchedQuantity = item.orderedQuantity;
-                    item.lineStatus = 'dispatched';
-                }
-
-                order.approvedBy = req.user._id;
-                order.approvedAt = new Date();
-                order.isOnHold = false;
-                order.holdReason = null;
-            }
-
-            // ─── DISPATCHED: just mark items (stock already deducted on approve) ─
-            if (status === 'dispatched' && order.status !== 'dispatched') {
-                for (const item of order.items) {
-                    if (item.lineStatus !== 'dispatched') {
-                        item.dispatchedQuantity = item.orderedQuantity;
-                        item.lineStatus = 'dispatched';
-                    }
-                }
-            }
-
-            // ─── DELIVERED ────────────────────────────────────────────────────────
-            if (status === 'delivered' && order.status !== 'delivered') {
-                for (const item of order.items) {
-                    item.deliveredQuantity = item.dispatchedQuantity || item.orderedQuantity;
-                    item.lineStatus = 'delivered';
-                }
-            }
-
-            // ─── CANCELLED: restore stock only if order was already approved ─────
-            if (status === 'cancelled' && ['approved', 'dispatched', 'on_hold'].includes(order.status)) {
-                for (const item of order.items) {
-                    try {
-                        await increaseStock({
-                            productId: item.productId,
-                            warehouseId,
-                            quantity: item.orderedQuantity,
-                            costPerUnit: 0,
-                            movementType: 'sale_return',
-                            sourceDocument: {
-                                type: 'sales_order',
-                                id: order._id,
-                                number: order.orderNumber,
-                            },
-                            reason: reason || 'Order cancelled — stock restored',
-                            userId: req.user._id,
-                            session,
-                        });
-                    } catch (stockErr) {
-                        // Non-fatal: log but don't block cancellation
-                        console.warn(`Stock restore failed for ${item.productName}:`, stockErr.message);
-                    }
-                }
-            }
-
-            order.status = status;
-            order.updatedBy = req.user._id;
-
-            if (status === 'cancelled') {
-                order.cancelledBy = req.user._id;
-                order.cancelledAt = new Date();
-                order.cancellationReason = reason;
-            }
-
-            if (status === 'on_hold') {
-                order.isOnHold = true;
-                order.holdReason = reason;
-            }
-
-            await order.save({ session });
-            
-            // Sync to Excel (Bookings) - status update
-            await excelService.updateExcelRow('sales_order', order);
-        });
-
-        res.json({ success: true, message: `Order status changed to ${status}`, data: order });
-    } catch (err) {
-        res.status(400);
-        throw new Error(err.message || 'Failed to change order status');
-    } finally {
-        session.endSession();
+    let targetWarehouse = null;
+    if (warehouseId) {
+        targetWarehouse = await Warehouse.findById(warehouseId);
+    } else {
+        targetWarehouse = await Warehouse.findOne({ isDefault: true, isActive: true });
     }
+    const allowNegative = targetWarehouse?.settings?.allowNegativeStock || false;
+    if (targetWarehouse) {
+        warehouseId = targetWarehouse._id;
+    }
+
+    // ─── APPROVE: deduct stock immediately from warehouse ───────────────
+    if (status === 'approved' && order.status !== 'approved') {
+        for (const item of order.items) {
+            // Check that stock exists and is sufficient
+            const stockItem = await StockItem.findOne({
+                productId: item.productId,
+                warehouseId,
+                batchNumber: null,
+            });
+
+            if (!allowNegative) {
+                if (!stockItem) {
+                    throw new Error(
+                        `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
+                    );
+                }
+
+                if (stockItem.quantities.openStock < item.orderedQuantity) {
+                    throw new Error(
+                        `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
+                    );
+                }
+            }
+
+            // Directly deduct onHand — stock leaves warehouse on approval
+            await decreaseStock({
+                productId: item.productId,
+                warehouseId,
+                quantity: item.orderedQuantity,
+                movementType: 'sale_dispatch',
+                sourceDocument: {
+                    type: 'sales_order',
+                    id: order._id,
+                    number: order.orderNumber,
+                },
+                reason: 'Sales order approved',
+                userId: req.user._id,
+                allowNegative,
+            });
+
+            item.dispatchedQuantity = item.orderedQuantity;
+            item.lineStatus = 'dispatched';
+        }
+
+        order.approvedBy = req.user._id;
+        order.approvedAt = new Date();
+        order.isOnHold = false;
+        order.holdReason = null;
+    }
+
+    // ─── DISPATCHED: just mark items (stock already deducted on approve) ─
+    if (status === 'dispatched' && order.status !== 'dispatched') {
+        for (const item of order.items) {
+            if (item.lineStatus !== 'dispatched') {
+                item.dispatchedQuantity = item.orderedQuantity;
+                item.lineStatus = 'dispatched';
+            }
+        }
+    }
+
+    // ─── DELIVERED ────────────────────────────────────────────────────────
+    if (status === 'delivered' && order.status !== 'delivered') {
+        for (const item of order.items) {
+            item.deliveredQuantity = item.dispatchedQuantity || item.orderedQuantity;
+            item.lineStatus = 'delivered';
+        }
+    }
+
+    // ─── CANCELLED: restore stock only if order was already approved ─────
+    if (status === 'cancelled' && ['approved', 'dispatched', 'on_hold'].includes(order.status)) {
+        for (const item of order.items) {
+            try {
+                await increaseStock({
+                    productId: item.productId,
+                    warehouseId,
+                    quantity: item.orderedQuantity,
+                    costPerUnit: 0,
+                    movementType: 'sale_return',
+                    sourceDocument: {
+                        type: 'sales_order',
+                        id: order._id,
+                        number: order.orderNumber,
+                    },
+                    reason: reason || 'Order cancelled — stock restored',
+                    userId: req.user._id,
+                });
+            } catch (stockErr) {
+                // Non-fatal: log but don't block cancellation
+                console.warn(`Stock restore failed for ${item.productName}:`, stockErr.message);
+            }
+        }
+    }
+
+    order.status = status;
+    order.updatedBy = req.user._id;
+
+    if (status === 'cancelled') {
+        order.cancelledBy = req.user._id;
+        order.cancelledAt = new Date();
+        order.cancellationReason = reason;
+    }
+
+    if (status === 'on_hold') {
+        order.isOnHold = true;
+        order.holdReason = reason;
+    }
+
+    await order.save();
+    
+    // Sync to Excel (Bookings) - status update
+    await excelService.updateExcelRow('sales_order', order);
+
+    res.json({ success: true, message: `Order status changed to ${status}`, data: order });
 });
 
 /**

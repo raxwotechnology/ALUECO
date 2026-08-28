@@ -165,6 +165,10 @@ const invoiceSchema = new mongoose.Schema({
     includeVat: { type: Boolean, default: true },
     distributeTransportCost: { type: Boolean, default: false },
 
+    // Alueco project invoice fields
+    businessType: { type: String, enum: ['standard', 'alueco'], default: 'standard' },
+    customerName: { type: String, trim: true },
+
     warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
     stockDeducted: { type: Boolean, default: false },
 

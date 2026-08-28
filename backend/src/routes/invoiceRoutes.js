@@ -1,7 +1,7 @@
 import express from 'express';
 import {
     createInvoice, createFromSalesOrder, getInvoices, getInvoiceById,
-    getAgingSummary, changeInvoiceStatus, deleteInvoice,
+    getAgingSummary, changeInvoiceStatus, deleteInvoice, updateInvoicePaymentStatus,
 } from '../controllers/invoiceController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
@@ -40,6 +40,12 @@ router.patch(
     '/:id/status',
     requirePermission('invoices.edit'),
     changeInvoiceStatus
+);
+
+router.patch(
+    '/:id/payment-status',
+    requirePermission('invoices.edit'),
+    updateInvoicePaymentStatus
 );
 
 export default router;

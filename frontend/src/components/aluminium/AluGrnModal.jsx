@@ -5,14 +5,15 @@ import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import {
     PackageCheck, Plus, Trash2, Save, ShoppingBag, X,
-    Building2, Truck, FileText, CheckCircle2, AlertCircle
+    Building2, Truck, FileText, CheckCircle2, AlertCircle, MapPin
 } from 'lucide-react';
 
-export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
+export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo }) {
     const [loading, setLoading] = useState(false);
     const [warehouses, setWarehouses] = useState([]);
     const [aluProducts, setAluProducts] = useState([]);
     const [pendingPos, setPendingPos] = useState([]);
+    const [projectsSummary, setProjectsSummary] = useState([]);
 
     const [form, setForm] = useState({
         warehouseId: '',
@@ -27,10 +28,11 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
     useEffect(() => {
         const fetchInitial = async () => {
             try {
-                const [whRes, prodRes, poRes] = await Promise.all([
+                const [whRes, prodRes, poRes, projRes] = await Promise.all([
                     api.get('/warehouses'),
                     api.get('/alu/raw-materials'),
-                    api.get('/alu/purchase-orders?status=pending')
+                    api.get('/alu/purchase-orders?status=pending'),
+                    api.get('/alu/projects/materials-summary')
                 ]);
 
                 const whList = whRes.data.data || [];
@@ -42,6 +44,12 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
                 const prods = prodRes.data.data?.products || [];
                 setAluProducts(prods);
                 setPendingPos(poRes.data.data || []);
+                setProjectsSummary(projRes.data.data || []);
+
+                // If selected PO is provided, auto-load its items
+                if (selectedPo) {
+                    handleLoadFromPO(selectedPo);
+                }
             } catch (err) {
                 console.error('Failed to load GRN requirements:', err);
             }
@@ -50,7 +58,7 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
         if (isOpen) {
             fetchInitial();
         }
-    }, [isOpen]);
+    }, [isOpen, selectedPo]);
 
     const handleProductSelect = (idx, productId) => {
         const prod = aluProducts.find(p => p._id === productId);
@@ -96,6 +104,35 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
             items: items.length ? items : prev.items
         }));
         toast.success(`Loaded ${items.length} shortage items from ${po.poNumber}`);
+    };
+
+    // Find projects that need this material
+    const getMatchingProjects = (itemCode) => {
+        const code = (itemCode || '').toUpperCase();
+        if (!code || !projectsSummary.length) return [];
+
+        return projectsSummary.filter(project => {
+            const profiles = project.profiles || [];
+            const glass = project.glass || [];
+            const accessories = project.accessories || [];
+
+            // Check if project needs this profile code
+            const needsProfile = profiles.some(p => 
+                (p.code || '').toUpperCase() === code && (p.totalRequiredBars || 0) > (p.availableStockBars || 0)
+            );
+
+            // Check if project needs this glass type
+            const needsGlass = glass.some(g => 
+                (g.type || '').toUpperCase() === code && (g.totalAreaSqFt || 0) > (g.availableStockSqFt || 0)
+            );
+
+            // Check if project needs this accessory
+            const needsAccessory = accessories.some(a => 
+                (a.code || '').toUpperCase() === code && (a.totalRequired || 0) > (a.availableStock || 0)
+            );
+
+            return needsProfile || needsGlass || needsAccessory;
+        });
     };
 
     const totalGrnValue = form.items.reduce((sum, item) => {
@@ -332,6 +369,47 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess }) {
                                     <div className="flex justify-end text-[11px] font-medium text-slate-500 pr-2">
                                         Line Total: <strong className="ml-1 text-slate-800">Rs. {lineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                                     </div>
+
+                                    {/* Project Suggestions */}
+                                    {it.productCode && (
+                                        <div className="mt-2 pt-2 border-t border-slate-100">
+                                            {(() => {
+                                                const matchingProjects = getMatchingProjects(it.productCode);
+                                                if (matchingProjects.length === 0) {
+                                                    return (
+                                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                                            <CheckCircle2 size={11} />
+                                                            <span>No pending projects require this material</span>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600">
+                                                            <MapPin size={11} />
+                                                            <span>Required by {matchingProjects.length} project(s):</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {matchingProjects.slice(0, 3).map(project => (
+                                                                <span
+                                                                    key={project._id}
+                                                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] font-semibold text-indigo-700"
+                                                                >
+                                                                    <Building2 size={9} />
+                                                                    {project.projectName || project.quoteNumber}
+                                                                </span>
+                                                            ))}
+                                                            {matchingProjects.length > 3 && (
+                                                                <span className="text-[10px] text-slate-500 font-medium">
+                                                                    +{matchingProjects.length - 3} more
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

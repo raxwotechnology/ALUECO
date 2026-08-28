@@ -14,21 +14,25 @@ export default function CustomerAutocompleteSelect({
 }) {
     const [inputValue, setInputValue] = useState('');
     const [isOpen, setIsOpen] = useState(false);
-    const [localCustomers, setLocalCustomers] = useState([]);
     const wrapperRef = useRef(null);
     const blurTimeoutRef = useRef(null);
 
+    // Ensure customers is always an array
+    const safeCustomers = Array.isArray(customers) ? customers : [];
+
     // Initialize/sync local list with prop
+    const [localCustomers, setLocalCustomers] = useState([]);
+
     useEffect(() => {
-        setLocalCustomers(customers);
-    }, [customers]);
+        setLocalCustomers(safeCustomers);
+    }, [safeCustomers]);
 
     const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 
     // Sync input value with external value change
     useEffect(() => {
         if (isValidObjectId(value)) {
-            const found = localCustomers.find(c => c._id === value);
+            const found = (localCustomers || []).find(c => c._id === value);
             if (found) {
                 setInputValue(found.displayName);
             }
@@ -65,11 +69,11 @@ export default function CustomerAutocompleteSelect({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [wrapperRef]);
 
-    const filtered = localCustomers.filter(c =>
+    const filtered = Array.isArray(localCustomers) ? localCustomers.filter(c =>
         c.displayName?.toLowerCase().includes(inputValue.toLowerCase()) ||
         c.customerCode?.toLowerCase().includes(inputValue.toLowerCase()) ||
         c.primaryContact?.phone?.toLowerCase().includes(inputValue.toLowerCase())
-    );
+    ) : [];
 
     const handleSelectOption = (customer) => {
         if (blurTimeoutRef.current) {
@@ -142,7 +146,7 @@ export default function CustomerAutocompleteSelect({
                 return;
             }
             // Check if exactly matches an option
-            const exactMatch = localCustomers.find(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase());
+            const exactMatch = (localCustomers || []).find(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase());
             if (exactMatch) {
                 setInputValue(exactMatch.displayName);
                 onChange(exactMatch._id, exactMatch);
@@ -161,7 +165,7 @@ export default function CustomerAutocompleteSelect({
                 setIsOpen(false);
                 return;
             }
-            const exactMatch = localCustomers.find(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase());
+            const exactMatch = (localCustomers || []).find(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase());
             if (exactMatch) {
                 setInputValue(exactMatch.displayName);
                 onChange(exactMatch._id, exactMatch);
@@ -196,7 +200,7 @@ export default function CustomerAutocompleteSelect({
             </div>
             {isOpen && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filtered.map(c => (
+                    {(filtered || []).map(c => (
                         <button
                             key={c._id}
                             type="button"
@@ -207,7 +211,7 @@ export default function CustomerAutocompleteSelect({
                             <span className="text-gray-400 text-xs font-mono">({c.customerCode}{c.primaryContact?.phone ? ` - ${c.primaryContact.phone}` : ''})</span>
                         </button>
                     ))}
-                    {inputValue.trim() && !localCustomers.some(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase()) && (
+                    {inputValue.trim() && !(localCustomers || []).some(c => c.displayName.toLowerCase() === inputValue.trim().toLowerCase()) && (
                         <button
                             type="button"
                             onMouseDown={() => handleAutoCreate(inputValue)}

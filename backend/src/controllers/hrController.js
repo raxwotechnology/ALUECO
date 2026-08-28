@@ -554,7 +554,7 @@ export const createHoliday = asyncHandler(async (req, res) => {
 export const getHolidays = asyncHandler(async (req, res) => {
     const { year, type } = req.query;
     const filter = {};
-    if (year) {
+    if (year && year !== 'all') {
         const start = new Date(`${year}-01-01`);
         const end = new Date(`${year}-12-31`);
         filter.date = { $gte: start, $lte: end };
