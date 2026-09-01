@@ -434,15 +434,12 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
                 finish: specs.finish || it.finish || '',
                 lengthMm: Number(specs.lengthMm || it.lengthMm) || 0,
                 brand: it.supplierName || specs.brand || '',
-<<<<<<< HEAD
                 type: specs.type || '',
                 profile: specs.profile || '',
                 colour: specs.colour || '',
                 length: specs.length || '',
                 side: specs.side || '',
                 description: specs.description || '',
-=======
->>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
             },
             productType: 'raw_material',
             type: 'raw_material',

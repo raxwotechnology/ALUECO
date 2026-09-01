@@ -80,12 +80,8 @@ export default function AluRawMaterialsPage() {
                     quantities: { onHand: 0, reserved: 0, available: 0 },
                     unitOfMeasure: p.unitOfMeasure || 'Lengths',
                     costPerUnit: p.costs?.lastPurchaseCost || p.basePrice || 0,
-<<<<<<< HEAD
                     totalValue: 0,
                     aluCategory: p.aluCategory || 'profiles'
-=======
-                    totalValue: 0
->>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                 }));
 
             setStockItems([...stock, ...emptyItems]);
@@ -229,10 +225,7 @@ export default function AluRawMaterialsPage() {
         const name = (p.name || item.productName || '').toLowerCase();
         const code = (p.productCode || item.productCode || '').toLowerCase();
         const batch = (item.batchNumber || '').toLowerCase();
-<<<<<<< HEAD
         const aluCategory = p.aluCategory || '';
-=======
->>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
 
         const matchesSearch = name.includes(search.toLowerCase()) || 
                               code.includes(search.toLowerCase()) ||
@@ -248,19 +241,11 @@ export default function AluRawMaterialsPage() {
 
         if (!matchesSearch || !matchesWh || !matchesStatus) return false;
 
-<<<<<<< HEAD
         if (activeCategory === 'profiles') return aluCategory === 'profiles';
         if (activeCategory === 'glass') return aluCategory === 'glass';
         if (activeCategory === 'accessories') return aluCategory === 'accessories';
         if (activeCategory === 'hardware') return aluCategory === 'hardware';
         if (activeCategory === 'gaskets') return aluCategory === 'gaskets';
-=======
-        if (activeCategory === 'profiles') return name.includes('profile') || code.startsWith('prf') || code.startsWith('ap');
-        if (activeCategory === 'glass') return name.includes('glass') || code.startsWith('gls') || code.startsWith('ag');
-        if (activeCategory === 'accessories') return name.includes('accessory') || name.includes('roller') || code.startsWith('acc');
-        if (activeCategory === 'hardware') return name.includes('lock') || name.includes('hinge') || name.includes('handle');
-        if (activeCategory === 'gaskets') return name.includes('gasket') || name.includes('rubber') || name.includes('wool');
->>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
 
         return true;
     });
