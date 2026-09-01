@@ -5,16 +5,8 @@ import Modal from '../ui/Modal';
 import {
     Layers, Tag, Wrench, Shield, Plus, Save, Trash2,
     Building2, Check, Hash, Info, DollarSign, Package,
-    Boxes, Sparkles, X, ChevronDown, Wand2
+    Boxes, Sparkles, X, ChevronDown
 } from 'lucide-react';
-
-const CATEGORIES = [
-    { id: 'profiles', label: 'Profiles', prefix: 'PRF-', defaultUnit: 'Lengths' },
-    { id: 'glass', label: 'Glass', prefix: 'GLS-', defaultUnit: 'Sq.Ft' },
-    { id: 'accessories', label: 'Accessories', prefix: 'ACC-', defaultUnit: 'Nos' },
-    { id: 'hardware', label: 'Hardware', prefix: 'HRD-', defaultUnit: 'Nos' },
-    { id: 'gaskets', label: 'Gaskets', prefix: 'GSK-', defaultUnit: 'Rolls' },
-];
 
 const UNIT_OPTIONS = [
     { value: 'Lengths', label: 'Lengths (6m / 20ft Bar)' },
@@ -26,76 +18,17 @@ const UNIT_OPTIONS = [
     { value: 'Rolls', label: 'Rolls (Coils)' },
 ];
 
-const PROFILE_OPTIONS = [
-    { value: 'SW100', label: 'Swisstek 100mm Commercial', grade: '12' },
-    { value: 'SW70', label: 'Swisstek 70mm Residential', grade: '12' },
-    { value: 'CS45', label: 'Swisstek 45mm Casement', grade: '12' },
-    { value: 'AL100', label: 'Alumex 100mm Sliding', grade: '12' },
-    { value: 'AL45', label: 'Alumex 45mm Casement', grade: '12' },
-    { value: 'MOR70', label: 'Moris 70mm System', grade: '12' },
-    { value: 'BEAD', label: 'Glazing Bead Profile', grade: '10' },
+const TYPE_OPTIONS = [
+    { value: 'AP', label: 'Aluminium Profile' },
+    { value: 'AC', label: 'Accessories' },
+    { value: 'GL', label: 'Glass' },
+    { value: 'HW', label: 'Hardware' },
+    { value: 'GS', label: 'Gaskets' },
 ];
 
-const COLOR_OPTIONS = [
-    { value: 'MB', label: 'Matt Black (RAL 9005)' },
-    { value: 'WH', label: 'Powder Coated White (RAL 9016)' },
-    { value: 'AN', label: 'Anodized Silver' },
-    { value: 'NA', label: 'Natural Anodized' },
-    { value: 'DB', label: 'Dark Bronze' },
-    { value: 'CH', label: 'Charcoal Grey (RAL 7016)' },
-    { value: 'MF', label: 'Mill Finish (Raw)' },
-];
 
-const SIDE_OPTIONS = [
-    { value: 'TOP', label: 'Top Frame' },
-    { value: 'BOT', label: 'Bottom Frame' },
-    { value: 'SID', label: 'Side Jamb' },
-    { value: 'SSH', label: 'Sash Frame' },
-    { value: 'INT', label: 'Interlock Profile' },
-    { value: 'TRN', label: 'Transom Profile' },
-    { value: 'MUL', label: 'Mullion Profile' },
-    { value: 'OUT', label: 'Outer Frame' },
-    { value: 'INN', label: 'Inner Frame' },
-];
 
-const computeAutoCode = (item) => {
-    const prefix = item.aluCategory === 'profiles' ? 'PRF' : item.aluCategory === 'glass' ? 'GLS' : item.aluCategory === 'accessories' ? 'ACC' : item.aluCategory === 'hardware' ? 'HRD' : 'GSK';
 
-    // Get grade from thickness (convert 1.2mm to 12, 6mm to 06, etc.)
-    let grade = '12'; // default grade
-    if (item.thickness) {
-        const thicknessNum = parseFloat(item.thickness.replace(/[^0-9.]/g, ''));
-        if (thicknessNum >= 1) {
-            grade = Math.round(thicknessNum * 10).toString().padStart(2, '0');
-        } else {
-            grade = Math.round(thicknessNum * 100).toString().padStart(2, '0');
-        }
-    }
-
-    const color = (item.colorCode || 'MB').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const w = item.width ? Number(item.width) : '';
-    const h = item.height ? Number(item.height) : '';
-    const side = (item.side || 'TOP').toUpperCase();
-
-    // Build code parts dynamically, omitting NA
-    const parts = [prefix, grade, color];
-
-    // Only add slide for profiles
-    if (item.aluCategory === 'profiles') {
-        parts.push(side);
-    }
-
-    // Only add size if dimensions are provided
-    if (w && h) {
-        parts.push(`${w}X${h}`);
-    } else if (w) {
-        parts.push(`W${w}`);
-    } else if (h) {
-        parts.push(`H${h}`);
-    }
-
-    return parts.join('-');
-};
 
 // Comprehensive Standard Suggestions for 1-click Auto-fill
 const SERIES_SUGGESTIONS = [
@@ -132,39 +65,7 @@ const SUPPLIER_SUGGESTIONS = [
     'Lanka Aluminium PLC'
 ];
 
-const STANDARD_PRODUCT_PRESETS = [
-    // Profiles
-    { category: 'profiles', name: '100mm 2-Track Outer Bottom Frame', code: 'PRF-12-MB-TOP-NA', unit: 'Lengths', cost: 1600, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'TOP' },
-    { category: 'profiles', name: '100mm 2-Track Outer Top Frame', code: 'PRF-12-MB-BOT-NA', unit: 'Lengths', cost: 1550, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'BOT' },
-    { category: 'profiles', name: '100mm 2-Track Outer Side Jamb', code: 'PRF-12-MB-SID-NA', unit: 'Lengths', cost: 1500, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'SID' },
-    { category: 'profiles', name: '100mm Sliding Window Sash Profile', code: 'PRF-12-MB-SSH-NA', unit: 'Lengths', cost: 1700, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'SSH' },
-    { category: 'profiles', name: '100mm Sliding Interlock Profile', code: 'PRF-12-MB-INT-NA', unit: 'Lengths', cost: 1450, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'INT' },
-    { category: 'profiles', name: '45mm Casement Outer Frame', code: 'PRF-12-MB-OUT-NA', unit: 'Lengths', cost: 1850, thickness: '1.2mm', profileType: 'CS45', colorCode: 'MB', side: 'OUT' },
-    { category: 'profiles', name: '45mm Casement Sash Frame', code: 'PRF-12-MB-SSH-NA', unit: 'Lengths', cost: 1950, thickness: '1.2mm', profileType: 'CS45', colorCode: 'MB', side: 'SSH' },
-    { category: 'profiles', name: 'Single Glazed Snap-in Bead 5mm', code: 'PRF-10-MF-NA-NA', unit: 'Lengths', cost: 650, thickness: '1.0mm', profileType: 'BEAD', colorCode: 'MF', side: 'NA' },
-    { category: 'profiles', name: 'Double Glazed Snap-in Bead 12mm', code: 'PRF-10-MF-NA-NA', unit: 'Lengths', cost: 750, thickness: '1.0mm', profileType: 'BEAD', colorCode: 'MF', side: 'NA' },
-    // Glass
-    { category: 'glass', name: '5mm Clear Float Glass Sheet', code: 'GLS-05-WH-NA-NA', unit: 'Sq.Ft', cost: 220, thickness: '5mm', colorCode: 'WH' },
-    { category: 'glass', name: '6mm Clear Tempered Glass Sheet', code: 'GLS-06-WH-NA-NA', unit: 'Sq.Ft', cost: 380, thickness: '6mm', colorCode: 'WH' },
-    { category: 'glass', name: '8mm Clear Tempered Glass Sheet', code: 'GLS-08-WH-NA-NA', unit: 'Sq.Ft', cost: 480, thickness: '8mm', colorCode: 'WH' },
-    { category: 'glass', name: '5mm Tinted Grey Float Glass Sheet', code: 'GLS-05-CH-NA-NA', unit: 'Sq.Ft', cost: 260, thickness: '5mm', colorCode: 'CH' },
-    { category: 'glass', name: '6mm Tinted Bronze Float Glass Sheet', code: 'GLS-06-DB-NA-NA', unit: 'Sq.Ft', cost: 390, thickness: '6mm', colorCode: 'DB' },
-    // Accessories
-    { category: 'accessories', name: 'Sliding Window Heavy Duty Roller (Bearing)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 450, thickness: '-' },
-    { category: 'accessories', name: 'Sliding Window Double Roller (Brass Wheel)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 650, thickness: '-' },
-    { category: 'accessories', name: 'Anti-Lift Buffer Block Set', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 75, thickness: '-' },
-    { category: 'accessories', name: 'Water Drainage Cap (Plastic)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 45, thickness: '-' },
-    // Hardware
-    { category: 'hardware', name: 'Crescent Sliding Window Lock (White/Black)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 550, thickness: '-' },
-    { category: 'hardware', name: 'Touch Latch Auto Flush Lock', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 850, thickness: '-' },
-    { category: 'hardware', name: 'Multi-Point Lock Handle (Keyed)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 2400, thickness: '-' },
-    { category: 'hardware', name: 'Friction Stay Hinge 12 Inch (SS 304)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 1200, thickness: '-' },
-    { category: 'hardware', name: 'Casement Cockspur Handle', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 750, thickness: '-' },
-    // Gaskets
-    { category: 'gaskets', name: 'EPDM Wedge Glazing Gasket 5mm (Coil)', code: 'GSK-05-BL-NA-NA', unit: 'Rolls', cost: 3200, thickness: '5mm', colorCode: 'MB' },
-    { category: 'gaskets', name: 'Wool Pile Weatherstrip 7x6mm (Fin Type)', code: 'GSK-07-BL-NA-NA', unit: 'Rolls', cost: 2800, thickness: '7x6mm', colorCode: 'MB' },
-    { category: 'gaskets', name: 'Neutral Cure Silicone Sealant (Black/Clear)', code: 'GSK-NA-BL-NA-NA', unit: 'Nos', cost: 750, thickness: '-', colorCode: 'MB' },
-];
+
 
 export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, warehouses: propWarehouses = [] }) {
     const [loading, setLoading] = useState(false);
@@ -181,28 +82,32 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
     // Multi-product rows
     const [items, setItems] = useState([
         {
-            aluCategory: 'profiles',
-            productCode: 'PRF-12-MB-TOP-NA',
+            productCode: '',
             name: '100mm 2-Track Outer Bottom Frame',
             unitOfMeasure: 'Lengths',
             quantity: 10,
             purchaseCost: 1600,
-            thickness: '1.2mm',
-            profileType: 'SW100',
-            colorCode: 'MB',
-            side: 'TOP',
+            type: '',
+            profile: '',
+            colour: '',
+            width: '',
+            height: '',
+            side: '',
+            description: '',
         },
         {
-            aluCategory: 'profiles',
-            productCode: 'PRF-12-MB-SSH-NA',
+            productCode: '',
             name: '100mm Sliding Window Sash Profile',
             unitOfMeasure: 'Lengths',
             quantity: 10,
             purchaseCost: 1700,
-            thickness: '1.2mm',
-            profileType: 'SW100',
-            colorCode: 'MB',
-            side: 'SSH',
+            type: '',
+            profile: '',
+            colour: '',
+            width: '',
+            height: '',
+            side: '',
+            description: '',
         }
     ]);
 
@@ -236,81 +141,63 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         }
     }, [isOpen, warehouses.length]);
 
-    const handleCategoryChange = (idx, catId) => {
-        const cat = CATEGORIES.find(c => c.id === catId);
-        const next = [...items];
-        next[idx] = {
-            ...next[idx],
-            aluCategory: catId,
-            productCode: `${cat?.prefix || 'ALU-'}${Date.now().toString().slice(-4)}`,
-            unitOfMeasure: cat?.defaultUnit || 'Lengths'
-        };
-        setItems(next);
+    const generateProductCode = (item) => {
+        // Type code (AP, AC, GL, HW, GS)
+        const typeCode = (item.type || '').toUpperCase();
+        
+        // Profile - full word, no spaces, uppercase
+        const profileCode = (item.profile || '').replace(/\s+/g, '').toUpperCase();
+        
+        // Colour - full word, no spaces, uppercase
+        const colourCode = (item.colour || '').replace(/\s+/g, '').toUpperCase();
+        
+        // Side - full word, no spaces, uppercase
+        const sideCode = (item.side || '').replace(/\s+/g, '').toUpperCase();
+        
+        // Extract width (remove mm if present)
+        const width = (item.width || '').replace(/[^0-9]/g, '');
+        
+        // Extract height (remove mm if present)
+        const height = (item.height || '').replace(/[^0-9]/g, '');
+        
+        // Build the code: Type + Profile + Colour + Side + Width + Height (no spaces)
+        // Example: APSWISSTEK100MMATTLACKTOPFRAME12002100
+        const parts = [typeCode, profileCode, colourCode, sideCode, width, height];
+        return parts.filter(part => part !== '').join('');
     };
 
     const updateItem = (idx, field, value) => {
         const next = [...items];
         next[idx] = { ...next[idx], [field]: value };
-        setItems(next);
-    };
-
-    const updateStructuredField = (idx, field, value) => {
-        const next = [...items];
-        const updated = { ...next[idx], [field]: value };
-        updated.productCode = computeAutoCode(updated);
-
-        const profLabel = PROFILE_OPTIONS.find(p => p.value === updated.profileType)?.label || updated.profileType || '';
-        const sideLabel = SIDE_OPTIONS.find(s => s.value === updated.side)?.label || updated.side || '';
-        const colorLabel = COLOR_OPTIONS.find(c => c.value === updated.colorCode)?.label || updated.colorCode || '';
-        const dimStr = updated.width && updated.height ? ` (${updated.width}x${updated.height}mm)` : updated.width ? ` (${updated.width}mm)` : '';
-
-        if (!updated.name || updated.autoDesc) {
-            updated.name = `${profLabel} ${sideLabel} - ${colorLabel}${dimStr}`.trim();
-            updated.autoDesc = true;
+        
+        // Auto-generate product code when relevant fields change
+        if (['type', 'profile', 'colour', 'width', 'height', 'side'].includes(field)) {
+            next[idx].productCode = generateProductCode(next[idx]);
         }
-
-        next[idx] = updated;
+        
         setItems(next);
     };
 
-    // Auto-fill entire row when user selects or types matching standard preset name
-    const handleProductNameChange = (idx, nameValue) => {
-        const matched = STANDARD_PRODUCT_PRESETS.find(
-            p => p.name.toLowerCase() === nameValue.toLowerCase()
-        );
 
-        const next = [...items];
-        if (matched) {
-            next[idx] = {
-                ...next[idx],
-                name: matched.name,
-                productCode: matched.code,
-                aluCategory: matched.category,
-                unitOfMeasure: matched.unit,
-                purchaseCost: matched.cost,
-                thickness: matched.thickness || next[idx].thickness,
-                profileType: matched.profileType || next[idx].profileType,
-                colorCode: matched.colorCode || next[idx].colorCode,
-                side: matched.side || next[idx].side,
-            };
-            toast.success(`Auto-filled: ${matched.name} (${matched.code})`, { id: `preset-${idx}` });
-        } else {
-            next[idx] = { ...next[idx], name: nameValue };
-        }
-        setItems(next);
-    };
+
+
 
     const addRow = () => {
         setItems(prev => [
             ...prev,
             {
-                aluCategory: 'profiles',
-                productCode: `PRF-${Date.now().toString().slice(-4)}`,
+                productCode: '',
                 name: '',
                 unitOfMeasure: 'Lengths',
                 quantity: 10,
                 purchaseCost: 1500,
-                thickness: '1.2mm',
+                type: '',
+                profile: '',
+                colour: '',
+                width: '',
+                height: '',
+                side: '',
+                description: '',
             }
         ]);
     };
@@ -331,9 +218,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         // Validate all rows
         for (let i = 0; i < items.length; i++) {
             const it = items[i];
-            const code = (it.productCode || '').trim().toUpperCase();
-            if (!code) {
-                toast.error(`Row #${i + 1}: Item Code is required`);
+            if (!it.type) {
+                toast.error(`Row #${i + 1}: Type is required`);
                 return;
             }
             if (!it.name || !it.name.trim()) {
@@ -347,22 +233,31 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             const targetWarehouseId = commonSettings.warehouseId || (warehouses[0]?._id);
             const payload = {
                 warehouseId: targetWarehouseId,
-                items: items.map(it => ({
-                    aluCategory: it.aluCategory,
-                    productCode: it.productCode.trim().toUpperCase(),
-                    name: it.name.trim(),
-                    unitOfMeasure: it.unitOfMeasure,
-                    openingStockQuantity: Number(it.quantity) || 0,
-                    purchaseCost: Number(it.purchaseCost) || 0,
-                    warehouseId: targetWarehouseId,
-                    supplierName: commonSettings.supplierName,
-                    specs: {
-                        series: commonSettings.series,
-                        finish: commonSettings.finish,
-                        thickness: it.thickness || '1.2mm',
-                        brand: commonSettings.supplierName,
-                    }
-                }))
+                items: items.map(it => {
+                    // Generate code if empty
+                    const finalCode = it.productCode || generateProductCode(it);
+                    return {
+                        productCode: finalCode.trim().toUpperCase(),
+                        name: it.name.trim(),
+                        unitOfMeasure: it.unitOfMeasure,
+                        openingStockQuantity: Number(it.quantity) || 0,
+                        purchaseCost: Number(it.purchaseCost) || 0,
+                        warehouseId: targetWarehouseId,
+                        supplierName: commonSettings.supplierName,
+                        specs: {
+                            series: commonSettings.series,
+                            finish: commonSettings.finish,
+                            brand: commonSettings.supplierName,
+                            type: it.type || '',
+                            profile: it.profile || '',
+                            colour: it.colour || '',
+                            width: it.width || '',
+                            height: it.height || '',
+                            side: it.side || '',
+                            description: it.description || '',
+                        }
+                    };
+                })
             };
 
             console.log('Sending payload:', payload);
@@ -399,13 +294,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 {SUPPLIER_SUGGESTIONS.map((sp, i) => <option key={i} value={sp} />)}
             </datalist>
 
-            <datalist id="product-name-suggestions">
-                {STANDARD_PRODUCT_PRESETS.map((p, i) => (
-                    <option key={i} value={p.name}>
-                        {p.code} - {p.category.toUpperCase()} (Rs. {p.cost})
-                    </option>
-                ))}
-            </datalist>
+
 
             <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
                 
@@ -419,7 +308,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                             </span>
                         </div>
                         <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
-                            <Wand2 size={12} /> Auto-Suggest Enabled
+                            <Sparkles size={12} /> Auto-Suggest Enabled
                         </div>
                     </div>
 
@@ -553,23 +442,6 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                             <span className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 font-mono text-slate-700 text-xs font-bold">
                                                 #{idx + 1}
                                             </span>
-                                            {/* Category Pill Selectors */}
-                                            <div className="flex items-center gap-1">
-                                                {CATEGORIES.map(c => (
-                                                    <button
-                                                        key={c.id}
-                                                        type="button"
-                                                        onClick={() => handleCategoryChange(idx, c.id)}
-                                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                                            it.aluCategory === c.id
-                                                                ? 'bg-indigo-600 text-white shadow-xs'
-                                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                                        }`}
-                                                    >
-                                                        {c.label}
-                                                    </button>
-                                                ))}
-                                            </div>
                                         </div>
 
                                         <div className="flex items-center gap-3">
@@ -589,117 +461,115 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
                                     </div>
 
-                                    {/* 1. Data Inputs & Automated Code Generator Grid */}
+                                    {/* Product Details Field */}
                                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                                         <div className="flex items-center justify-between text-[11px] font-extrabold uppercase text-slate-700 border-b border-slate-200/80 pb-1.5">
                                             <span className="flex items-center gap-1.5 text-indigo-700">
-                                                <Wand2 size={13} /> 1. Data Inputs &amp; Auto Code Generator
+                                                <Sparkles size={13} /> Product Details
                                             </span>
-                                            <span className="text-slate-500 font-normal">
-                                                Auto Code: <strong className="font-mono text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">{it.productCode || computeAutoCode(it)}</strong>
+                                            <span className="text-[9px] font-normal text-slate-500">
+                        Auto-code: Type + Profile + Colour + Side + Width + Height (no spaces)
                                             </span>
                                         </div>
-
-                                        <div className="grid grid-cols-2 sm:grid-cols-12 gap-2">
-                                            {/* Profile Type */}
-                                            <div className="sm:col-span-3">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Profile Type / Series *</label>
+                                        
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                            {/* Type */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Type *</label>
                                                 <select
-                                                    value={it.profileType || 'SW100'}
-                                                    onChange={e => updateStructuredField(idx, 'profileType', e.target.value)}
+                                                    value={it.type || ''}
+                                                    onChange={e => updateItem(idx, 'type', e.target.value)}
                                                     className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                 >
-                                                    {PROFILE_OPTIONS.map(p => (
-                                                        <option key={p.value} value={p.value}>{p.label}</option>
+                                                    <option value="">Select Type</option>
+                                                    {TYPE_OPTIONS.map(t => (
+                                                        <option key={t.value} value={t.value}>{t.label}</option>
                                                     ))}
                                                 </select>
                                             </div>
 
-                                            {/* Thickness (Grade) */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Thickness (Grade) *</label>
-                                                <select
-                                                    value={it.thickness || '1.2mm'}
-                                                    onChange={e => updateStructuredField(idx, 'thickness', e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                >
-                                                    <option value="1.0mm">1.0mm</option>
-                                                    <option value="1.2mm">1.2mm</option>
-                                                    <option value="1.4mm">1.4mm</option>
-                                                    <option value="1.5mm">1.5mm</option>
-                                                    <option value="1.6mm">1.6mm</option>
-                                                    <option value="2.0mm">2.0mm</option>
-                                                    <option value="3.0mm">3.0mm</option>
-                                                    <option value="5mm">5mm</option>
-                                                    <option value="6mm">6mm</option>
-                                                    <option value="8mm">8mm</option>
-                                                    <option value="10mm">10mm</option>
-                                                    <option value="12mm">12mm</option>
-                                                </select>
-                                            </div>
-
-                                            {/* Color Code */}
-                                            <div className="sm:col-span-3">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Color Code *</label>
-                                                <select
-                                                    value={it.colorCode || 'MB'}
-                                                    onChange={e => updateStructuredField(idx, 'colorCode', e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                >
-                                                    {COLOR_OPTIONS.map(c => (
-                                                        <option key={c.value} value={c.value}>{c.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            {/* Width */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Width (mm)</label>
+                                            {/* Profile */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Profile</label>
                                                 <input
-                                                    type="number"
-                                                    placeholder="e.g. 1200"
-                                                    value={it.width || ''}
-                                                    onChange={e => updateStructuredField(idx, 'width', e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    type="text"
+                                                    value={it.profile || ''}
+                                                    onChange={e => updateItem(idx, 'profile', e.target.value)}
+                                                    placeholder="Enter full profile name"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                 />
                                             </div>
 
-                                            {/* Height */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Height (mm)</label>
+                                            {/* Colour */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Colour</label>
                                                 <input
-                                                    type="number"
-                                                    placeholder="e.g. 2100"
-                                                    value={it.height || ''}
-                                                    onChange={e => updateStructuredField(idx, 'height', e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    type="text"
+                                                    value={it.colour || ''}
+                                                    onChange={e => updateItem(idx, 'colour', e.target.value)}
+                                                    placeholder="Enter full colour name"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                 />
                                             </div>
 
                                             {/* Side */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Side *</label>
-                                                <select
-                                                    value={it.side || 'TOP'}
-                                                    onChange={e => updateStructuredField(idx, 'side', e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                >
-                                                    {SIDE_OPTIONS.map(s => (
-                                                        <option key={s.value} value={s.value}>{s.label}</option>
-                                                    ))}
-                                                </select>
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Side</label>
+                                                <input
+                                                    type="text"
+                                                    value={it.side || ''}
+                                                    onChange={e => updateItem(idx, 'side', e.target.value)}
+                                                    placeholder="Enter full side name"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            </div>
+
+                                            {/* Width */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Width (mm)</label>
+                                                <input
+                                                    type="text"
+                                                    value={it.width || ''}
+                                                    onChange={e => updateItem(idx, 'width', e.target.value)}
+                                                    placeholder="e.g. 1200"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            </div>
+
+                                            {/* Height */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Height (mm)</label>
+                                                <input
+                                                    type="text"
+                                                    value={it.height || ''}
+                                                    onChange={e => updateItem(idx, 'height', e.target.value)}
+                                                    placeholder="e.g. 2100"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
                                             </div>
                                         </div>
 
                                         {/* Description */}
                                         <div>
-                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Description (Manual / Auto Specification) *</label>
+                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Description</label>
+                                            <input
+                                                type="text"
+                                                value={it.description || ''}
+                                                onChange={e => updateItem(idx, 'description', e.target.value)}
+                                                placeholder="Enter description..."
+                                                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+
+                                        {/* Product Name */}
+                                        <div>
+                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Product Name *</label>
                                             <input
                                                 type="text"
                                                 value={it.name}
                                                 onChange={e => updateItem(idx, 'name', e.target.value)}
                                                 required
-                                                placeholder="Enter custom description or specs..."
+                                                placeholder="Enter product name..."
                                                 className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                                             />
                                         </div>
@@ -710,16 +580,15 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         {/* Generated Unique Code */}
                                         <div className="sm:col-span-4">
                                             <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
-                                                <span>GENERATED UNIQUE CODE *</span>
+                                                <span>AUTO-GENERATED CODE *</span>
                                             </div>
                                             <input
                                                 type="text"
                                                 value={it.productCode}
                                                 readOnly
-                                                required
-                                                placeholder="PRF-..."
+                                                placeholder="APSWISSTEK100MMATTLACKTOPFRAME12002100"
                                                 className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 cursor-not-allowed"
-                                                title="Auto-generated from Type, Grade, Color, Slide & Size fields"
+                                                title="Auto-generated from Type, Profile, Colour, Side, Width, Height"
                                             />
                                         </div>
 

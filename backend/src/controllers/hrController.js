@@ -8,6 +8,7 @@ import LeaveRequest from '../models/LeaveRequest.js';
 import Holiday from '../models/Holiday.js';
 import SalaryStructure from '../models/SalaryStructure.js';
 import LeaveStructure from '../models/LeaveStructure.js';
+import * as XLSX from 'xlsx';
 
 // ============================================================
 // DEPARTMENTS
@@ -392,6 +393,106 @@ export const bulkMarkAttendance = asyncHandler(async (req, res) => {
     }
 
     res.json({ success: true, count: results.length, data: results });
+});
+
+/**
+ * Import attendance from Excel file
+ */
+export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        res.status(400);
+        throw new Error('No file uploaded');
+    }
+
+    const { date } = req.body;
+    if (!date) {
+        res.status(400);
+        throw new Error('Date is required');
+    }
+
+    const attendanceDate = new Date(date);
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    // Read Excel file
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    const results = [];
+    const errors = [];
+
+    for (const row of jsonData) {
+        try {
+            // Find employee by code
+            const employeeCode = row['Employee Code'] || row['employee_code'] || row['EmployeeCode'];
+            if (!employeeCode) {
+                errors.push({ row, error: 'Employee Code missing' });
+                continue;
+            }
+
+            const emp = await Employee.findOne({ employeeCode });
+            if (!emp) {
+                errors.push({ row, error: `Employee not found: ${employeeCode}` });
+                continue;
+            }
+
+            // Check if attendance already exists
+            let att = await Attendance.findOne({ employeeId: emp._id, date: attendanceDate });
+
+            if (!att) {
+                att = new Attendance({
+                    employeeId: emp._id,
+                    employeeCode: emp.employeeCode,
+                    employeeName: emp.fullName,
+                    date: attendanceDate,
+                    markedBy: req.user._id,
+                });
+            }
+
+            // Update attendance from Excel data
+            att.status = row['Status'] || row['status'] || 'present';
+
+            const checkInTime = row['Check In'] || row['check_in'] || row['CheckIn'];
+            const checkOutTime = row['Check Out'] || row['check_out'] || row['CheckOut'];
+
+            if (checkInTime) {
+                const checkIn = new Date(checkInTime);
+                if (!isNaN(checkIn.getTime())) {
+                    att.checkInTime = checkIn;
+                }
+            }
+
+            if (checkOutTime) {
+                const checkOut = new Date(checkOutTime);
+                if (!isNaN(checkOut.getTime())) {
+                    att.checkOutTime = checkOut;
+                }
+            }
+
+            // Calculate worked minutes
+            if (att.checkInTime && att.checkOutTime) {
+                const diff = (new Date(att.checkOutTime) - new Date(att.checkInTime)) / 60000;
+                att.totalWorkedMinutes = Math.max(0, Math.floor(diff));
+            } else {
+                att.totalWorkedMinutes = 0;
+                att.overtimeMinutes = 0;
+            }
+
+            await att.save();
+            results.push(att);
+        } catch (error) {
+            errors.push({ row, error: error.message });
+        }
+    }
+
+    res.json({
+        success: true,
+        imported: results.length,
+        errors: errors.length,
+        data: results,
+        errorDetails: errors,
+    });
 });
 
 // ============================================================

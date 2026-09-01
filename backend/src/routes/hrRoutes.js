@@ -4,7 +4,7 @@ import {
     createDesignation, getDesignations, updateDesignation, deleteDesignation,
     createEmployee, getEmployees, getEmployeeById, updateEmployee, deleteEmployee,
     createShift, getShifts, updateShift, deleteShift,
-    markAttendance, getAttendance, bulkMarkAttendance,
+    markAttendance, getAttendance, bulkMarkAttendance, importAttendanceFromExcel,
     createLeaveRequest, getLeaveRequests, approveLeaveRequest, rejectLeaveRequest, cancelLeaveRequest,
     createHoliday, getHolidays, updateHoliday, deleteHoliday,
     createSalaryStructure, getSalaryStructures, updateSalaryStructure, deleteSalaryStructure,
@@ -12,6 +12,7 @@ import {
 } from '../controllers/hrController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { requirePermission, requireAnyPermission } from '../middleware/permissionMiddleware.js';
+import { uploadMemory } from '../middleware/uploadMiddleware.js';
 import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import ProductionBatch from '../models/ProductionBatch.js';
@@ -64,6 +65,7 @@ router.route('/attendance')
     .post(requirePermission('hr.attendance.manage'), markAttendance);
 
 router.post('/attendance/bulk', requirePermission('hr.attendance.manage'), bulkMarkAttendance);
+router.post('/attendance/import', requirePermission('hr.attendance.manage'), uploadMemory.single('file'), importAttendanceFromExcel);
 
 // ── Leave ──────────────────────────────────────────────────────────────────────
 router.route('/leaves')

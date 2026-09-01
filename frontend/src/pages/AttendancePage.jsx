@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -13,6 +13,7 @@ import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
 import { useAttendance, useBulkMarkAttendance, useEmployees, useDepartments } from '../features/hr/useHr';
+import { attendanceApi } from '../features/hr/hrApi';
 
 const statusVariant = {
     present: 'success', absent: 'danger', half_day: 'warning',
@@ -23,6 +24,9 @@ export default function AttendancePage() {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
     const [departmentId, setDepartmentId] = useState('');
     const [isBulkOpen, setIsBulkOpen] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const [isImporting, setIsImporting] = useState(false);
 
     const { data: attData } = useAttendance({ date: selectedDate, departmentId: departmentId || undefined, limit: 200 });
     const { data: empData } = useEmployees({ departmentId: departmentId || undefined, status: 'active', limit: 500 });
@@ -87,6 +91,43 @@ export default function AttendancePage() {
         } catch { }
     };
 
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImportFile(file);
+        }
+    };
+
+    const handleImportExcel = async () => {
+        if (!importFile) {
+            toast.error('Please select a file');
+            return;
+        }
+
+        setIsImporting(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', importFile);
+            formData.append('date', selectedDate);
+
+            const result = await attendanceApi.importFromExcel(formData);
+            
+            if (result.success) {
+                toast.success(`Successfully imported ${result.imported} attendance records`);
+                if (result.errors > 0) {
+                    toast.warning(`${result.errors} records had errors`);
+                }
+                setIsImportOpen(false);
+                setImportFile(null);
+            }
+        } catch (error) {
+            toast.error('Failed to import attendance');
+            console.error(error);
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
     const columns = [
         {
             key: 'employee', label: 'Employee', render: (r) => (
@@ -107,9 +148,16 @@ export default function AttendancePage() {
     return (
         <div>
             <PageHeader title="Attendance" description="Daily staff attendance records"
-                actions={<Button variant="primary" onClick={openBulk}>
-                    <Plus size={16} className="mr-1.5" /> Bulk Mark Attendance
-                </Button>} />
+                actions={
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                            <Upload size={16} className="mr-1.5" /> Import Excel
+                        </Button>
+                        <Button variant="primary" onClick={openBulk}>
+                            <Plus size={16} className="mr-1.5" /> Bulk Mark Attendance
+                        </Button>
+                    </div>
+                } />
 
             <Card>
                 <div className="p-4 border-b flex gap-3">
@@ -180,6 +228,41 @@ export default function AttendancePage() {
                     <Button variant="outline" onClick={() => setIsBulkOpen(false)}>Cancel</Button>
                     <Button variant="primary" onClick={submitBulk} loading={bulkMark.isPending}>
                         Save All ({bulkRecords.length} records)
+                    </Button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} title="Import Attendance from Excel" size="md">
+                <div className="p-6">
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Excel File
+                        </label>
+                        <input
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleFileChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                            Excel file should contain columns: Employee Code, Employee Name, Status, Check In, Check Out
+                        </p>
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Date for Attendance
+                        </label>
+                        <Input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+                    <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleImportExcel} loading={isImporting}>
+                        Import Attendance
                     </Button>
                 </div>
             </Modal>

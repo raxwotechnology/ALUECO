@@ -21,3 +21,6 @@ const storage = multer.diskStorage({
 });
 
 export const upload = multer({ storage: storage });
+
+// Memory storage for Excel imports (no disk storage needed)
+export const uploadMemory = multer({ storage: multer.memoryStorage() });
