@@ -34,7 +34,7 @@ async function run() {
                     unitPrice: 185000,
                     totalPrice: 370000,
                     glassItems: [
-                        { glassType: '5mm Tempered Clear', thickness: 5, width: 750, height: 1900, qty: 6, areaSqFt: 92, unitRate: 350, cost: 180000 }
+                        { glassCode: '5MM-TEMP-CLEAR', thickness: 5, width: 750, height: 1900, qty: 6, areaSqFt: 92, unitRate: 350, cost: 180000 }
                     ],
                     accessories: [
                         { code: 'ACC001', name: 'Roller Double Kinlong', qty: 12, unitRate: 450, cost: 5400 }
@@ -49,7 +49,7 @@ async function run() {
                     unitPrice: 65000,
                     totalPrice: 260000,
                     glassItems: [
-                        { glassType: '5mm Tempered Clear', thickness: 5, width: 520, height: 1100, qty: 8, areaSqFt: 50, unitRate: 350, cost: 90000 }
+                        { glassCode: '5MM-TEMP-CLEAR', thickness: 5, width: 520, height: 1100, qty: 8, areaSqFt: 50, unitRate: 350, cost: 90000 }
                     ],
                     accessories: [
                         { code: 'ACC006', name: 'Friction Hinge 12"', qty: 8, unitRate: 200, cost: 1600 }
@@ -64,7 +64,7 @@ async function run() {
                     unitPrice: 45000,
                     totalPrice: 90000,
                     glassItems: [
-                        { glassType: '5mm Tempered Clear', thickness: 5, width: 1760, height: 1160, qty: 2, areaSqFt: 44, unitRate: 350, cost: 45000 }
+                        { glassCode: '5MM-TEMP-CLEAR', thickness: 5, width: 1760, height: 1160, qty: 2, areaSqFt: 44, unitRate: 350, cost: 45000 }
                     ],
                     accessories: []
                 }

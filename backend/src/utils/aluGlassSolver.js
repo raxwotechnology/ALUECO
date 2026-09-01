@@ -45,7 +45,7 @@ export const solve2DGlassPacking = (panels, sheetW = 2438, sheetH = 1219) => {
                         width: panel.width,
                         height: panel.height,
                         isOversized: true,
-                        glassType: panel.glassType
+                        glassCode: panel.glassCode
                     }]
                 });
             }
@@ -98,7 +98,7 @@ const tryPlaceInSheet = (sheet, panel) => {
                 y: free.y,
                 width: fitWidth,
                 height: fitHeight,
-                glassType: panel.glassType
+                glassCode: panel.glassCode
             });
 
             // Perform guillotine split

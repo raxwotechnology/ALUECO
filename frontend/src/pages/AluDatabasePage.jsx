@@ -45,7 +45,6 @@ export default function AluDatabasePage() {
 
     // Autocomplete active indexes
     const [activeProfileIdx, setActiveProfileIdx] = useState(null);
-    const [activeGlassIdx, setActiveGlassIdx] = useState(null);
     const [activeAccessoryIdx, setActiveAccessoryIdx] = useState(null);
     const [showAppTypeSuggestions, setShowAppTypeSuggestions] = useState(false);
 
@@ -55,7 +54,7 @@ export default function AluDatabasePage() {
         configuration: '',
         description: '',
         profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
-        glassBOM: [{ glassType: '', glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
+        glassBOM: [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
         accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
         labourMethod: 'linear_feet',
         labourRate: 0
@@ -249,7 +248,7 @@ export default function AluDatabasePage() {
                 configuration: item.configuration || '',
                 description: item.description || '',
                 profileBOM: item.profileBOM?.length ? item.profileBOM : [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
-                glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassType: '', glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
+                glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
                 accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
                 labourMethod: item.labourMethod || 'linear_feet',
                 labourRate: item.labourRate || 0
@@ -260,7 +259,7 @@ export default function AluDatabasePage() {
                 configuration: '',
                 description: '',
                 profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }],
-                glassBOM: [{ glassType: 'Clear 5mm', glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }],
+                glassBOM: [{ glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }],
                 accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }],
                 labourMethod: 'linear_feet',
                 labourRate: 150
@@ -765,98 +764,18 @@ export default function AluDatabasePage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassType: 'Clear 5mm', glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }] })}
+                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }] })}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition"
                             >
                                 + Add Glass Sizing
                             </button>
                         </div>
                         {appForm.glassBOM.map((gb, idx) => {
-                            const matchedGlass = unifiedGlass.find(g => g.typeName.toLowerCase() === (gb.glassType || '').trim().toLowerCase());
-                            const filteredGlass = unifiedGlass.filter(g => {
-                                const q = (gb.glassType || '').trim().toLowerCase();
-                                if (!q) return true;
-                                return g.typeName.toLowerCase().includes(q) || (g.thickness || '').toLowerCase().includes(q);
-                            }).slice(0, 8);
-
                             return (
                                 <div key={idx} className="p-3 bg-blue-50/40 border border-blue-150 rounded-xl space-y-2 transition-all hover:border-blue-300">
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 relative">
-                                        {/* Glass Type Input with Suggestions */}
-                                        <div className="sm:col-span-3 relative">
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Type</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Glass Type (e.g. 5mm Clear)"
-                                                value={gb.glassType}
-                                                onFocus={() => {
-                                                    setActiveGlassIdx(idx);
-                                                    setActiveProfileIdx(null);
-                                                    setActiveAccessoryIdx(null);
-                                                }}
-                                                onChange={e => {
-                                                    const next = [...appForm.glassBOM];
-                                                    next[idx].glassType = e.target.value;
-                                                    // Auto-populate glass code when glass type changes
-                                                    next[idx].glassCode = (e.target.value || '').replace(/\s+/g, '-').toUpperCase();
-                                                    setAppForm({ ...appForm, glassBOM: next });
-                                                    setActiveGlassIdx(idx);
-                                                }}
-                                                required
-                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
-                                            />
-
-                                            {/* Autocomplete Dropdown */}
-                                            {activeGlassIdx === idx && filteredGlass.length > 0 && (
-                                                <div 
-                                                    className="absolute z-50 left-0 right-0 sm:w-72 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
-                                                    onMouseDown={e => e.preventDefault()}
-                                                >
-                                                    <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                                                        <span>Glass Catalog & Stock</span>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => setActiveGlassIdx(null)}
-                                                            className="text-slate-400 hover:text-slate-600"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                    {filteredGlass.map((g, gIdx) => (
-                                                        <div
-                                                            key={gIdx}
-                                                            onClick={() => {
-                                                                const next = [...appForm.glassBOM];
-                                                                next[idx].glassType = g.typeName;
-                                                                // Use actual glass code from unified list
-                                                                next[idx].glassCode = g.glassCode || (g.typeName || '').replace(/\s+/g, '-').toUpperCase();
-                                                                setAppForm({ ...appForm, glassBOM: next });
-                                                                setActiveGlassIdx(null);
-                                                            }}
-                                                            className="p-2 text-xs hover:bg-blue-50/80 cursor-pointer flex items-center justify-between transition-colors"
-                                                        >
-                                                            <div>
-                                                                <span className="font-semibold text-slate-800">{g.typeName}</span>
-                                                                {g.glassCode && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({g.glassCode})</span>}
-                                                                {g.thickness && <span className="text-[10px] text-slate-400 ml-1.5">({g.thickness})</span>}
-                                                            </div>
-                                                            {g.stockQty > 0 ? (
-                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                    ● In stock
-                                                                </span>
-                                                            ) : (
-                                                                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                    Auto PO
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
                                         {/* Glass Code */}
-                                        <div className="sm:col-span-2">
+                                        <div className="sm:col-span-4">
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Code</label>
                                             <input
                                                 type="text"
@@ -976,30 +895,6 @@ export default function AluDatabasePage() {
                                             </button>
                                         </div>
                                     </div>
-
-                                    {/* Stock Indicator */}
-                                    {gb.glassType && (
-                                        <div className="flex items-center gap-1.5 pt-0.5">
-                                            {matchedGlass ? (
-                                                matchedGlass.stockQty > 0 ? (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">
-                                                        <CheckCircle2 size={12} className="text-emerald-600" />
-                                                        Glass Stock Available in Warehouse
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-medium">
-                                                        <AlertCircle size={12} className="text-amber-600" />
-                                                        Catalog Glass (0 in stock — Auto PO will procure upon project order)
-                                                    </span>
-                                                )
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md font-medium">
-                                                    <Sparkles size={12} className="text-blue-600" />
-                                                    Custom Glass Type "{gb.glassType}" — Will trigger procurement PO
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}

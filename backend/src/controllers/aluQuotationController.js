@@ -219,7 +219,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
     let totalLabourCost = 0;
     
     const projectCuts = {}; // profileCode -> array of cut lengths (in mm)
-    const projectGlassPanels = {}; // glassType -> array of { width, height, glassType }
+    const projectGlassPanels = {}; // glassCode -> array of { width, height, glassCode }
     
     // Step 1: Calculate individual elements (Cuts, Glass, Accessories)
     const items = [];
@@ -293,7 +293,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 const areaSqFt = (gW * gH) / 92903.04;
                 const totalAreaSqFt = areaSqFt * gQty * quantity;
                 
-                const glassRate = rates.glass[gb.glassType];
+                const glassRate = rates.glass[gb.glassCode];
                 if (glassRate) {
                     // Use pricing formula: (base21ftPrice/21) * glassSheetLength * 1.05 if base21ftPrice is provided
                     let cost;
@@ -306,10 +306,9 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                         const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
                         cost = totalAreaSqFt * unitRate;
                     }
-                    
+
                     glassItems.push({
-                        glassType: gb.glassType,
-                        glassCode: gb.glassCode || (gb.glassType || '').replace(/\s+/g, '-').toUpperCase(),
+                        glassCode: gb.glassCode,
                         width: Math.round(gW),
                         height: Math.round(gH),
                         qty: gQty * quantity,
@@ -319,19 +318,19 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                         glassSheetLength: gb.glassSheetLength || '8',
                         base21ftPrice: gb.base21ftPrice || 0
                     });
-                    
+
                     itemGlassCost += cost;
-                    
+
                     // Accumulate panels for 2D optimization with sheet length
-                    if (!projectGlassPanels[gb.glassType]) {
-                        projectGlassPanels[gb.glassType] = [];
+                    if (!projectGlassPanels[gb.glassCode]) {
+                        projectGlassPanels[gb.glassCode] = [];
                     }
                     const totalQty = gQty * quantity;
                     for (let k = 0; k < totalQty; k++) {
-                        projectGlassPanels[gb.glassType].push({
+                        projectGlassPanels[gb.glassCode].push({
                             width: Math.round(gW),
                             height: Math.round(gH),
-                            glassType: gb.glassType,
+                            glassCode: gb.glassCode,
                             glassSheetLength: gb.glassSheetLength || '8',
                             base21ftPrice: gb.base21ftPrice || 0
                         });
@@ -570,7 +569,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             }
             
             glassOptimizationResults[type] = {
-                glassType: type,
+                glassCode: type,
                 thickness: glassRate.thickness,
                 requiredPanels: panels,
                 sheets: sheetPackingLayout,
@@ -1410,7 +1409,7 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     const glassMap = {};
     quotation.items.forEach(item => {
         (item.glassItems || []).forEach(g => {
-            const code = (g.glassType || 'GLASS').toUpperCase();
+            const code = (g.glassCode || 'GLASS').toUpperCase();
             if (!glassMap[code]) {
                 glassMap[code] = { areaSqFt: 0, cost: g.cost || 0 };
             }

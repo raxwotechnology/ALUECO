@@ -434,12 +434,15 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
                 finish: specs.finish || it.finish || '',
                 lengthMm: Number(specs.lengthMm || it.lengthMm) || 0,
                 brand: it.supplierName || specs.brand || '',
+<<<<<<< HEAD
                 type: specs.type || '',
                 profile: specs.profile || '',
                 colour: specs.colour || '',
                 length: specs.length || '',
                 side: specs.side || '',
                 description: specs.description || '',
+=======
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
             },
             productType: 'raw_material',
             type: 'raw_material',
@@ -709,18 +712,18 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
         (q.items || []).forEach(item => {
             // Glass items
             (item.glassItems || []).forEach(g => {
-                const type = g.glassType || 'Standard Glass';
-                if (!glassMap[type]) {
-                    glassMap[type] = {
-                        type,
+                const code = g.glassCode || 'Standard Glass';
+                if (!glassMap[code]) {
+                    glassMap[code] = {
+                        code,
                         totalAreaSqFt: 0,
                         quantity: 0,
                         totalCost: 0
                     };
                 }
-                glassMap[type].totalAreaSqFt += (g.areaSqFt || 0);
-                glassMap[type].quantity += (g.qty || 1);
-                glassMap[type].totalCost += (g.cost || 0);
+                glassMap[code].totalAreaSqFt += (g.areaSqFt || 0);
+                glassMap[code].quantity += (g.qty || 1);
+                glassMap[code].totalCost += (g.cost || 0);
             });
 
             // Accessory items

@@ -36,7 +36,7 @@ const aluQuotationItemSchema = new mongoose.Schema({
         totalLength: Number
     }],
     glassItems: [{
-        glassType: String,
+        glassCode: String,
         width: Number,
         height: Number,
         qty: Number,

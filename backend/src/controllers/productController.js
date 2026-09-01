@@ -87,6 +87,7 @@ export const getProducts = asyncHandler(async (req, res) => {
         Product.find(filter)
             .populate('categoryId', 'name code')
             .populate('brandId', 'name')
+            .select('+aluCategory +aluSpecs +businessType')
             .sort(sortObj)
             .skip(skip)
             .limit(Number(limit)),

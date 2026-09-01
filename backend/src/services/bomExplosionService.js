@@ -37,15 +37,15 @@ export const getProjectMaterialRequirements = async (salesOrder) => {
 
     // 2. Accumulate Glass
     // Glass is optimized by sheet or calculated in sqft.
-    // Let's aggregate total sqft area per glass type
+    // Let's aggregate total sqft area per glass code
     quotation.items.forEach(item => {
         if (item.glassItems) {
             item.glassItems.forEach(g => {
-                const key = `glass_${g.glassType}`;
+                const key = `glass_${g.glassCode}`;
                 if (!summary[key]) {
                     summary[key] = {
-                        itemCode: g.glassType,
-                        name: `${g.glassType} Glass`,
+                        itemCode: g.glassCode,
+                        name: `${g.glassCode} Glass`,
                         type: 'glass',
                         requiredQty: 0,
                         unitOfMeasure: 'sqft'

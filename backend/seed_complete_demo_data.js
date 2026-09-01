@@ -271,7 +271,7 @@ const runSeed = async () => {
                     { profileCode: 'SD1005', description: 'Top Track', quantityFormula: '1', lengthFormula: 'W' }
                 ],
                 glassBOM: [
-                    { glassType: '5mm Tempered Clear', quantityFormula: '3', widthFormula: 'W / 3 - 100', heightFormula: 'H - 180' }
+                    { glassCode: '5MM-TEMP-CLEAR', quantityFormula: '3', widthFormula: 'W / 3 - 100', heightFormula: 'H - 180' }
                 ],
                 accessoryBOM: [
                     { accessoryCode: 'ACC001', quantityFormula: '6' },
@@ -294,7 +294,7 @@ const runSeed = async () => {
                     { profileCode: 'CA5402', description: 'Sash Horizontal', quantityFormula: '4', lengthFormula: 'W / 2 - 20' }
                 ],
                 glassBOM: [
-                    { glassType: '5mm Tempered Clear', quantityFormula: '2', widthFormula: 'W / 2 - 80', heightFormula: 'H - 90' }
+                    { glassCode: '5MM-TEMP-CLEAR', quantityFormula: '2', widthFormula: 'W / 2 - 80', heightFormula: 'H - 90' }
                 ],
                 accessoryBOM: [
                     { accessoryCode: 'ACC006', quantityFormula: '4' },
@@ -315,7 +315,7 @@ const runSeed = async () => {
                     { profileCode: 'FD6011', description: 'Glass Beading Top/Bottom', quantityFormula: '2', lengthFormula: 'W - 40' }
                 ],
                 glassBOM: [
-                    { glassType: '5mm Tempered Clear', quantityFormula: '1', widthFormula: 'W - 40', heightFormula: 'H - 40' }
+                    { glassCode: '5MM-TEMP-CLEAR', quantityFormula: '1', widthFormula: 'W - 40', heightFormula: 'H - 40' }
                 ],
                 accessoryBOM: [
                     { accessoryCode: 'ACC005', quantityFormula: '1' }
@@ -335,7 +335,7 @@ const runSeed = async () => {
                     { profileCode: 'SD1003', description: 'Interlock Vertical', quantityFormula: '2', lengthFormula: 'H - 40' }
                 ],
                 glassBOM: [
-                    { glassType: '5mm Clear Float', quantityFormula: '2', widthFormula: 'W / 2 - 60', heightFormula: 'H - 120' }
+                    { glassCode: '5MM-CLEAR-FLOAT', quantityFormula: '2', widthFormula: 'W / 2 - 60', heightFormula: 'H - 120' }
                 ],
                 accessoryBOM: [
                     { accessoryCode: 'ACC001', quantityFormula: '4' },

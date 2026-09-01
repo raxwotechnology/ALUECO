@@ -31,7 +31,7 @@ async function seedAluApplications() {
           { profileCode: 'CMULL', description: 'Mullion', quantityFormula: '0', lengthFormula: '0' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '1', widthFormula: 'W - 100', heightFormula: 'H - 100' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '1', widthFormula: 'W - 100', heightFormula: 'H - 100' }
         ],
         accessoryBOM: [
           { accessoryCode: 'HINGE', quantityFormula: '3' },
@@ -56,7 +56,7 @@ async function seedAluApplications() {
           { profileCode: 'CMULL', description: 'Mullion', quantityFormula: '1', lengthFormula: 'H - 50' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '2', widthFormula: '(W - 150) / 2', heightFormula: 'H - 100' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '2', widthFormula: '(W - 150) / 2', heightFormula: 'H - 100' }
         ],
         accessoryBOM: [
           { accessoryCode: 'HINGE', quantityFormula: '6' },
@@ -83,7 +83,7 @@ async function seedAluApplications() {
           { profileCode: 'WSASH', description: 'Sash Profile', quantityFormula: '2', lengthFormula: 'W - 40' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '1', widthFormula: 'W - 80', heightFormula: 'H - 80' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '1', widthFormula: 'W - 80', heightFormula: 'H - 80' }
         ],
         accessoryBOM: [
           { accessoryCode: 'HINGE', quantityFormula: '2' },
@@ -108,7 +108,7 @@ async function seedAluApplications() {
           { profileCode: 'WMULL', description: 'Mullion', quantityFormula: '1', lengthFormula: 'H - 40' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '2', widthFormula: '(W - 120) / 2', heightFormula: 'H - 80' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '2', widthFormula: '(W - 120) / 2', heightFormula: 'H - 80' }
         ],
         accessoryBOM: [
           { accessoryCode: 'HINGE', quantityFormula: '4' },
@@ -134,7 +134,7 @@ async function seedAluApplications() {
           { profileCode: 'WMULL', description: 'Mullion', quantityFormula: '2', lengthFormula: 'H - 40' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '3', widthFormula: '(W - 120) / 3', heightFormula: 'H - 80' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '3', widthFormula: '(W - 120) / 3', heightFormula: 'H - 80' }
         ],
         accessoryBOM: [
           { accessoryCode: 'HINGE', quantityFormula: '4' },
@@ -161,7 +161,7 @@ async function seedAluApplications() {
           { profileCode: 'SDTRACK', description: 'Track', quantityFormula: '1', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '2', widthFormula: '(W + 20) / 2', heightFormula: 'H - 100' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '2', widthFormula: '(W + 20) / 2', heightFormula: 'H - 100' }
         ],
         accessoryBOM: [
           { accessoryCode: 'ROLLER', quantityFormula: '4' },
@@ -186,7 +186,7 @@ async function seedAluApplications() {
           { profileCode: 'SDTRACK', description: 'Track', quantityFormula: '2', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '3', widthFormula: '(W + 20) / 3', heightFormula: 'H - 100' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '3', widthFormula: '(W + 20) / 3', heightFormula: 'H - 100' }
         ],
         accessoryBOM: [
           { accessoryCode: 'ROLLER', quantityFormula: '6' },
@@ -211,7 +211,7 @@ async function seedAluApplications() {
           { profileCode: 'SDTRACK', description: 'Track', quantityFormula: '2', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '4', widthFormula: '(W + 20) / 4', heightFormula: 'H - 100' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '4', widthFormula: '(W + 20) / 4', heightFormula: 'H - 100' }
         ],
         accessoryBOM: [
           { accessoryCode: 'ROLLER', quantityFormula: '8' },
@@ -238,7 +238,7 @@ async function seedAluApplications() {
           { profileCode: 'SWTRACK', description: 'Track', quantityFormula: '1', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '2', widthFormula: '(W + 15) / 2', heightFormula: 'H - 80' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '2', widthFormula: '(W + 15) / 2', heightFormula: 'H - 80' }
         ],
         accessoryBOM: [
           { accessoryCode: 'ROLLER', quantityFormula: '4' },
@@ -263,7 +263,7 @@ async function seedAluApplications() {
           { profileCode: 'SWTRACK', description: 'Track', quantityFormula: '2', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '3', widthFormula: '(W + 15) / 3', heightFormula: 'H - 80' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '3', widthFormula: '(W + 15) / 3', heightFormula: 'H - 80' }
         ],
         accessoryBOM: [
           { accessoryCode: 'ROLLER', quantityFormula: '6' },
@@ -287,7 +287,7 @@ async function seedAluApplications() {
           { profileCode: 'FGFRAME', description: 'Frame', quantityFormula: '2', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '6mm Clear', quantityFormula: '1', widthFormula: 'W - 40', heightFormula: 'H - 40' }
+          { glassCode: '6MM-CLEAR', quantityFormula: '1', widthFormula: 'W - 40', heightFormula: 'H - 40' }
         ],
         accessoryBOM: [
           { accessoryCode: 'GASKET', quantityFormula: '4' },
@@ -333,7 +333,7 @@ async function seedAluApplications() {
           { profileCode: 'CWFRAME', description: 'Pressure Plate', quantityFormula: '2', lengthFormula: 'W' }
         ],
         glassBOM: [
-          { glassType: '10mm Tempered', quantityFormula: '(W * H) / 92903', widthFormula: 'W - 50', heightFormula: 'H - 50' }
+          { glassCode: '10MM-TEMP', quantityFormula: '(W * H) / 92903', widthFormula: 'W - 50', heightFormula: 'H - 50' }
         ],
         accessoryBOM: [
           { accessoryCode: 'BOLT', quantityFormula: '10' },

@@ -55,8 +55,9 @@ export default function BomFormPage() {
         p.canBeManufactured || p.productType === 'finished_good' || p.productType === 'semi_finished'
     );
     const componentProducts = products.filter((p) =>
-        p.productType === 'raw_material' || p.productType === 'packaging' ||
-        p.productType === 'semi_finished' || p.productType === 'consumable'
+        (p.productType === 'raw_material' || p.productType === 'packaging' ||
+        p.productType === 'semi_finished' || p.productType === 'consumable') &&
+        (p.businessType !== 'alueco' || p.aluCategory === 'profiles')
     );
 
     const finishedOptions = finishedProducts.map((p) => ({

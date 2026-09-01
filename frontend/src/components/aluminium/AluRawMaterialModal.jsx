@@ -90,7 +90,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             type: '',
             profile: '',
             colour: '',
+<<<<<<< HEAD
             length: '',
+=======
+            width: '',
+            height: '',
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
             side: '',
             description: '',
         },
@@ -103,7 +108,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             type: '',
             profile: '',
             colour: '',
+<<<<<<< HEAD
             length: '',
+=======
+            width: '',
+            height: '',
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
             side: '',
             description: '',
         }
@@ -152,12 +162,24 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         // Side - full word, no spaces, uppercase
         const sideCode = (item.side || '').replace(/\s+/g, '').toUpperCase();
         
+<<<<<<< HEAD
         // Extract length (remove mm if present)
         const length = (item.length || '').replace(/[^0-9]/g, '');
         
         // Build the code: Type + Profile + Colour + Side + Length (no spaces)
         // Example: APSWISSTEK100MMATTLACKTOPFRAME6000
         const parts = [typeCode, profileCode, colourCode, sideCode, length];
+=======
+        // Extract width (remove mm if present)
+        const width = (item.width || '').replace(/[^0-9]/g, '');
+        
+        // Extract height (remove mm if present)
+        const height = (item.height || '').replace(/[^0-9]/g, '');
+        
+        // Build the code: Type + Profile + Colour + Side + Width + Height (no spaces)
+        // Example: APSWISSTEK100MMATTLACKTOPFRAME12002100
+        const parts = [typeCode, profileCode, colourCode, sideCode, width, height];
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
         return parts.filter(part => part !== '').join('');
     };
 
@@ -166,7 +188,11 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         next[idx] = { ...next[idx], [field]: value };
         
         // Auto-generate product code when relevant fields change
+<<<<<<< HEAD
         if (['type', 'profile', 'colour', 'length', 'side'].includes(field)) {
+=======
+        if (['type', 'profile', 'colour', 'width', 'height', 'side'].includes(field)) {
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
             next[idx].productCode = generateProductCode(next[idx]);
         }
         
@@ -189,7 +215,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 type: '',
                 profile: '',
                 colour: '',
+<<<<<<< HEAD
                 length: '',
+=======
+                width: '',
+                height: '',
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                 side: '',
                 description: '',
             }
@@ -230,6 +261,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 items: items.map(it => {
                     // Generate code if empty
                     const finalCode = it.productCode || generateProductCode(it);
+<<<<<<< HEAD
                     
                     // Map type to aluCategory
                     const typeToCategory = {
@@ -240,6 +272,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         'GS': 'gaskets'
                     };
                     
+=======
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                     return {
                         productCode: finalCode.trim().toUpperCase(),
                         name: it.name.trim(),
@@ -248,7 +282,10 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         purchaseCost: Number(it.purchaseCost) || 0,
                         warehouseId: targetWarehouseId,
                         supplierName: commonSettings.supplierName,
+<<<<<<< HEAD
                         aluCategory: typeToCategory[it.type] || 'profiles',
+=======
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                         specs: {
                             series: commonSettings.series,
                             finish: commonSettings.finish,
@@ -256,7 +293,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                             type: it.type || '',
                             profile: it.profile || '',
                             colour: it.colour || '',
+<<<<<<< HEAD
                             length: it.length || '',
+=======
+                            width: it.width || '',
+                            height: it.height || '',
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                             side: it.side || '',
                             description: it.description || '',
                         }
@@ -472,7 +514,11 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 <Sparkles size={13} /> Product Details
                                             </span>
                                             <span className="text-[9px] font-normal text-slate-500">
+<<<<<<< HEAD
                         Auto-code: Type + Profile + Colour + Side + Length (no spaces)
+=======
+                        Auto-code: Type + Profile + Colour + Side + Width + Height (no spaces)
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                                             </span>
                                         </div>
                                         
@@ -528,6 +574,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 />
                                             </div>
 
+<<<<<<< HEAD
                                             {/* Length */}
                                             <div>
                                                 <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Length (mm)</label>
@@ -536,6 +583,28 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                     value={it.length || ''}
                                                     onChange={e => updateItem(idx, 'length', e.target.value)}
                                                     placeholder="e.g. 6000"
+=======
+                                            {/* Width */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Width (mm)</label>
+                                                <input
+                                                    type="text"
+                                                    value={it.width || ''}
+                                                    onChange={e => updateItem(idx, 'width', e.target.value)}
+                                                    placeholder="e.g. 1200"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            </div>
+
+                                            {/* Height */}
+                                            <div>
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Height (mm)</label>
+                                                <input
+                                                    type="text"
+                                                    value={it.height || ''}
+                                                    onChange={e => updateItem(idx, 'height', e.target.value)}
+                                                    placeholder="e.g. 2100"
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                                                     className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                 />
                                             </div>
@@ -580,7 +649,11 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 readOnly
                                                 placeholder="APSWISSTEK100MMATTLACKTOPFRAME12002100"
                                                 className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 cursor-not-allowed"
+<<<<<<< HEAD
                                                 title="Auto-generated from Type, Profile, Colour, Side, Length"
+=======
+                                                title="Auto-generated from Type, Profile, Colour, Side, Width, Height"
+>>>>>>> a29de01c9ed8732e4c63126c2ffcae8cda0928f6
                                             />
                                         </div>
 

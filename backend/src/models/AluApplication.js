@@ -24,7 +24,6 @@ const aluApplicationSchema = new mongoose.Schema({
         lengthFormula: { type: String, required: true }    // e.g. "W" or "H" or "H - 50"
     }],
     glassBOM: [{
-        glassType: { type: String, required: true },
         glassCode: { type: String, default: '' },
         quantityFormula: { type: String, required: true }, // e.g. "P"
         widthFormula: { type: String, required: true },    // e.g. "(W - 150) / 2"

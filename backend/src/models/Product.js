@@ -52,6 +52,12 @@ const productSchema = new mongoose.Schema(
             finish: { type: String, trim: true },
             lengthMm: { type: Number, default: 0 },
             brand: { type: String, trim: true },
+            type: { type: String, trim: true },
+            profile: { type: String, trim: true },
+            colour: { type: String, trim: true },
+            length: { type: String, trim: true },
+            side: { type: String, trim: true },
+            description: { type: String, trim: true },
         },
         productType: {
             type: String,
@@ -201,6 +207,18 @@ productSchema.pre('save', async function () {
         const sequenceNo = seq.toString().padStart(2, '0');
         
         this.productCode = `P-${shortCode}-${pShort}-${yearShort}${julianDay}-${sequenceNo}`;
+    }
+
+    // Auto-set aluCategory based on aluSpecs.type for alueco products
+    if (this.businessType === 'alueco' && this.aluSpecs?.type) {
+        const typeToCategory = {
+            'AP': 'profiles',
+            'GL': 'glass',
+            'AC': 'accessories',
+            'HW': 'hardware',
+            'GS': 'gaskets'
+        };
+        this.aluCategory = typeToCategory[this.aluSpecs.type] || 'other';
     }
 });
 
