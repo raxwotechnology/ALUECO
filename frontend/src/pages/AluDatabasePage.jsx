@@ -777,17 +777,22 @@ export default function AluDatabasePage() {
                                         {/* Glass Code */}
                                         <div className="sm:col-span-4">
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Code</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Glass Code (Auto)"
+                                            <select
                                                 value={gb.glassCode || ''}
                                                 onChange={e => {
                                                     const next = [...appForm.glassBOM];
-                                                    next[idx].glassCode = e.target.value.toUpperCase();
+                                                    next[idx].glassCode = e.target.value;
                                                     setAppForm({ ...appForm, glassBOM: next });
                                                 }}
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
-                                            />
+                                            >
+                                                <option value="">Select Glass Code</option>
+                                                {glass.map(g => (
+                                                    <option key={g._id} value={g.productCode}>
+                                                        {g.productCode} - {g.name}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
 
                                         {/* Qty Formula */}
