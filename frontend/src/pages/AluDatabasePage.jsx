@@ -105,6 +105,15 @@ export default function AluDatabasePage() {
         return map;
     }, [rawMaterials]);
 
+    // Filter glass items from raw materials (GL type)
+    const glassItemsFromRawMaterials = React.useMemo(() => {
+        const products = rawMaterials.products || [];
+        return products.filter(p => 
+            p.aluCategory === 'glass' && 
+            p.specs?.type === 'GL'
+        );
+    }, [rawMaterials]);
+
     // Unified Profiles list with stock
     const unifiedProfiles = React.useMemo(() => {
         const list = [];
@@ -787,7 +796,7 @@ export default function AluDatabasePage() {
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
                                             >
                                                 <option value="">Select Glass Code</option>
-                                                {glass.map(g => (
+                                                {glassItemsFromRawMaterials.map(g => (
                                                     <option key={g._id} value={g.productCode}>
                                                         {g.productCode} - {g.name}
                                                     </option>
