@@ -8,7 +8,7 @@ import {
     Building2, Truck, FileText, CheckCircle2, AlertCircle, MapPin
 } from 'lucide-react';
 
-export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo }) {
+export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, prefillItem }) {
     const [loading, setLoading] = useState(false);
     const [warehouses, setWarehouses] = useState([]);
     const [aluProducts, setAluProducts] = useState([]);
@@ -50,6 +50,21 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo }) 
                 if (selectedPo) {
                     handleLoadFromPO(selectedPo);
                 }
+
+                // If prefillItem is provided, auto-fill the first item
+                if (prefillItem) {
+                    setForm(prev => ({
+                        ...prev,
+                        items: [{
+                            productId: prefillItem.productId || '',
+                            productCode: prefillItem.itemCode || prefillItem.productCode || '',
+                            productName: prefillItem.productName || '',
+                            quantityReceived: prefillItem.pendingQuantity || 1,
+                            unitCost: prefillItem.estimatedUnitCost || 0,
+                            unitOfMeasure: prefillItem.unitOfMeasure || 'Lengths'
+                        }]
+                    }));
+                }
             } catch (err) {
                 console.error('Failed to load GRN requirements:', err);
             }
@@ -58,7 +73,7 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo }) 
         if (isOpen) {
             fetchInitial();
         }
-    }, [isOpen, selectedPo]);
+    }, [isOpen, selectedPo, prefillItem]);
 
     const handleProductSelect = (idx, productId) => {
         const prod = aluProducts.find(p => p._id === productId);

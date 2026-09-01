@@ -251,6 +251,57 @@ export const deleteAluPurchaseOrder = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Delete individual item from AluEco PO
+ */
+export const deleteAluPOItem = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { itemId } = req.body;
+
+    if (!itemId) {
+        res.status(400);
+        throw new Error('Item ID is required');
+    }
+
+    const order = await AluPurchaseOrder.findById(id);
+    if (!order) {
+        res.status(404);
+        throw new Error('AluEco Purchase Order not found');
+    }
+
+    const itemIndex = order.items.findIndex(item => item._id.toString() === itemId);
+    if (itemIndex === -1) {
+        res.status(404);
+        throw new Error('Item not found in this Purchase Order');
+    }
+
+    const deletedItem = order.items[itemIndex];
+    
+    // Only allow deletion if item hasn't been received yet
+    if (deletedItem.receivedQuantity > 0) {
+        res.status(400);
+        throw new Error('Cannot delete item that has already been received');
+    }
+
+    order.items.splice(itemIndex, 1);
+    
+    // Update PO status if no items remaining
+    if (order.items.length === 0) {
+        order.status = 'cancelled';
+        order.deletedAt = new Date();
+    } else {
+        order.updatedBy = req.user._id;
+    }
+    
+    await order.save();
+
+    res.json({ 
+        success: true, 
+        message: 'Item deleted from Purchase Order successfully',
+        data: order 
+    });
+});
+
+/**
  * Summary Statistics for AluEco PO Dashboard
  */
 export const getAluPOSummaryStats = asyncHandler(async (req, res) => {

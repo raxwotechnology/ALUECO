@@ -233,11 +233,11 @@ const runSeed = async () => {
         // 8. Master Glass Rates
         await AluGlass.deleteMany({});
         await AluGlass.insertMany([
-            { typeName: '5mm Tempered Clear', thickness: '5mm', ratePerSqFt: 350, ratePerSqM: 3767, temperingCharge: 100, processingCharge: 50 },
-            { typeName: '5mm Clear Float', thickness: '5mm', ratePerSqFt: 220, ratePerSqM: 2368, temperingCharge: 0, processingCharge: 30 },
-            { typeName: '6mm Tempered Clear', thickness: '6mm', ratePerSqFt: 450, ratePerSqM: 4843, temperingCharge: 120, processingCharge: 60 },
-            { typeName: '5mm Tinted Dark Grey', thickness: '5mm', ratePerSqFt: 280, ratePerSqM: 3013, temperingCharge: 0, processingCharge: 40 },
-            { typeName: '8mm Tempered Clear', thickness: '8mm', ratePerSqFt: 580, ratePerSqM: 6243, temperingCharge: 150, processingCharge: 80 }
+            { typeName: '5mm Tempered Clear', thickness: '5mm', ratePerSqFt: 350, ratePerSqM: 3767, temperingCharge: 100, processingCharge: 50, cuttingServiceCharge: 150 },
+            { typeName: '5mm Clear Float', thickness: '5mm', ratePerSqFt: 220, ratePerSqM: 2368, temperingCharge: 0, processingCharge: 30, cuttingServiceCharge: 100 },
+            { typeName: '6mm Tempered Clear', thickness: '6mm', ratePerSqFt: 450, ratePerSqM: 4843, temperingCharge: 120, processingCharge: 60, cuttingServiceCharge: 200 },
+            { typeName: '5mm Tinted Dark Grey', thickness: '5mm', ratePerSqFt: 280, ratePerSqM: 3013, temperingCharge: 0, processingCharge: 40, cuttingServiceCharge: 120 },
+            { typeName: '8mm Tempered Clear', thickness: '8mm', ratePerSqFt: 580, ratePerSqM: 6243, temperingCharge: 150, processingCharge: 80, cuttingServiceCharge: 250 }
         ]);
         console.log('✓ Seeded Master Glass Rates');
 

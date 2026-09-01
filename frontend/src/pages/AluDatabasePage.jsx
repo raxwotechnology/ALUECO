@@ -54,9 +54,9 @@ export default function AluDatabasePage() {
         type: 'Sliding Door',
         configuration: '',
         description: '',
-        profileBOM: [{ profileCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
-        glassBOM: [{ glassType: '', quantityFormula: '', widthFormula: '', heightFormula: '' }],
-        accessoryBOM: [{ accessoryCode: '', quantityFormula: '' }],
+        profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
+        glassBOM: [{ glassType: '', glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
+        accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
         labourMethod: 'linear_feet',
         labourRate: 0
     });
@@ -111,7 +111,7 @@ export default function AluDatabasePage() {
         const list = [];
         const seenCodes = new Set();
 
-        // 1. From rawMaterials products (profiles)
+        // 1. From rawMaterials products (profiles) - priority as they have actual product codes
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
             if (p.aluCategory === 'profiles' || p.category === 'Aluminium Stock') {
@@ -120,6 +120,7 @@ export default function AluDatabasePage() {
                 const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? 0;
                 list.push({
                     code: code || p.name,
+                    actualCode: code,
                     description: p.name || 'Aluminium Profile',
                     series: p.aluSpecs?.series || '',
                     finish: p.aluSpecs?.finish || '',
@@ -129,7 +130,7 @@ export default function AluDatabasePage() {
             }
         }
 
-        // 2. From AluProfile master list
+        // 2. From AluProfile master list - fallback
         for (const p of profiles) {
             const code = (p.profileCode || '').toUpperCase();
             if (code && !seenCodes.has(code)) {
@@ -137,6 +138,7 @@ export default function AluDatabasePage() {
                 const stockQty = stockQtyMap[code] ?? 0;
                 list.push({
                     code,
+                    actualCode: code,
                     description: p.description || p.name || `Profile ${code}`,
                     series: p.supplier || '',
                     finish: '',
@@ -154,36 +156,40 @@ export default function AluDatabasePage() {
         const list = [];
         const seen = new Set();
 
-        // From AluGlass
-        for (const g of glass) {
-            const name = g.typeName;
-            if (name && !seen.has(name.toLowerCase())) {
-                seen.add(name.toLowerCase());
-                const stockQty = stockQtyMap[name.toUpperCase()] ?? 0;
-                list.push({
-                    typeName: name,
-                    thickness: g.thickness || '',
-                    ratePerSqFt: g.ratePerSqFt || 0,
-                    stockQty
-                });
-            }
-        }
-
-        // From rawMaterials glass
+        // From rawMaterials glass (priority - these have actual product codes)
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
             if (p.aluCategory === 'glass') {
                 const name = p.name;
+                const code = (p.productCode || '').toUpperCase();
                 if (name && !seen.has(name.toLowerCase())) {
                     seen.add(name.toLowerCase());
-                    const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[name.toUpperCase()] ?? 0;
+                    const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? stockQtyMap[name.toUpperCase()] ?? 0;
                     list.push({
                         typeName: name,
+                        glassCode: code,
                         thickness: p.aluSpecs?.thickness || '',
                         ratePerSqFt: p.basePrice || 0,
                         stockQty
                     });
                 }
+            }
+        }
+
+        // From AluGlass (fallback - these have typeName but no product code)
+        for (const g of glass) {
+            const name = g.typeName;
+            const code = (name || '').replace(/\s+/g, '-').toUpperCase();
+            if (name && !seen.has(name.toLowerCase())) {
+                seen.add(name.toLowerCase());
+                const stockQty = stockQtyMap[name.toUpperCase()] ?? 0;
+                list.push({
+                    typeName: name,
+                    glassCode: code,
+                    thickness: g.thickness || '',
+                    ratePerSqFt: g.ratePerSqFt || 0,
+                    stockQty
+                });
             }
         }
 
@@ -195,23 +201,7 @@ export default function AluDatabasePage() {
         const list = [];
         const seen = new Set();
 
-        // From AluAccessory
-        for (const a of accessories) {
-            const code = (a.code || '').toUpperCase();
-            if (code && !seen.has(code)) {
-                seen.add(code);
-                const stockQty = stockQtyMap[code] ?? 0;
-                list.push({
-                    code,
-                    name: a.name || `Accessory ${code}`,
-                    brand: a.brand || '',
-                    unit: a.unit || 'pcs',
-                    stockQty
-                });
-            }
-        }
-
-        // From rawMaterials accessories / hardware
+        // From rawMaterials accessories / hardware (priority - these have actual product codes)
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
             if (['accessories', 'hardware', 'gaskets'].includes(p.aluCategory)) {
@@ -221,12 +211,30 @@ export default function AluDatabasePage() {
                     const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? 0;
                     list.push({
                         code,
+                        actualCode: code,
                         name: p.name || `Accessory ${code}`,
                         brand: p.aluSpecs?.brand || '',
                         unit: p.unitOfMeasure || 'pcs',
                         stockQty
                     });
                 }
+            }
+        }
+
+        // From AluAccessory (fallback - these have code but may not be in raw materials)
+        for (const a of accessories) {
+            const code = (a.code || '').toUpperCase();
+            if (code && !seen.has(code)) {
+                seen.add(code);
+                const stockQty = stockQtyMap[code] ?? 0;
+                list.push({
+                    code,
+                    actualCode: code,
+                    name: a.name || `Accessory ${code}`,
+                    brand: a.brand || '',
+                    unit: a.unit || 'pcs',
+                    stockQty
+                });
             }
         }
 
@@ -240,9 +248,9 @@ export default function AluDatabasePage() {
                 type: item.type || 'Sliding Door',
                 configuration: item.configuration || '',
                 description: item.description || '',
-                profileBOM: item.profileBOM?.length ? item.profileBOM : [{ profileCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
-                glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassType: '', quantityFormula: '', widthFormula: '', heightFormula: '' }],
-                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', quantityFormula: '' }],
+                profileBOM: item.profileBOM?.length ? item.profileBOM : [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
+                glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassType: '', glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
+                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
                 labourMethod: item.labourMethod || 'linear_feet',
                 labourRate: item.labourRate || 0
             });
@@ -251,9 +259,9 @@ export default function AluDatabasePage() {
                 type: 'Sliding Door',
                 configuration: '',
                 description: '',
-                profileBOM: [{ profileCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }],
-                glassBOM: [{ glassType: 'Clear 5mm', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100' }],
-                accessoryBOM: [{ accessoryCode: 'ROLLER-01', quantityFormula: '4 * P' }],
+                profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }],
+                glassBOM: [{ glassType: 'Clear 5mm', glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }],
+                accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }],
                 labourMethod: 'linear_feet',
                 labourRate: 150
             });
@@ -537,7 +545,7 @@ export default function AluDatabasePage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setAppForm({ ...appForm, profileBOM: [...appForm.profileBOM, { profileCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }] })}
+                                onClick={() => setAppForm({ ...appForm, profileBOM: [...appForm.profileBOM, { profileCode: '', actualCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }] })}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition"
                             >
                                 + Add Profile Cut
@@ -573,7 +581,8 @@ export default function AluDatabasePage() {
                                                 onChange={e => {
                                                     const next = [...appForm.profileBOM];
                                                     next[idx].profileCode = e.target.value.toUpperCase();
-                                                    setAppForm({ ...appForm, profileBOM: next });
+                                                    // Auto-populate actual code when profile code changes
+                                                    next[idx].actualCode = e.target.value.toUpperCase();
                                                     setActiveProfileIdx(idx);
                                                 }}
                                                 required
@@ -602,6 +611,8 @@ export default function AluDatabasePage() {
                                                             onClick={() => {
                                                                 const next = [...appForm.profileBOM];
                                                                 next[idx].profileCode = p.code;
+                                                                // Use actual code from unified list
+                                                                next[idx].actualCode = p.actualCode || p.code;
                                                                 if (p.description) next[idx].description = p.description;
                                                                 setAppForm({ ...appForm, profileBOM: next });
                                                                 setActiveProfileIdx(null);
@@ -610,6 +621,7 @@ export default function AluDatabasePage() {
                                                         >
                                                             <div className="flex items-center justify-between">
                                                                 <span className="font-mono font-bold text-indigo-700">{p.code}</span>
+                                                                {p.actualCode && p.actualCode !== p.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({p.actualCode})</span>}
                                                                 {p.stockQty > 0 ? (
                                                                     <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
                                                                         ● {p.stockQty} {p.unit} in stock
@@ -626,6 +638,22 @@ export default function AluDatabasePage() {
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Actual Code */}
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Actual Code</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Actual Code (Auto)"
+                                                value={pb.actualCode || ''}
+                                                onChange={e => {
+                                                    const next = [...appForm.profileBOM];
+                                                    next[idx].actualCode = e.target.value.toUpperCase();
+                                                    setAppForm({ ...appForm, profileBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
+                                            />
                                         </div>
 
                                         {/* Description Input */}
@@ -737,7 +765,7 @@ export default function AluDatabasePage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassType: 'Clear 5mm', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100' }] })}
+                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassType: 'Clear 5mm', glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }] })}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition"
                             >
                                 + Add Glass Sizing
@@ -769,6 +797,8 @@ export default function AluDatabasePage() {
                                                 onChange={e => {
                                                     const next = [...appForm.glassBOM];
                                                     next[idx].glassType = e.target.value;
+                                                    // Auto-populate glass code when glass type changes
+                                                    next[idx].glassCode = (e.target.value || '').replace(/\s+/g, '-').toUpperCase();
                                                     setAppForm({ ...appForm, glassBOM: next });
                                                     setActiveGlassIdx(idx);
                                                 }}
@@ -798,6 +828,8 @@ export default function AluDatabasePage() {
                                                             onClick={() => {
                                                                 const next = [...appForm.glassBOM];
                                                                 next[idx].glassType = g.typeName;
+                                                                // Use actual glass code from unified list
+                                                                next[idx].glassCode = g.glassCode || (g.typeName || '').replace(/\s+/g, '-').toUpperCase();
                                                                 setAppForm({ ...appForm, glassBOM: next });
                                                                 setActiveGlassIdx(null);
                                                             }}
@@ -805,6 +837,7 @@ export default function AluDatabasePage() {
                                                         >
                                                             <div>
                                                                 <span className="font-semibold text-slate-800">{g.typeName}</span>
+                                                                {g.glassCode && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({g.glassCode})</span>}
                                                                 {g.thickness && <span className="text-[10px] text-slate-400 ml-1.5">({g.thickness})</span>}
                                                             </div>
                                                             {g.stockQty > 0 ? (
@@ -820,6 +853,22 @@ export default function AluDatabasePage() {
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Glass Code */}
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Code</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Glass Code (Auto)"
+                                                value={gb.glassCode || ''}
+                                                onChange={e => {
+                                                    const next = [...appForm.glassBOM];
+                                                    next[idx].glassCode = e.target.value.toUpperCase();
+                                                    setAppForm({ ...appForm, glassBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
+                                            />
                                         </div>
 
                                         {/* Qty Formula */}
@@ -870,6 +919,45 @@ export default function AluDatabasePage() {
                                                 }}
                                                 required
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-600 bg-white"
+                                            />
+                                        </div>
+
+                                        {/* Glass Sheet Length */}
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Sheet Length (ft)</label>
+                                            <select
+                                                value={gb.glassSheetLength || '8'}
+                                                onChange={e => {
+                                                    const next = [...appForm.glassBOM];
+                                                    next[idx].glassSheetLength = e.target.value;
+                                                    setAppForm({ ...appForm, glassBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
+                                            >
+                                                <option value="4">4 ft</option>
+                                                <option value="7">7 ft</option>
+                                                <option value="8">8 ft</option>
+                                                <option value="14">14 ft</option>
+                                                <option value="16">16 ft</option>
+                                                <option value="21">21 ft</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Base 21ft Price */}
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Base 21ft Price</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                placeholder="Base 21ft price"
+                                                value={gb.base21ftPrice || 0}
+                                                onChange={e => {
+                                                    const next = [...appForm.glassBOM];
+                                                    next[idx].base21ftPrice = e.target.value;
+                                                    setAppForm({ ...appForm, glassBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
                                             />
                                         </div>
 
@@ -926,7 +1014,7 @@ export default function AluDatabasePage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setAppForm({ ...appForm, accessoryBOM: [...appForm.accessoryBOM, { accessoryCode: '', quantityFormula: '4 * P' }] })}
+                                onClick={() => setAppForm({ ...appForm, accessoryBOM: [...appForm.accessoryBOM, { accessoryCode: '', actualCode: '', quantityFormula: '4 * P' }] })}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition"
                             >
                                 + Add Accessory
@@ -959,6 +1047,8 @@ export default function AluDatabasePage() {
                                                 onChange={e => {
                                                     const next = [...appForm.accessoryBOM];
                                                     next[idx].accessoryCode = e.target.value.toUpperCase();
+                                                    // Auto-populate actual code when accessory code changes
+                                                    next[idx].actualCode = e.target.value.toUpperCase();
                                                     setAppForm({ ...appForm, accessoryBOM: next });
                                                     setActiveAccessoryIdx(idx);
                                                 }}
@@ -988,6 +1078,8 @@ export default function AluDatabasePage() {
                                                             onClick={() => {
                                                                 const next = [...appForm.accessoryBOM];
                                                                 next[idx].accessoryCode = a.code;
+                                                                // Use actual code from unified list
+                                                                next[idx].actualCode = a.actualCode || a.code;
                                                                 setAppForm({ ...appForm, accessoryBOM: next });
                                                                 setActiveAccessoryIdx(null);
                                                             }}
@@ -995,6 +1087,7 @@ export default function AluDatabasePage() {
                                                         >
                                                             <div>
                                                                 <span className="font-mono font-bold text-indigo-700">{a.code}</span>
+                                                                {a.actualCode && a.actualCode !== a.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({a.actualCode})</span>}
                                                                 <span className="text-slate-600 ml-2">{a.name}</span>
                                                             </div>
                                                             {a.stockQty > 0 ? (
@@ -1010,6 +1103,22 @@ export default function AluDatabasePage() {
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Actual Code */}
+                                        <div className="sm:col-span-3">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Actual Code</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Actual Code (Auto)"
+                                                value={ab.actualCode || ''}
+                                                onChange={e => {
+                                                    const next = [...appForm.accessoryBOM];
+                                                    next[idx].actualCode = e.target.value.toUpperCase();
+                                                    setAppForm({ ...appForm, accessoryBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
+                                            />
                                         </div>
 
                                         {/* Quantity Formula */}

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import {
     Search, Boxes, AlertTriangle, RefreshCw, Plus, PackageCheck,
     Layers, Tag, DollarSign, Filter, ShieldCheck, ArrowRight,
-    TrendingUp, PlusCircle, MinusCircle, Edit3, X, Save
+    TrendingUp, PlusCircle, MinusCircle, Edit3, X, Save, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/ui/PageHeader';
@@ -126,6 +126,36 @@ export default function AluRawMaterialsPage() {
         setIsAdjustModalOpen(true);
     };
 
+    const handleEditItem = (item) => {
+        const productId = item.productId?._id || item.productId;
+        if (!productId) {
+            toast.error('Cannot edit: Product ID not found');
+            return;
+        }
+        // Open the modal in edit mode with the product data
+        // For now, we'll just show a toast since the modal needs edit mode support
+        toast.info('Edit functionality will be implemented in the modal');
+    };
+
+    const handleDeleteItem = async (item) => {
+        const productId = item.productId?._id || item.productId;
+        if (!productId) {
+            toast.error('Cannot delete: Product ID not found');
+            return;
+        }
+        if (!window.confirm(`Are you sure you want to delete "${item.productName || item.productCode}"?`)) {
+            return;
+        }
+        try {
+            await api.delete(`/alu/raw-materials/${productId}`);
+            toast.success('Material deleted successfully');
+            fetchAllData();
+        } catch (error) {
+            console.error('Delete failed:', error);
+            toast.error(error.response?.data?.message || 'Failed to delete material');
+        }
+    };
+
     const handleAdjustSubmit = async (e) => {
         e.preventDefault();
         if (!adjustForm.productId || !adjustForm.warehouseId || !adjustForm.quantity) {
@@ -226,15 +256,15 @@ export default function AluRawMaterialsPage() {
     }).length;
 
     const columns = [
-        { 
-            key: 'productCode', 
-            label: 'Item Code', 
+        {
+            key: 'productCode',
+            label: 'Item Code',
             render: (r) => (
                 <div>
                     <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded text-xs">
                         {r.productCode || r.productId?.productCode}
                     </span>
-                    <span className="block text-[10px] text-gray-400 font-semibold tracking-wider uppercase mt-0.5">MAX 15 CHARS</span>
+                    <span className="block text-[10px] text-gray-400 font-semibold tracking-wider uppercase mt-0.5">MAX 25 CHARS</span>
                 </div>
             )
         },
@@ -253,12 +283,21 @@ export default function AluRawMaterialsPage() {
             label: 'Warehouse', 
             render: (r) => r.warehouseName || r.warehouseId?.name 
         },
-        { 
-            key: 'batchNumber', 
-            label: 'Batch / Lot No', 
+        {
+            key: 'batchNumber',
+            label: 'Batch / Lot No',
             render: (r) => (
                 <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                     {r.batchNumber || 'Standard Stock'}
+                </span>
+            )
+        },
+        {
+            key: 'receivedGrn',
+            label: 'Received GRN',
+            render: (r) => (
+                <span className="font-mono text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                    {r.grnNumber || '-'}
                 </span>
             )
         },
@@ -299,13 +338,29 @@ export default function AluRawMaterialsPage() {
             key: 'actions',
             label: 'Action',
             render: (r) => (
-                <button
-                    onClick={() => openAdjustModal(r)}
-                    className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
-                    title="Add or Adjust Stock Quantity"
-                >
-                    <Plus size={14} /> Add Qty
-                </button>
+                <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={() => openAdjustModal(r)}
+                        className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
+                        title="Add or Adjust Stock Quantity"
+                    >
+                        <Plus size={14} /> Add Qty
+                    </button>
+                    <button
+                        onClick={() => handleEditItem(r)}
+                        className="flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
+                        title="Edit Material"
+                    >
+                        <Edit3 size={14} /> Edit
+                    </button>
+                    <button
+                        onClick={() => handleDeleteItem(r)}
+                        className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
+                        title="Delete Material"
+                    >
+                        <Trash2 size={14} /> Delete
+                    </button>
+                </div>
             )
         }
     ];

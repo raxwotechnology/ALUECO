@@ -4,9 +4,10 @@ import api from '../api/axios';
 import {
     Boxes, PackageCheck, AlertTriangle, Clock, Search, Filter,
     ChevronDown, ChevronUp, ExternalLink, FileText, ShoppingBag,
-    CheckCircle2, RefreshCw, Layers, ShieldCheck, ArrowRight
+    CheckCircle2, RefreshCw, Layers, ShieldCheck, ArrowRight, Plus, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AluGrnModal from '../components/aluminium/AluGrnModal';
 
 export default function AluProjectMaterialsPage() {
     const navigate = useNavigate();
@@ -16,6 +17,8 @@ export default function AluProjectMaterialsPage() {
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [expandedProjectIds, setExpandedProjectIds] = useState({});
     const [activeTabMap, setActiveTabMap] = useState({});
+    const [isGrnModalOpen, setIsGrnModalOpen] = useState(false);
+    const [selectedItemForGrn, setSelectedItemForGrn] = useState(null);
 
     const fetchProjectMaterials = async () => {
         setLoading(true);
@@ -52,6 +55,26 @@ export default function AluProjectMaterialsPage() {
 
     const setProjectTab = (id, tab) => {
         setActiveTabMap(prev => ({ ...prev, [id]: tab }));
+    };
+
+    const handleOpenGrnModal = (item) => {
+        setSelectedItemForGrn(item);
+        setIsGrnModalOpen(true);
+    };
+
+    const handleDeleteItem = async (poId, itemId, itemCode) => {
+        if (!window.confirm(`Are you sure you want to delete item ${itemCode} from this Purchase Order? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await api.delete(`/alu/purchase-orders/${poId}/item`, { data: { itemId } });
+            toast.success('Item deleted successfully');
+            fetchProjectMaterials(); // Refresh the data
+        } catch (error) {
+            console.error('Error deleting item:', error);
+            toast.error(error.response?.data?.message || 'Failed to delete item');
+        }
     };
 
     // Filter projects based on search and status
@@ -314,6 +337,7 @@ export default function AluProjectMaterialsPage() {
                                                                 <th className="p-2.5 text-center">Pending Shortage</th>
                                                                 <th className="p-2.5 text-right">Est. Total Cost</th>
                                                                 <th className="p-2.5 text-center">PO Status</th>
+                                                                <th className="p-2.5 text-center">Action</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-amber-100 bg-white">
@@ -330,6 +354,28 @@ export default function AluProjectMaterialsPage() {
                                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${st.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-800' : st.status === 'partially_received' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
                                                                             {st.status}
                                                                         </span>
+                                                                    </td>
+                                                                    <td className="p-2.5 text-center">
+                                                                        <div className="flex items-center justify-center gap-1">
+                                                                            {(st.pendingQuantity > 0) && (
+                                                                                <button
+                                                                                    onClick={() => handleOpenGrnModal(st)}
+                                                                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition"
+                                                                                    title="Receive via GRN"
+                                                                                >
+                                                                                    <Plus size={12} /> GRN
+                                                                                </button>
+                                                                            )}
+                                                                            {st.receivedQuantity === 0 && (
+                                                                                <button
+                                                                                    onClick={() => handleDeleteItem(st.poId, st.itemId, st.itemCode)}
+                                                                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition"
+                                                                                    title="Delete Item"
+                                                                                >
+                                                                                    <Trash2 size={12} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -439,6 +485,21 @@ export default function AluProjectMaterialsPage() {
                     })}
                 </div>
             )}
+
+            {/* GRN Modal */}
+            <AluGrnModal
+                isOpen={isGrnModalOpen}
+                onClose={() => {
+                    setIsGrnModalOpen(false);
+                    setSelectedItemForGrn(null);
+                }}
+                prefillItem={selectedItemForGrn}
+                onSuccess={() => {
+                    fetchProjectMaterials();
+                    setIsGrnModalOpen(false);
+                    setSelectedItemForGrn(null);
+                }}
+            />
         </div>
     );
 }

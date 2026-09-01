@@ -175,7 +175,8 @@ export default function AluPurchaseOrdersPage() {
                     brand: ''
                 }));
 
-                setMasterMaterials([...profiles, ...glass, ...accessories, ...raws]);
+                // Prioritize raw materials with actual new-format codes
+                setMasterMaterials([...raws, ...profiles, ...glass, ...accessories]);
             } catch (err) {
                 console.error('Failed to load master materials for autocomplete:', err);
             }
@@ -196,6 +197,7 @@ export default function AluPurchaseOrdersPage() {
     const [isGrnModalOpen, setIsGrnModalOpen] = useState(false);
     const [targetPoId, setTargetPoId] = useState(null);
     const [selectedPoForGrn, setSelectedPoForGrn] = useState(null);
+    const [selectedItemForGrn, setSelectedItemForGrn] = useState(null);
 
     // Form for Single Item
     const [itemForm, setItemForm] = useState({
@@ -259,6 +261,12 @@ export default function AluPurchaseOrdersPage() {
 
     const toggleRow = (id) => {
         setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const handleOpenItemGrnModal = (po, item) => {
+        setSelectedPoForGrn(po);
+        setSelectedItemForGrn(item);
+        setIsGrnModalOpen(true);
     };
 
     // Handle single item submit
@@ -419,10 +427,6 @@ export default function AluPurchaseOrdersPage() {
                         <Button variant="outline" onClick={() => { setTargetPoId(null); setIsSingleItemModalOpen(true); }}>
                             <Plus size={16} className="mr-1.5" />
                             Add Shortage Item
-                        </Button>
-                        <Button variant="primary" onClick={() => setIsAddModalOpen(true)}>
-                            <ShoppingCart size={16} className="mr-1.5" />
-                            New AluEco PO
                         </Button>
                     </div>
                 }
@@ -614,6 +618,7 @@ export default function AluPurchaseOrdersPage() {
                                                         <th className="py-2.5 px-3">Est. Unit Cost</th>
                                                         <th className="py-2.5 px-3">Est. Total</th>
                                                         <th className="py-2.5 px-3">Status</th>
+                                                        <th className="py-2.5 px-3 text-center">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100">
@@ -648,6 +653,18 @@ export default function AluPurchaseOrdersPage() {
                                                                 <td className="py-2.5 px-3">
                                                                     {getStatusBadge(item.status)}
                                                                 </td>
+                                                                <td className="py-2.5 px-3 text-center">
+                                                                    {(item.pendingQuantity > 0) && (
+                                                                        <Button
+                                                                            variant="success"
+                                                                            size="sm"
+                                                                            onClick={() => handleOpenItemGrnModal(po, item)}
+                                                                        >
+                                                                            <PackageCheck size={12} className="mr-1" />
+                                                                            GRN
+                                                                        </Button>
+                                                                    )}
+                                                                </td>
                                                             </tr>
                                                         );
                                                     })}
@@ -668,9 +685,11 @@ export default function AluPurchaseOrdersPage() {
                 onClose={() => {
                     setIsGrnModalOpen(false);
                     setSelectedPoForGrn(null);
+                    setSelectedItemForGrn(null);
                 }}
                 onSuccess={fetchData}
                 selectedPo={selectedPoForGrn}
+                prefillItem={selectedItemForGrn}
             />
 
             {/* Modal: Add Manual Shortage Item */}

@@ -200,7 +200,11 @@ const captureRatesSnapshot = async () => {
             glassBOM: app.glassBOM,
             accessoryBOM: app.accessoryBOM,
             labourMethod: app.labourMethod,
-            labourRate: app.labourRate
+            labourRate: app.labourRate,
+            profileSpec: app.profileSpec,
+            glassSpec: app.glassSpec,
+            hardwareSpec: app.hardwareSpec,
+            scopeSpec: app.scopeSpec
         };
     });
     
@@ -259,6 +263,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 
                 profileCuts.push({
                     profileCode: pb.profileCode,
+                    actualCode: pb.actualCode || pb.profileCode,
                     description: pb.description,
                     length: roundedLength,
                     qty: qty,
@@ -290,22 +295,34 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 
                 const glassRate = rates.glass[gb.glassType];
                 if (glassRate) {
-                    const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
-                    const cost = totalAreaSqFt * unitRate;
+                    // Use pricing formula: (base21ftPrice/21) * glassSheetLength * 1.05 if base21ftPrice is provided
+                    let cost;
+                    if (gb.base21ftPrice && gb.base21ftPrice > 0) {
+                        const sheetLength = parseFloat(gb.glassSheetLength) || 8;
+                        const pricePerFoot = gb.base21ftPrice / 21;
+                        const sheetCost = pricePerFoot * sheetLength * 1.05;
+                        cost = totalAreaSqFt * sheetCost;
+                    } else {
+                        const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
+                        cost = totalAreaSqFt * unitRate;
+                    }
                     
                     glassItems.push({
                         glassType: gb.glassType,
+                        glassCode: gb.glassCode || (gb.glassType || '').replace(/\s+/g, '-').toUpperCase(),
                         width: Math.round(gW),
                         height: Math.round(gH),
                         qty: gQty * quantity,
                         areaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
-                        unitRate: parseFloat(unitRate.toFixed(2)),
-                        cost: parseFloat(cost.toFixed(2))
+                        unitRate: parseFloat((gb.base21ftPrice ? (gb.base21ftPrice / 21) * parseFloat(gb.glassSheetLength || 8) * 1.05 : (glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge)).toFixed(2)),
+                        cost: parseFloat(cost.toFixed(2)),
+                        glassSheetLength: gb.glassSheetLength || '8',
+                        base21ftPrice: gb.base21ftPrice || 0
                     });
                     
                     itemGlassCost += cost;
                     
-                    // Accumulate panels for 2D optimization
+                    // Accumulate panels for 2D optimization with sheet length
                     if (!projectGlassPanels[gb.glassType]) {
                         projectGlassPanels[gb.glassType] = [];
                     }
@@ -314,7 +331,9 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                         projectGlassPanels[gb.glassType].push({
                             width: Math.round(gW),
                             height: Math.round(gH),
-                            glassType: gb.glassType
+                            glassType: gb.glassType,
+                            glassSheetLength: gb.glassSheetLength || '8',
+                            base21ftPrice: gb.base21ftPrice || 0
                         });
                     }
                 }
@@ -334,6 +353,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                     const cost = totalAccQty * accRate.sellingRate; // use selling rate for quotation
                     accessories.push({
                         code: ab.accessoryCode,
+                        actualCode: ab.actualCode || ab.accessoryCode,
                         name: accRate.name,
                         qty: totalAccQty,
                         unitRate: accRate.sellingRate,
@@ -385,10 +405,10 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             topSection: item.topSection,
             panelArrangement: item.panelArrangement,
             description: item.description,
-            profileSpec: item.profileSpec,
-            glassSpec: item.glassSpec,
-            hardwareSpec: item.hardwareSpec,
-            scopeSpec: item.scopeSpec,
+            profileSpec: item.profileSpec || appData.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+            glassSpec: item.glassSpec || appData.glassSpec || '5mm Single Tempered Clear Glass',
+            hardwareSpec: item.hardwareSpec || appData.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+            scopeSpec: item.scopeSpec || appData.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
             sketchImage: item.sketchImage,
             totalAreaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
             labourRatePerSqFt: effectiveRatePerSqFt || 150,
@@ -495,17 +515,59 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
     const glassOptimizationResults = {};
     let totalOptimizedGlassCost = 0;
     
+    // Standard glass sheet dimensions (length in ft to mm, standard height 4ft = 1219mm)
+    const GLASS_SHEET_DIMENSIONS = {
+        '4': { lengthMm: 1219, heightMm: 1219, areaSqFt: 16.0 },
+        '7': { lengthMm: 2134, heightMm: 1219, areaSqFt: 28.0 },
+        '8': { lengthMm: 2438, heightMm: 1219, areaSqFt: 32.0 },
+        '14': { lengthMm: 4267, heightMm: 1219, areaSqFt: 56.0 },
+        '16': { lengthMm: 4877, heightMm: 1219, areaSqFt: 64.0 },
+        '21': { lengthMm: 6401, heightMm: 1219, areaSqFt: 84.0 }
+    };
+    
     for (const type in projectGlassPanels) {
         const panels = projectGlassPanels[type];
         const glassRate = rates.glass[type];
         if (glassRate) {
             const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
-            // 8ft x 4ft raw glass sheets (2438mm x 1219mm)
-            const sheetPackingLayout = solve2DGlassPacking(panels, 2438, 1219);
+            const cuttingCharge = glassRate.cuttingServiceCharge || 0;
             
-            const sheetsPurchased = sheetPackingLayout.length;
-            const sheetAreaSqFt = 32.0;
-            const cost = sheetsPurchased * sheetAreaSqFt * unitRate;
+            // Group panels by sheet length
+            const panelsBySheetLength = {};
+            panels.forEach(panel => {
+                const sheetLength = panel.glassSheetLength || '8';
+                if (!panelsBySheetLength[sheetLength]) {
+                    panelsBySheetLength[sheetLength] = [];
+                }
+                panelsBySheetLength[sheetLength].push(panel);
+            });
+            
+            // Optimize for each sheet length
+            const sheetPackingLayout = [];
+            let sheetsPurchased = 0;
+            let totalCost = 0;
+            
+            for (const sheetLength in panelsBySheetLength) {
+                const sheetDims = GLASS_SHEET_DIMENSIONS[sheetLength] || GLASS_SHEET_DIMENSIONS['8'];
+                const panelsForLength = panelsBySheetLength[sheetLength];
+                const packingLayout = solve2DGlassPacking(panelsForLength, sheetDims.lengthMm, sheetDims.heightMm);
+                
+                sheetPackingLayout.push(...packingLayout);
+                sheetsPurchased += packingLayout.length;
+                
+                // Use pricing formula: (base21ftPrice/21) * sheetLength * 1.05 if base21ftPrice is provided
+                const base21ftPrice = panelsForLength[0]?.base21ftPrice || 0;
+                if (base21ftPrice > 0) {
+                    const pricePerFoot = base21ftPrice / 21;
+                    const sheetCost = pricePerFoot * parseFloat(sheetLength) * 1.05;
+                    totalCost += packingLayout.length * sheetCost;
+                } else {
+                    totalCost += packingLayout.length * sheetDims.areaSqFt * unitRate;
+                }
+                
+                // Add cutting service charge per sheet
+                totalCost += packingLayout.length * cuttingCharge;
+            }
             
             glassOptimizationResults[type] = {
                 glassType: type,
@@ -513,10 +575,11 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 requiredPanels: panels,
                 sheets: sheetPackingLayout,
                 sheetsPurchased,
-                totalCost: parseFloat(cost.toFixed(2))
+                totalCost: parseFloat(totalCost.toFixed(2)),
+                cuttingServiceCharge: cuttingCharge
             };
             
-            totalOptimizedGlassCost += cost;
+            totalOptimizedGlassCost += totalCost;
         }
     }
     
@@ -1248,6 +1311,11 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         width: item.width,
         height: item.height,
         quantity: item.quantity,
+        cuttingQty: item.quantity, // Start all items in cutting stage
+        assemblyQty: 0,
+        glazingQty: 0,
+        qaQty: 0,
+        readyQty: 0,
         completedQty: 0
     }));
 

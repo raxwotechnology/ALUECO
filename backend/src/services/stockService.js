@@ -97,6 +97,7 @@ export const increaseStock = async ({
             productName: product.name,
             warehouseId,
             batchNumber,
+            grnNumber: sourceDocument?.type === 'grn' ? sourceDocument.number : null,
             unitOfMeasure: product.unitOfMeasure,
             costPerUnit,
             quantities: {
@@ -117,6 +118,11 @@ export const increaseStock = async ({
         stockItem.quantities.openStock = (stockItem.quantities.openStock || 0) + openQtyToAdd;
         stockItem.quantities.balanceStock = (stockItem.quantities.balanceStock || 0) + balanceQtyToAdd;
         stockItem.quantities.onHand = stockItem.quantities.openStock + stockItem.quantities.balanceStock;
+
+        // Always update grnNumber when receiving via GRN
+        if (sourceDocument?.type === 'grn') {
+            stockItem.grnNumber = sourceDocument.number;
+        }
     }
     stockItem.lastMovementDate = new Date();
     await stockItem.save();

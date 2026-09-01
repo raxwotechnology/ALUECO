@@ -7,10 +7,10 @@ import {
     getAccessories, createAccessory, updateAccessory, deleteAccessory,
     getApplications, createApplication, updateApplication, deleteApplication,
     getScraps, createScrap, updateScrap, deleteScrap,
-    getJobCards, updateJobCardStatus,
+    getJobCards, updateJobCardStatus, updateItemQuantityByStage,
     getSurveys, createSurvey, updateSurvey, deleteSurvey,
     checkProjectStockAndShortages, reserveProjectMaterials, issueProjectMaterials,
-    getAluRawMaterials, createAluRawMaterial, processAluGrn, getProjectsMaterialsSummary
+    getAluRawMaterials, createAluRawMaterial, updateAluRawMaterial, deleteAluRawMaterial, processAluGrn, getProjectsMaterialsSummary
 } from '../controllers/aluController.js';
 import {
     getAluQuotations, getAluQuotationById, createAluQuotation,
@@ -26,7 +26,7 @@ import {
 import {
     getAluPurchaseOrders, getAluPurchaseOrderById, createAluPurchaseOrder,
     updateAluPurchaseOrder, deleteAluPurchaseOrder, addManualItemToAluPO,
-    getAluPOSummaryStats, createGrnFromAluPO
+    getAluPOSummaryStats, createGrnFromAluPO, deleteAluPOItem
 } from '../controllers/aluPurchaseOrderController.js';
 import {
     getAluProjectIncome, createAluIncome, getAluExpenses, createAluExpense,
@@ -117,6 +117,8 @@ router.route('/job-cards')
     .get(getJobCards);
 router.route('/job-cards/:id/status')
     .put(updateJobCardStatus);
+router.route('/job-cards/item-quantity')
+    .put(updateItemQuantityByStage);
 
 // On-Site surveys
 router.route('/surveys')
@@ -150,11 +152,17 @@ router.route('/purchase-orders')
     .post(createAluPurchaseOrder);
 router.route('/purchase-orders/:id')
     .get(getAluPurchaseOrderById)
+    .put(updateAluPurchaseOrder)
+    .delete(deleteAluPurchaseOrder)
     .post(createGrnFromAluPO);
+router.delete('/purchase-orders/:id/item', deleteAluPOItem);
 // AluEco Raw Materials & Dedicated GRN Intake
 router.route('/raw-materials')
     .get(getAluRawMaterials)
     .post(createAluRawMaterial);
+router.route('/raw-materials/:id')
+    .put(updateAluRawMaterial)
+    .delete(deleteAluRawMaterial);
 router.post('/grn', processAluGrn);
 
 // Alueco Finance & Accounting

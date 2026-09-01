@@ -18,18 +18,23 @@ const aluApplicationSchema = new mongoose.Schema({
     },
     profileBOM: [{
         profileCode: { type: String, required: true },
+        actualCode: { type: String, default: '' },
         description: { type: String, required: true },
         quantityFormula: { type: String, required: true }, // e.g. "2" or "2 * P"
         lengthFormula: { type: String, required: true }    // e.g. "W" or "H" or "H - 50"
     }],
     glassBOM: [{
         glassType: { type: String, required: true },
+        glassCode: { type: String, default: '' },
         quantityFormula: { type: String, required: true }, // e.g. "P"
         widthFormula: { type: String, required: true },    // e.g. "(W - 150) / 2"
-        heightFormula: { type: String, required: true }   // e.g. "H - 100"
+        heightFormula: { type: String, required: true },   // e.g. "H - 100"
+        glassSheetLength: { type: String, default: '8' },
+        base21ftPrice: { type: Number, default: 0 }
     }],
     accessoryBOM: [{
         accessoryCode: { type: String, required: true },
+        actualCode: { type: String, default: '' },
         quantityFormula: { type: String, required: true }   // e.g. "4 * P" or "2 * Q"
     }],
     labourMethod: {
@@ -44,6 +49,26 @@ const aluApplicationSchema = new mongoose.Schema({
     brand: {
         type: String,
         default: 'Standard',
+        trim: true
+    },
+    profileSpec: {
+        type: String,
+        default: 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+        trim: true
+    },
+    glassSpec: {
+        type: String,
+        default: '5mm Single Tempered Clear Glass',
+        trim: true
+    },
+    hardwareSpec: {
+        type: String,
+        default: 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+        trim: true
+    },
+    scopeSpec: {
+        type: String,
+        default: 'Fabrication, Delivery & Installation Inclusive',
         trim: true
     },
     isActive: {

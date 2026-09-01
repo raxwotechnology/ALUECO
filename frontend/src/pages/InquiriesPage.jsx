@@ -118,7 +118,7 @@ export default function InquiriesPage() {
 
     // Won action modal
     const [wonModalLead, setWonModalLead] = useState(null);
-    const [wonData, setWonData] = useState({ finalValue: '', advanceAmount: '', advanceDate: new Date().toISOString().split('T')[0], note: '' });
+    const [wonData, setWonData] = useState({ finalValue: '', note: '' });
     const [savingWon, setSavingWon] = useState(false);
 
     // Lost action modal
@@ -242,9 +242,7 @@ export default function InquiriesPage() {
         setWonModalLead(lead);
         setWonData({
             finalValue: lead.finalValue || lead.quotationValue || '',
-            advanceAmount: lead.advanceAmount || '',
-            advanceDate: new Date().toISOString().split('T')[0],
-            note: 'Lead confirmed as WON. Advance received.'
+            note: 'Lead confirmed as WON.'
         });
     };
 
@@ -261,9 +259,7 @@ export default function InquiriesPage() {
             await api.put(`/crm/inquiries/${wonModalLead._id}/transition`, {
                 nextStatus: 'Won',
                 finalValue: Number(wonData.finalValue),
-                advanceAmount: wonData.advanceAmount ? Number(wonData.advanceAmount) : 0,
-                advanceDate: wonData.advanceDate || new Date(),
-                note: wonData.note || `Deal WON! Advance: Rs. ${Number(wonData.advanceAmount || 0).toLocaleString()}`
+                note: wonData.note || 'Deal WON!'
             });
             toast.success('🎉 Deal marked as WON! Project status set to Created.');
             setWonModalLead(null);
@@ -1227,31 +1223,6 @@ export default function InquiriesPage() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                                        Advance Amount (Rs.)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        placeholder="840000"
-                                        value={wonData.advanceAmount}
-                                        onChange={e => setWonData({ ...wonData, advanceAmount: e.target.value })}
-                                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                                        Advance Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={wonData.advanceDate}
-                                        onChange={e => setWonData({ ...wonData, advanceDate: e.target.value })}
-                                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
-                                    />
-                                </div>
-                            </div>
 
                             <div>
                                 <label className="text-xs font-bold text-gray-700 block mb-1">
@@ -1259,7 +1230,7 @@ export default function InquiriesPage() {
                                 </label>
                                 <input
                                     type="text"
-                                    placeholder="Advance collected via Bank Transfer / Cheque"
+                                    placeholder="Enter closing notes..."
                                     value={wonData.note}
                                     onChange={e => setWonData({ ...wonData, note: e.target.value })}
                                     className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -1267,7 +1238,7 @@ export default function InquiriesPage() {
                             </div>
 
                             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-medium">
-                                ✓ This will record the advance payment and set Project Status to <strong>Created</strong>.
+                                ✓ This will set Project Status to <strong>Created</strong>.
                             </div>
 
                             <div className="flex items-center justify-end gap-3 pt-2">

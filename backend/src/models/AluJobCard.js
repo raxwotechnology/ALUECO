@@ -6,6 +6,12 @@ const aluJobCardItemSchema = new mongoose.Schema({
     width: { type: Number, required: true },
     height: { type: Number, required: true },
     quantity: { type: Number, required: true },
+    // Quantity tracking per stage
+    cuttingQty: { type: Number, default: 0 },
+    assemblyQty: { type: Number, default: 0 },
+    glazingQty: { type: Number, default: 0 },
+    qaQty: { type: Number, default: 0 },
+    readyQty: { type: Number, default: 0 },
     completedQty: { type: Number, default: 0 }
 });
 

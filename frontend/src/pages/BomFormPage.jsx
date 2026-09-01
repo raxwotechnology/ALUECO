@@ -30,7 +30,7 @@ export default function BomFormPage() {
     const [outputQuantity, setOutputQuantity] = useState(1);
     const [outputUnitOfMeasure, setOutputUnitOfMeasure] = useState('');
     const [components, setComponents] = useState([
-        { productId: '', quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material' },
+        { productId: '', quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', barLength: '21', base21ftPrice: 0 },
     ]);
     const [labor, setLabor] = useState([]);
     const [overheadPercent, setOverheadPercent] = useState(0);
@@ -101,7 +101,7 @@ export default function BomFormPage() {
         }
     }, [finishedProductId, products, outputUnitOfMeasure]);
 
-    const addComponent = () => setComponents([...components, { productId: '', quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material' }]);
+    const addComponent = () => setComponents([...components, { productId: '', quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', barLength: '21', base21ftPrice: 0 }]);
     const removeComponent = (idx) => setComponents(components.filter((_, i) => i !== idx));
     const updateComponent = (idx, field, value) => {
         const newComps = [...components];
@@ -113,7 +113,16 @@ export default function BomFormPage() {
                 newComps[idx].componentType = p.productType === 'packaging' ? 'packaging'
                     : p.productType === 'semi_finished' ? 'semi_finished'
                         : 'raw_material';
+                newComps[idx].base21ftPrice = p.costs?.averageCost || p.costs?.lastPurchaseCost || p.basePrice || 0;
             }
+        }
+        // Recalculate cost when bar length or base price changes
+        if (field === 'barLength' || field === 'base21ftPrice') {
+            const barLength = Number(newComps[idx].barLength) || 21;
+            const basePrice = Number(newComps[idx].base21ftPrice) || 0;
+            const pricePerFoot = basePrice / 21;
+            const targetCost = pricePerFoot * barLength;
+            newComps[idx].standardCost = targetCost * 1.05; // 105% for wastage
         }
         setComponents(newComps);
     };
@@ -267,11 +276,26 @@ export default function BomFormPage() {
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-5 gap-2">
+                                        <div className="grid grid-cols-6 gap-2">
                                             <Input label="Qty" type="number" step="0.0001" min="0.0001"
                                                 value={c.quantity} onChange={(e) => updateComponent(idx, 'quantity', e.target.value)} />
-                                            <Input label="Wastage %" type="number" step="0.01" min="0" max="100"
-                                                value={c.wastagePercent} onChange={(e) => updateComponent(idx, 'wastagePercent', e.target.value)} />
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Bar Length (ft)</label>
+                                                <select
+                                                    value={c.barLength || '21'}
+                                                    onChange={(e) => updateComponent(idx, 'barLength', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                                                >
+                                                    <option value="4">4 ft</option>
+                                                    <option value="7">7 ft</option>
+                                                    <option value="8">8 ft</option>
+                                                    <option value="14">14 ft</option>
+                                                    <option value="16">16 ft</option>
+                                                    <option value="21">21 ft</option>
+                                                </select>
+                                            </div>
+                                            <Input label="Base 21ft Price" type="number" step="0.01" min="0"
+                                                value={c.base21ftPrice} onChange={(e) => updateComponent(idx, 'base21ftPrice', e.target.value)} />
                                             <Input label="Std Cost" type="number" step="0.01" min="0"
                                                 value={c.standardCost} onChange={(e) => updateComponent(idx, 'standardCost', e.target.value)} />
                                             <div>

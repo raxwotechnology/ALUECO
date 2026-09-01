@@ -160,7 +160,31 @@ export const deleteScrap = asyncHandler(async (req, res) => {
 // === ALU JOB CARDS (KANBAN) ===
 export const getJobCards = asyncHandler(async (req, res) => {
     const jobCards = await AluJobCard.find({}).sort({ createdAt: -1 });
-    res.json({ success: true, data: jobCards });
+    
+    // Transform data for project-wise product kanban
+    const kanbanData = jobCards.map(jobCard => {
+        return {
+            _id: jobCard._id, // Include MongoDB _id
+            jobCardNumber: jobCard.jobCardNumber,
+            projectName: jobCard.projectName,
+            customerName: jobCard.customerName,
+            quotationId: jobCard.quotationId,
+            items: jobCard.items.map(item => ({
+                applicationType: item.applicationType,
+                configuration: item.configuration,
+                width: item.width,
+                height: item.height,
+                totalQuantity: item.quantity,
+                cuttingQty: item.cuttingQty || 0,
+                assemblyQty: item.assemblyQty || 0,
+                glazingQty: item.glazingQty || 0,
+                qaQty: item.qaQty || 0,
+                readyQty: item.readyQty || 0
+            }))
+        };
+    });
+    
+    res.json({ success: true, data: kanbanData });
 });
 
 export const updateJobCardStatus = asyncHandler(async (req, res) => {
@@ -174,6 +198,28 @@ export const updateJobCardStatus = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Job Card not found');
     }
+    res.json({ success: true, data: jobCard });
+});
+
+export const updateItemQuantityByStage = asyncHandler(async (req, res) => {
+    const { jobCardId, itemIndex, stage, quantity } = req.body;
+    
+    const jobCard = await AluJobCard.findById(jobCardId);
+    if (!jobCard) {
+        res.status(404);
+        throw new Error('Job Card not found');
+    }
+    
+    if (!jobCard.items[itemIndex]) {
+        res.status(404);
+        throw new Error('Item not found');
+    }
+    
+    // Update the specific stage quantity
+    const stageField = `${stage}Qty`;
+    jobCard.items[itemIndex][stageField] = quantity;
+    
+    await jobCard.save();
     res.json({ success: true, data: jobCard });
 });
 
@@ -313,7 +359,10 @@ export const getAluRawMaterials = asyncHandler(async (req, res) => {
 
 export const createAluRawMaterial = asyncHandler(async (req, res) => {
     let items = req.body.items;
-    
+
+    console.log('=== createAluRawMaterial called ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     // Support single product payload as fallback
     if (!items || !Array.isArray(items)) {
         items = [req.body];
@@ -330,17 +379,17 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
 
     // Validate codes
     for (const it of items) {
+        console.log('Validating item:', it);
         if (!it.name || !it.name.trim()) {
+            console.log('ERROR: Material name is missing');
             res.status(400);
             throw new Error('Material name is required for all items.');
         }
         const cleanCode = (it.productCode || '').trim().toUpperCase();
+        console.log('Clean code:', cleanCode);
         if (cleanCode) {
-            if (cleanCode.length > 15) {
-                res.status(400);
-                throw new Error(`Item Code "${cleanCode}" exceeds maximum 15 characters.`);
-            }
             const existing = await Product.findOne({ productCode: cleanCode, deletedAt: null });
+            console.log('Existing product with this code:', existing);
             if (existing) {
                 res.status(400);
                 throw new Error(`Item Code "${cleanCode}" already exists. Please provide a unique code.`);
@@ -430,6 +479,30 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
         message: `Successfully created ${createdProducts.length} AluEco Raw Material(s) with initial stock!`,
         data: createdProducts
     });
+});
+
+export const updateAluRawMaterial = asyncHandler(async (req, res) => {
+    const Product = (await import('../models/Product.js')).default;
+    const { id } = req.params;
+
+    const product = await Product.findByIdAndUpdate(id, req.body, { new: true });
+    if (!product) {
+        res.status(404);
+        throw new Error('Raw material not found');
+    }
+    res.json({ success: true, data: product });
+});
+
+export const deleteAluRawMaterial = asyncHandler(async (req, res) => {
+    const Product = (await import('../models/Product.js')).default;
+    const { id } = req.params;
+
+    const product = await Product.findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true });
+    if (!product) {
+        res.status(404);
+        throw new Error('Raw material not found');
+    }
+    res.json({ success: true, message: 'Raw material deleted successfully' });
 });
 
 export const processAluGrn = asyncHandler(async (req, res) => {
@@ -675,6 +748,7 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
 
                 shortageItems.push({
                     poId: po._id,
+                    itemId: poItem._id,
                     poNumber: po.poNumber,
                     itemCode: poItem.itemCode,
                     productName: poItem.productName,
@@ -735,6 +809,7 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
     unmappedPOs.forEach(po => {
         const shortageItems = (po.items || []).map(poItem => ({
             poId: po._id,
+            itemId: poItem._id,
             poNumber: po.poNumber,
             itemCode: poItem.itemCode,
             productName: poItem.productName,

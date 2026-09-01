@@ -18,6 +18,7 @@ const stockItemSchema = new mongoose.Schema(
 
         // Batch tracking (optional — only if product has it)
         batchNumber: { type: String, trim: true, default: null },
+        grnNumber: { type: String, trim: true, default: null }, // Track the GRN number when received
         manufactureDate: { type: Date, default: null },
         expiryDate: { type: Date, default: null },
 

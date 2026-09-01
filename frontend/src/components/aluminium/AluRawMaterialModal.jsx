@@ -27,13 +27,13 @@ const UNIT_OPTIONS = [
 ];
 
 const PROFILE_OPTIONS = [
-    { value: 'SW100', label: 'Swisstek 100mm Commercial' },
-    { value: 'SW70', label: 'Swisstek 70mm Residential' },
-    { value: 'CS45', label: 'Swisstek 45mm Casement' },
-    { value: 'AL100', label: 'Alumex 100mm Sliding' },
-    { value: 'AL45', label: 'Alumex 45mm Casement' },
-    { value: 'MOR70', label: 'Moris 70mm System' },
-    { value: 'BEAD', label: 'Glazing Bead Profile' },
+    { value: 'SW100', label: 'Swisstek 100mm Commercial', grade: '12' },
+    { value: 'SW70', label: 'Swisstek 70mm Residential', grade: '12' },
+    { value: 'CS45', label: 'Swisstek 45mm Casement', grade: '12' },
+    { value: 'AL100', label: 'Alumex 100mm Sliding', grade: '12' },
+    { value: 'AL45', label: 'Alumex 45mm Casement', grade: '12' },
+    { value: 'MOR70', label: 'Moris 70mm System', grade: '12' },
+    { value: 'BEAD', label: 'Glazing Bead Profile', grade: '10' },
 ];
 
 const COLOR_OPTIONS = [
@@ -59,19 +59,42 @@ const SIDE_OPTIONS = [
 ];
 
 const computeAutoCode = (item) => {
-    const prefix = item.aluCategory === 'profiles' ? 'PRF' : item.aluCategory === 'glass' ? 'GLS' : item.aluCategory === 'accessories' ? 'ACC' : 'MAT';
-    const prof = (item.profileType || 'SW100').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const prefix = item.aluCategory === 'profiles' ? 'PRF' : item.aluCategory === 'glass' ? 'GLS' : item.aluCategory === 'accessories' ? 'ACC' : item.aluCategory === 'hardware' ? 'HRD' : 'GSK';
+
+    // Get grade from thickness (convert 1.2mm to 12, 6mm to 06, etc.)
+    let grade = '12'; // default grade
+    if (item.thickness) {
+        const thicknessNum = parseFloat(item.thickness.replace(/[^0-9.]/g, ''));
+        if (thicknessNum >= 1) {
+            grade = Math.round(thicknessNum * 10).toString().padStart(2, '0');
+        } else {
+            grade = Math.round(thicknessNum * 100).toString().padStart(2, '0');
+        }
+    }
+
     const color = (item.colorCode || 'MB').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const w = item.width ? Number(item.width) : '';
     const h = item.height ? Number(item.height) : '';
     const side = (item.side || 'TOP').toUpperCase();
 
-    let dim = '';
-    if (w && h) dim = `-${w}X${h}`;
-    else if (w) dim = `-W${w}`;
-    else if (h) dim = `-H${h}`;
+    // Build code parts dynamically, omitting NA
+    const parts = [prefix, grade, color];
 
-    return `${prefix}-${prof}-${color}${dim}-${side}`;
+    // Only add slide for profiles
+    if (item.aluCategory === 'profiles') {
+        parts.push(side);
+    }
+
+    // Only add size if dimensions are provided
+    if (w && h) {
+        parts.push(`${w}X${h}`);
+    } else if (w) {
+        parts.push(`W${w}`);
+    } else if (h) {
+        parts.push(`H${h}`);
+    }
+
+    return parts.join('-');
 };
 
 // Comprehensive Standard Suggestions for 1-click Auto-fill
@@ -111,36 +134,36 @@ const SUPPLIER_SUGGESTIONS = [
 
 const STANDARD_PRODUCT_PRESETS = [
     // Profiles
-    { category: 'profiles', name: '100mm 2-Track Outer Bottom Frame', code: 'PRF-SW100-BOT', unit: 'Lengths', cost: 1600, thickness: '1.2mm' },
-    { category: 'profiles', name: '100mm 2-Track Outer Top Frame', code: 'PRF-SW100-TOP', unit: 'Lengths', cost: 1550, thickness: '1.2mm' },
-    { category: 'profiles', name: '100mm 2-Track Outer Side Jamb', code: 'PRF-SW100-SID', unit: 'Lengths', cost: 1500, thickness: '1.2mm' },
-    { category: 'profiles', name: '100mm Sliding Window Sash Profile', code: 'PRF-SW100-SSH', unit: 'Lengths', cost: 1700, thickness: '1.2mm' },
-    { category: 'profiles', name: '100mm Sliding Interlock Profile', code: 'PRF-SW100-INT', unit: 'Lengths', cost: 1450, thickness: '1.2mm' },
-    { category: 'profiles', name: '45mm Casement Outer Frame', code: 'PRF-CS45-OUT', unit: 'Lengths', cost: 1850, thickness: '1.2mm' },
-    { category: 'profiles', name: '45mm Casement Sash Frame', code: 'PRF-CS45-SSH', unit: 'Lengths', cost: 1950, thickness: '1.2mm' },
-    { category: 'profiles', name: 'Single Glazed Snap-in Bead 5mm', code: 'PRF-BEAD-05', unit: 'Lengths', cost: 650, thickness: '1.0mm' },
-    { category: 'profiles', name: 'Double Glazed Snap-in Bead 12mm', code: 'PRF-BEAD-12', unit: 'Lengths', cost: 750, thickness: '1.0mm' },
+    { category: 'profiles', name: '100mm 2-Track Outer Bottom Frame', code: 'PRF-12-MB-TOP-NA', unit: 'Lengths', cost: 1600, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'TOP' },
+    { category: 'profiles', name: '100mm 2-Track Outer Top Frame', code: 'PRF-12-MB-BOT-NA', unit: 'Lengths', cost: 1550, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'BOT' },
+    { category: 'profiles', name: '100mm 2-Track Outer Side Jamb', code: 'PRF-12-MB-SID-NA', unit: 'Lengths', cost: 1500, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'SID' },
+    { category: 'profiles', name: '100mm Sliding Window Sash Profile', code: 'PRF-12-MB-SSH-NA', unit: 'Lengths', cost: 1700, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'SSH' },
+    { category: 'profiles', name: '100mm Sliding Interlock Profile', code: 'PRF-12-MB-INT-NA', unit: 'Lengths', cost: 1450, thickness: '1.2mm', profileType: 'SW100', colorCode: 'MB', side: 'INT' },
+    { category: 'profiles', name: '45mm Casement Outer Frame', code: 'PRF-12-MB-OUT-NA', unit: 'Lengths', cost: 1850, thickness: '1.2mm', profileType: 'CS45', colorCode: 'MB', side: 'OUT' },
+    { category: 'profiles', name: '45mm Casement Sash Frame', code: 'PRF-12-MB-SSH-NA', unit: 'Lengths', cost: 1950, thickness: '1.2mm', profileType: 'CS45', colorCode: 'MB', side: 'SSH' },
+    { category: 'profiles', name: 'Single Glazed Snap-in Bead 5mm', code: 'PRF-10-MF-NA-NA', unit: 'Lengths', cost: 650, thickness: '1.0mm', profileType: 'BEAD', colorCode: 'MF', side: 'NA' },
+    { category: 'profiles', name: 'Double Glazed Snap-in Bead 12mm', code: 'PRF-10-MF-NA-NA', unit: 'Lengths', cost: 750, thickness: '1.0mm', profileType: 'BEAD', colorCode: 'MF', side: 'NA' },
     // Glass
-    { category: 'glass', name: '5mm Clear Float Glass Sheet', code: 'GLS-CLR-05', unit: 'Sq.Ft', cost: 220, thickness: '5mm' },
-    { category: 'glass', name: '6mm Clear Tempered Glass Sheet', code: 'GLS-TMP-06', unit: 'Sq.Ft', cost: 380, thickness: '6mm' },
-    { category: 'glass', name: '8mm Clear Tempered Glass Sheet', code: 'GLS-TMP-08', unit: 'Sq.Ft', cost: 480, thickness: '8mm' },
-    { category: 'glass', name: '5mm Tinted Grey Float Glass Sheet', code: 'GLS-GRY-05', unit: 'Sq.Ft', cost: 260, thickness: '5mm' },
-    { category: 'glass', name: '6mm Tinted Bronze Float Glass Sheet', code: 'GLS-BRZ-06', unit: 'Sq.Ft', cost: 390, thickness: '6mm' },
+    { category: 'glass', name: '5mm Clear Float Glass Sheet', code: 'GLS-05-WH-NA-NA', unit: 'Sq.Ft', cost: 220, thickness: '5mm', colorCode: 'WH' },
+    { category: 'glass', name: '6mm Clear Tempered Glass Sheet', code: 'GLS-06-WH-NA-NA', unit: 'Sq.Ft', cost: 380, thickness: '6mm', colorCode: 'WH' },
+    { category: 'glass', name: '8mm Clear Tempered Glass Sheet', code: 'GLS-08-WH-NA-NA', unit: 'Sq.Ft', cost: 480, thickness: '8mm', colorCode: 'WH' },
+    { category: 'glass', name: '5mm Tinted Grey Float Glass Sheet', code: 'GLS-05-CH-NA-NA', unit: 'Sq.Ft', cost: 260, thickness: '5mm', colorCode: 'CH' },
+    { category: 'glass', name: '6mm Tinted Bronze Float Glass Sheet', code: 'GLS-06-DB-NA-NA', unit: 'Sq.Ft', cost: 390, thickness: '6mm', colorCode: 'DB' },
     // Accessories
-    { category: 'accessories', name: 'Sliding Window Heavy Duty Roller (Bearing)', code: 'ACC-ROL-HD', unit: 'Nos', cost: 450, thickness: '-' },
-    { category: 'accessories', name: 'Sliding Window Double Roller (Brass Wheel)', code: 'ACC-ROL-DBL', unit: 'Nos', cost: 650, thickness: '-' },
-    { category: 'accessories', name: 'Anti-Lift Buffer Block Set', code: 'ACC-BUF-01', unit: 'Nos', cost: 75, thickness: '-' },
-    { category: 'accessories', name: 'Water Drainage Cap (Plastic)', code: 'ACC-WDR-CAP', unit: 'Nos', cost: 45, thickness: '-' },
+    { category: 'accessories', name: 'Sliding Window Heavy Duty Roller (Bearing)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 450, thickness: '-' },
+    { category: 'accessories', name: 'Sliding Window Double Roller (Brass Wheel)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 650, thickness: '-' },
+    { category: 'accessories', name: 'Anti-Lift Buffer Block Set', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 75, thickness: '-' },
+    { category: 'accessories', name: 'Water Drainage Cap (Plastic)', code: 'ACC-NA-NA-NA-NA', unit: 'Nos', cost: 45, thickness: '-' },
     // Hardware
-    { category: 'hardware', name: 'Crescent Sliding Window Lock (White/Black)', code: 'HRD-LCK-CRS', unit: 'Nos', cost: 550, thickness: '-' },
-    { category: 'hardware', name: 'Touch Latch Auto Flush Lock', code: 'HRD-LCK-TCH', unit: 'Nos', cost: 850, thickness: '-' },
-    { category: 'hardware', name: 'Multi-Point Lock Handle (Keyed)', code: 'HRD-HND-MLT', unit: 'Nos', cost: 2400, thickness: '-' },
-    { category: 'hardware', name: 'Friction Stay Hinge 12 Inch (SS 304)', code: 'HRD-HNG-12SS', unit: 'Nos', cost: 1200, thickness: '-' },
-    { category: 'hardware', name: 'Casement Cockspur Handle', code: 'HRD-HND-CSM', unit: 'Nos', cost: 750, thickness: '-' },
+    { category: 'hardware', name: 'Crescent Sliding Window Lock (White/Black)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 550, thickness: '-' },
+    { category: 'hardware', name: 'Touch Latch Auto Flush Lock', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 850, thickness: '-' },
+    { category: 'hardware', name: 'Multi-Point Lock Handle (Keyed)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 2400, thickness: '-' },
+    { category: 'hardware', name: 'Friction Stay Hinge 12 Inch (SS 304)', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 1200, thickness: '-' },
+    { category: 'hardware', name: 'Casement Cockspur Handle', code: 'HRD-NA-NA-NA-NA', unit: 'Nos', cost: 750, thickness: '-' },
     // Gaskets
-    { category: 'gaskets', name: 'EPDM Wedge Glazing Gasket 5mm (Coil)', code: 'GSK-EPDM-05', unit: 'Rolls', cost: 3200, thickness: '5mm' },
-    { category: 'gaskets', name: 'Wool Pile Weatherstrip 7x6mm (Fin Type)', code: 'GSK-WPL-0706', unit: 'Rolls', cost: 2800, thickness: '7x6mm' },
-    { category: 'gaskets', name: 'Neutral Cure Silicone Sealant (Black/Clear)', code: 'GSK-SIL-300ML', unit: 'Nos', cost: 750, thickness: '-' },
+    { category: 'gaskets', name: 'EPDM Wedge Glazing Gasket 5mm (Coil)', code: 'GSK-05-BL-NA-NA', unit: 'Rolls', cost: 3200, thickness: '5mm', colorCode: 'MB' },
+    { category: 'gaskets', name: 'Wool Pile Weatherstrip 7x6mm (Fin Type)', code: 'GSK-07-BL-NA-NA', unit: 'Rolls', cost: 2800, thickness: '7x6mm', colorCode: 'MB' },
+    { category: 'gaskets', name: 'Neutral Cure Silicone Sealant (Black/Clear)', code: 'GSK-NA-BL-NA-NA', unit: 'Nos', cost: 750, thickness: '-', colorCode: 'MB' },
 ];
 
 export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, warehouses: propWarehouses = [] }) {
@@ -159,21 +182,27 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
     const [items, setItems] = useState([
         {
             aluCategory: 'profiles',
-            productCode: 'PRF-SW100-BOT',
+            productCode: 'PRF-12-MB-TOP-NA',
             name: '100mm 2-Track Outer Bottom Frame',
             unitOfMeasure: 'Lengths',
             quantity: 10,
             purchaseCost: 1600,
             thickness: '1.2mm',
+            profileType: 'SW100',
+            colorCode: 'MB',
+            side: 'TOP',
         },
         {
             aluCategory: 'profiles',
-            productCode: 'PRF-SW100-SSH',
+            productCode: 'PRF-12-MB-SSH-NA',
             name: '100mm Sliding Window Sash Profile',
             unitOfMeasure: 'Lengths',
             quantity: 10,
             purchaseCost: 1700,
             thickness: '1.2mm',
+            profileType: 'SW100',
+            colorCode: 'MB',
+            side: 'SSH',
         }
     ]);
 
@@ -260,6 +289,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 unitOfMeasure: matched.unit,
                 purchaseCost: matched.cost,
                 thickness: matched.thickness || next[idx].thickness,
+                profileType: matched.profileType || next[idx].profileType,
+                colorCode: matched.colorCode || next[idx].colorCode,
+                side: matched.side || next[idx].side,
             };
             toast.success(`Auto-filled: ${matched.name} (${matched.code})`, { id: `preset-${idx}` });
         } else {
@@ -304,10 +336,6 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 toast.error(`Row #${i + 1}: Item Code is required`);
                 return;
             }
-            if (code.length > 15) {
-                toast.error(`Row #${i + 1}: Item Code "${code}" cannot exceed 15 characters`);
-                return;
-            }
             if (!it.name || !it.name.trim()) {
                 toast.error(`Row #${i + 1}: Material name is required`);
                 return;
@@ -337,12 +365,16 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 }))
             };
 
+            console.log('Sending payload:', payload);
             const { data } = await api.post('/alu/raw-materials', payload);
+            console.log('Response:', data);
             toast.success(data.message || `Successfully created ${items.length} materials with stock!`);
             onSuccess?.();
             onClose();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to create materials');
+            console.error('Error creating materials:', error);
+            console.error('Error response:', error.response?.data);
+            toast.error(error.response?.data?.message || error.message || 'Failed to create materials');
         } finally {
             setLoading(false);
         }
@@ -583,6 +615,29 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 </select>
                                             </div>
 
+                                            {/* Thickness (Grade) */}
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Thickness (Grade) *</label>
+                                                <select
+                                                    value={it.thickness || '1.2mm'}
+                                                    onChange={e => updateStructuredField(idx, 'thickness', e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                >
+                                                    <option value="1.0mm">1.0mm</option>
+                                                    <option value="1.2mm">1.2mm</option>
+                                                    <option value="1.4mm">1.4mm</option>
+                                                    <option value="1.5mm">1.5mm</option>
+                                                    <option value="1.6mm">1.6mm</option>
+                                                    <option value="2.0mm">2.0mm</option>
+                                                    <option value="3.0mm">3.0mm</option>
+                                                    <option value="5mm">5mm</option>
+                                                    <option value="6mm">6mm</option>
+                                                    <option value="8mm">8mm</option>
+                                                    <option value="10mm">10mm</option>
+                                                    <option value="12mm">12mm</option>
+                                                </select>
+                                            </div>
+
                                             {/* Color Code */}
                                             <div className="sm:col-span-3">
                                                 <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Color Code *</label>
@@ -656,18 +711,15 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         <div className="sm:col-span-4">
                                             <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
                                                 <span>GENERATED UNIQUE CODE *</span>
-                                                <span className={it.productCode.length > 50 ? 'text-rose-600' : 'text-slate-400'}>
-                                                    {it.productCode.length}/50
-                                                </span>
                                             </div>
                                             <input
                                                 type="text"
-                                                maxLength={50}
                                                 value={it.productCode}
-                                                onChange={e => updateItem(idx, 'productCode', e.target.value.toUpperCase())}
+                                                readOnly
                                                 required
                                                 placeholder="PRF-..."
-                                                className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                                                className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 cursor-not-allowed"
+                                                title="Auto-generated from Type, Grade, Color, Slide & Size fields"
                                             />
                                         </div>
 

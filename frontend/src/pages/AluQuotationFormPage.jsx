@@ -166,10 +166,25 @@ const AluQuotationFormPage = () => {
         const newItems = [...formData.items];
         newItems[index][field] = value;
         
-        // If applicationType changed, update configuration options
-        if (field === 'applicationType') {
-            const configs = getConfigurationsForType(value);
-            newItems[index].configuration = configs[0] || 'Standard Opening';
+        // If applicationType or configuration changed, update specs from template
+        if (field === 'applicationType' || field === 'configuration') {
+            const appType = field === 'applicationType' ? value : newItems[index].applicationType;
+            const config = field === 'configuration' ? value : newItems[index].configuration;
+            
+            // Find matching template
+            const template = templates.find(t => t.type === appType && t.configuration === config);
+            if (template) {
+                newItems[index].profileSpec = template.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)';
+                newItems[index].glassSpec = template.glassSpec || '5mm Single Tempered Clear Glass';
+                newItems[index].hardwareSpec = template.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals';
+                newItems[index].scopeSpec = template.scopeSpec || 'Fabrication, Delivery & Installation Inclusive';
+            }
+            
+            // If applicationType changed, also update configuration options
+            if (field === 'applicationType') {
+                const configs = getConfigurationsForType(value);
+                newItems[index].configuration = configs[0] || 'Standard Opening';
+            }
         }
         
         setFormData({ ...formData, items: newItems });
@@ -178,19 +193,24 @@ const AluQuotationFormPage = () => {
     const addOpening = () => {
         const firstType = availableTypes[0] || 'Sliding Door';
         const configs = getConfigurationsForType(firstType);
+        const firstConfig = configs[0] || '2 Panel';
+        
+        // Find matching template for specs
+        const template = templates.find(t => t.type === firstType && t.configuration === firstConfig);
+        
         setFormData({
             ...formData,
             items: [...formData.items, {
                 applicationType: firstType,
-                configuration: configs[0] || '2 Panel',
+                configuration: firstConfig,
                 description: '',
                 width: 2400,
                 height: 2100,
                 quantity: 1,
-                profileSpec: 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
-                glassSpec: '5mm Single Tempered Clear Glass',
-                hardwareSpec: 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
-                scopeSpec: 'Fabrication, Delivery & Installation Inclusive'
+                profileSpec: template?.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+                glassSpec: template?.glassSpec || '5mm Single Tempered Clear Glass',
+                hardwareSpec: template?.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+                scopeSpec: template?.scopeSpec || 'Fabrication, Delivery & Installation Inclusive'
             }]
         });
     };
