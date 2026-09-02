@@ -45,6 +45,7 @@ export default function AluDatabasePage() {
 
     // Autocomplete active indexes
     const [activeProfileIdx, setActiveProfileIdx] = useState(null);
+    const [activeGlassIdx, setActiveGlassIdx] = useState(null);
     const [activeAccessoryIdx, setActiveAccessoryIdx] = useState(null);
     const [showAppTypeSuggestions, setShowAppTypeSuggestions] = useState(false);
 
@@ -105,14 +106,7 @@ export default function AluDatabasePage() {
         return map;
     }, [rawMaterials]);
 
-    // Filter glass items from raw materials (GL type)
-    const glassItemsFromRawMaterials = React.useMemo(() => {
-        const products = rawMaterials.products || [];
-        const glassItems = products.filter(p => 
-            p.aluCategory === 'glass'
-        );
-        return glassItems;
-    }, [rawMaterials]);
+
 
     // Unified Profiles list with stock
     const unifiedProfiles = React.useMemo(() => {
@@ -122,8 +116,15 @@ export default function AluDatabasePage() {
         // 1. From rawMaterials products (profiles) - priority as they have actual product codes
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
-            if (p.aluCategory === 'profiles' || p.category === 'Aluminium Stock') {
-                const code = (p.productCode || '').toUpperCase();
+            const catName = (p.categoryName || p.categoryId?.name || p.category || '').toLowerCase();
+            const pName = (p.name || '').toLowerCase();
+            const isProfile = p.aluCategory === 'profiles' || 
+                              p.category === 'Aluminium Stock' ||
+                              catName.includes('profile') ||
+                              pName.includes('profile');
+
+            if (isProfile) {
+                const code = (p.productCode || p.sku || '').toUpperCase();
                 if (code) seenCodes.add(code);
                 const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? 0;
                 list.push({
@@ -167,16 +168,23 @@ export default function AluDatabasePage() {
         // From rawMaterials glass (priority - these have actual product codes)
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
-            if (p.aluCategory === 'glass') {
-                const name = p.name;
-                const code = (p.productCode || '').toUpperCase();
-                if (name && !seen.has(name.toLowerCase())) {
-                    seen.add(name.toLowerCase());
+            const catName = (p.categoryName || p.categoryId?.name || p.category || '').toLowerCase();
+            const pName = (p.name || '').toLowerCase();
+            const isGlass = p.aluCategory === 'glass' || 
+                            catName.includes('glass') ||
+                            pName.includes('glass');
+
+            if (isGlass) {
+                const name = p.name || '';
+                const code = (p.productCode || p.sku || '').toUpperCase();
+                const key = (code || name).toLowerCase();
+                if (key && !seen.has(key)) {
+                    seen.add(key);
                     const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? stockQtyMap[name.toUpperCase()] ?? 0;
                     list.push({
-                        typeName: name,
-                        glassCode: code,
-                        thickness: p.aluSpecs?.thickness || '',
+                        typeName: name || code,
+                        glassCode: code || name,
+                        thickness: p.aluSpecs?.thickness || p.specs?.thickness || '',
                         ratePerSqFt: p.basePrice || 0,
                         stockQty
                     });
@@ -186,13 +194,14 @@ export default function AluDatabasePage() {
 
         // From AluGlass (fallback - these have typeName but no product code)
         for (const g of glass) {
-            const name = g.typeName;
-            const code = (name || '').replace(/\s+/g, '-').toUpperCase();
-            if (name && !seen.has(name.toLowerCase())) {
-                seen.add(name.toLowerCase());
-                const stockQty = stockQtyMap[name.toUpperCase()] ?? 0;
+            const name = g.typeName || '';
+            const code = (g.code || g.glassCode || name).replace(/\s+/g, '-').toUpperCase();
+            const key = (code || name).toLowerCase();
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                const stockQty = stockQtyMap[name.toUpperCase()] ?? stockQtyMap[code] ?? 0;
                 list.push({
-                    typeName: name,
+                    typeName: name || code,
                     glassCode: code,
                     thickness: g.thickness || '',
                     ratePerSqFt: g.ratePerSqFt || 0,
@@ -212,8 +221,19 @@ export default function AluDatabasePage() {
         // From rawMaterials accessories / hardware (priority - these have actual product codes)
         const rawProds = rawMaterials.products || [];
         for (const p of rawProds) {
-            if (['accessories', 'hardware', 'gaskets'].includes(p.aluCategory)) {
-                const code = (p.productCode || '').toUpperCase();
+            const catName = (p.categoryName || p.categoryId?.name || p.category || '').toLowerCase();
+            const pName = (p.name || '').toLowerCase();
+            const isAccessory = ['accessories', 'hardware', 'gaskets'].includes(p.aluCategory) ||
+                                catName.includes('accessor') ||
+                                catName.includes('hardware') ||
+                                pName.includes('roller') ||
+                                pName.includes('lock') ||
+                                pName.includes('gasket') ||
+                                pName.includes('strip') ||
+                                pName.includes('wool');
+
+            if (isAccessory) {
+                const code = (p.productCode || p.sku || '').toUpperCase();
                 if (code && !seen.has(code)) {
                     seen.add(code);
                     const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? 0;
@@ -561,14 +581,14 @@ export default function AluDatabasePage() {
                         </div>
                         {appForm.profileBOM.map((pb, idx) => {
                             const matchedProfile = unifiedProfiles.find(p => p.code.toUpperCase() === (pb.profileCode || '').trim().toUpperCase());
+                            const q = (pb.profileCode || '').trim().toLowerCase();
                             const filteredProfiles = unifiedProfiles.filter(p => {
-                                const qCode = (pb.profileCode || '').trim().toLowerCase();
-                                const qDesc = (pb.description || '').trim().toLowerCase();
-                                if (!qCode && !qDesc) return true;
-                                return (p.code || '').toLowerCase().includes(qCode) ||
-                                       (p.description || '').toLowerCase().includes(qDesc) ||
-                                       (p.series || '').toLowerCase().includes(qCode);
-                            }).slice(0, 8);
+                                if (!q) return true;
+                                return (p.code || '').toLowerCase().includes(q) ||
+                                       (p.actualCode || '').toLowerCase().includes(q) ||
+                                       (p.description || '').toLowerCase().includes(q) ||
+                                       (p.series || '').toLowerCase().includes(q);
+                            });
 
                             return (
                                 <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 transition-all hover:border-indigo-200">
@@ -586,11 +606,17 @@ export default function AluDatabasePage() {
                                                     setActiveGlassIdx(null);
                                                     setActiveAccessoryIdx(null);
                                                 }}
+                                                onClick={() => {
+                                                    setActiveProfileIdx(idx);
+                                                    setActiveGlassIdx(null);
+                                                    setActiveAccessoryIdx(null);
+                                                }}
                                                 onChange={e => {
                                                     const next = [...appForm.profileBOM];
                                                     next[idx].profileCode = e.target.value.toUpperCase();
                                                     // Auto-populate actual code when profile code changes
                                                     next[idx].actualCode = e.target.value.toUpperCase();
+                                                    setAppForm({ ...appForm, profileBOM: next });
                                                     setActiveProfileIdx(idx);
                                                 }}
                                                 required
@@ -598,13 +624,13 @@ export default function AluDatabasePage() {
                                             />
 
                                             {/* Autocomplete Dropdown */}
-                                            {activeProfileIdx === idx && filteredProfiles.length > 0 && (
+                                            {activeProfileIdx === idx && (
                                                 <div 
                                                     className="absolute z-50 left-0 right-0 sm:w-80 top-full mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
                                                     onMouseDown={e => e.preventDefault()}
                                                 >
                                                     <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                                                        <span>Raw Material Stock Profiles</span>
+                                                        <span>Raw Material Stock Profiles ({filteredProfiles.length})</span>
                                                         <button 
                                                             type="button"
                                                             onClick={() => setActiveProfileIdx(null)}
@@ -613,37 +639,44 @@ export default function AluDatabasePage() {
                                                             <X size={12} />
                                                         </button>
                                                     </div>
-                                                    {filteredProfiles.map((p, pIdx) => (
-                                                        <div
-                                                            key={pIdx}
-                                                            onClick={() => {
-                                                                const next = [...appForm.profileBOM];
-                                                                next[idx].profileCode = p.code;
-                                                                // Use actual code from unified list
-                                                                next[idx].actualCode = p.actualCode || p.code;
-                                                                if (p.description) next[idx].description = p.description;
-                                                                setAppForm({ ...appForm, profileBOM: next });
-                                                                setActiveProfileIdx(null);
-                                                            }}
-                                                            className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex flex-col gap-0.5 transition-colors"
-                                                        >
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="font-mono font-bold text-indigo-700">{p.code}</span>
-                                                                {p.actualCode && p.actualCode !== p.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({p.actualCode})</span>}
-                                                                {p.stockQty > 0 ? (
-                                                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                        ● {p.stockQty} {p.unit} in stock
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                        0 in stock (Auto PO)
-                                                                    </span>
-                                                                )}
+                                                    {filteredProfiles.length > 0 ? (
+                                                        filteredProfiles.map((p, pIdx) => (
+                                                            <div
+                                                                key={pIdx}
+                                                                onClick={() => {
+                                                                    const next = [...appForm.profileBOM];
+                                                                    next[idx].profileCode = p.code;
+                                                                    // Use actual code from unified list
+                                                                    next[idx].actualCode = p.actualCode || p.code;
+                                                                    if (p.description) next[idx].description = p.description;
+                                                                    setAppForm({ ...appForm, profileBOM: next });
+                                                                    setActiveProfileIdx(null);
+                                                                }}
+                                                                className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex flex-col gap-0.5 transition-colors"
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-mono font-bold text-indigo-700">{p.code}</span>
+                                                                    {p.actualCode && p.actualCode !== p.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({p.actualCode})</span>}
+                                                                    {p.stockQty > 0 ? (
+                                                                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                            ● {p.stockQty} {p.unit} in stock
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                            0 in stock (Auto PO)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[11px] text-slate-600 truncate">{p.description}</span>
+                                                                {p.series && <span className="text-[10px] text-slate-400">Series / Supplier: {p.series}</span>}
                                                             </div>
-                                                            <span className="text-[11px] text-slate-600 truncate">{p.description}</span>
-                                                            {p.series && <span className="text-[10px] text-slate-400">Series / Supplier: {p.series}</span>}
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-[11px] text-slate-500 bg-slate-50 flex items-center gap-1.5">
+                                                            <Sparkles size={13} className="text-indigo-600 flex-shrink-0" />
+                                                            <span>No stock profile matching "<strong>{pb.profileCode}</strong>". Custom code accepted — PO will be generated automatically.</span>
                                                         </div>
-                                                    ))}
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -780,28 +813,105 @@ export default function AluDatabasePage() {
                             </button>
                         </div>
                         {appForm.glassBOM.map((gb, idx) => {
+                            const matchedGlass = unifiedGlass.find(g => 
+                                (g.glassCode || '').toUpperCase() === (gb.glassCode || '').trim().toUpperCase() ||
+                                (g.typeName || '').toLowerCase() === (gb.glassCode || '').trim().toLowerCase()
+                            );
+                            const filteredGlass = unifiedGlass.filter(g => {
+                                const q = (gb.glassCode || '').trim().toLowerCase();
+                                if (!q) return true;
+                                return (g.glassCode || '').toLowerCase().includes(q) ||
+                                       (g.typeName || '').toLowerCase().includes(q) ||
+                                       (g.thickness || '').toLowerCase().includes(q);
+                            });
+
                             return (
                                 <div key={idx} className="p-3 bg-blue-50/40 border border-blue-150 rounded-xl space-y-2 transition-all hover:border-blue-300">
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 relative">
-                                        {/* Glass Code */}
-                                        <div className="sm:col-span-4">
+                                        {/* Glass Code Input with Autocomplete */}
+                                        <div className="sm:col-span-4 relative">
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Code</label>
-                                            <select
+                                            <input
+                                                type="text"
+                                                maxLength={30}
+                                                placeholder="Glass Code (e.g. GL-05-CLR)"
                                                 value={gb.glassCode || ''}
+                                                onFocus={() => {
+                                                    setActiveGlassIdx(idx);
+                                                    setActiveProfileIdx(null);
+                                                    setActiveAccessoryIdx(null);
+                                                }}
+                                                onClick={() => {
+                                                    setActiveGlassIdx(idx);
+                                                    setActiveProfileIdx(null);
+                                                    setActiveAccessoryIdx(null);
+                                                }}
                                                 onChange={e => {
                                                     const next = [...appForm.glassBOM];
-                                                    next[idx].glassCode = e.target.value;
+                                                    next[idx].glassCode = e.target.value.toUpperCase();
                                                     setAppForm({ ...appForm, glassBOM: next });
+                                                    setActiveGlassIdx(idx);
                                                 }}
+                                                required
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
-                                            >
-                                                <option value="">Select Glass Code</option>
-                                                {glassItemsFromRawMaterials.map(g => (
-                                                    <option key={g._id} value={g.productCode}>
-                                                        {g.productCode} - {g.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            />
+
+                                            {/* Autocomplete Dropdown */}
+                                            {activeGlassIdx === idx && (
+                                                <div 
+                                                    className="absolute z-50 left-0 right-0 sm:w-80 top-full mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
+                                                    onMouseDown={e => e.preventDefault()}
+                                                >
+                                                    <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                                                        <span>Raw Material Glass Stock ({filteredGlass.length})</span>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setActiveGlassIdx(null)}
+                                                            className="text-slate-400 hover:text-slate-600"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                    {filteredGlass.length > 0 ? (
+                                                        filteredGlass.map((g, gIdx) => (
+                                                            <div
+                                                                key={gIdx}
+                                                                onClick={() => {
+                                                                    const next = [...appForm.glassBOM];
+                                                                    next[idx].glassCode = g.glassCode || g.typeName;
+                                                                    setAppForm({ ...appForm, glassBOM: next });
+                                                                    setActiveGlassIdx(null);
+                                                                }}
+                                                                className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex flex-col gap-0.5 transition-colors"
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-mono font-bold text-indigo-700">{g.glassCode || g.typeName}</span>
+                                                                    {g.stockQty > 0 ? (
+                                                                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                            ● {g.stockQty} in stock
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                            0 in stock (Auto PO)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[11px] text-slate-600 truncate">{g.typeName}</span>
+                                                                {g.thickness && (
+                                                                    <span className="text-[10px] text-slate-400">
+                                                                        Thickness: {g.thickness} {g.ratePerSqFt ? `| Rate: Rs. ${g.ratePerSqFt}/sqft` : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-[11px] text-slate-500 bg-slate-50 flex items-center gap-1.5">
+                                                            <Sparkles size={13} className="text-indigo-600 flex-shrink-0" />
+                                                            <span>No stock glass matching "<strong>{gb.glassCode}</strong>". Custom code accepted — PO will be generated automatically.</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Qty Formula */}
@@ -909,6 +1019,30 @@ export default function AluDatabasePage() {
                                             </button>
                                         </div>
                                     </div>
+
+                                    {/* Real-Time Stock Status Pill */}
+                                    {gb.glassCode && (
+                                        <div className="flex items-center gap-1.5 pt-0.5">
+                                            {matchedGlass ? (
+                                                matchedGlass.stockQty > 0 ? (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">
+                                                        <CheckCircle2 size={12} className="text-emerald-600" />
+                                                        Stock Available: <strong>{matchedGlass.stockQty}</strong> in inventory ({matchedGlass.typeName})
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-medium">
+                                                        <AlertCircle size={12} className="text-amber-600" />
+                                                        0 in Stock — Shortage PO will be created automatically on project conversion
+                                                    </span>
+                                                )
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-medium">
+                                                    <Sparkles size={12} className="text-indigo-600" />
+                                                    Custom / Non-stock Glass Code "{gb.glassCode}" — Will automatically generate PO when ordered
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -931,11 +1065,14 @@ export default function AluDatabasePage() {
                         </div>
                         {appForm.accessoryBOM.map((ab, idx) => {
                             const matchedAccessory = unifiedAccessories.find(a => a.code.toUpperCase() === (ab.accessoryCode || '').trim().toUpperCase());
+                            const q = (ab.accessoryCode || '').trim().toLowerCase();
                             const filteredAccessories = unifiedAccessories.filter(a => {
-                                const q = (ab.accessoryCode || '').trim().toLowerCase();
                                 if (!q) return true;
-                                return a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q);
-                            }).slice(0, 8);
+                                return (a.code || '').toLowerCase().includes(q) ||
+                                       (a.actualCode || '').toLowerCase().includes(q) ||
+                                       (a.name || '').toLowerCase().includes(q) ||
+                                       (a.brand || '').toLowerCase().includes(q);
+                            });
 
                             return (
                                 <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 transition-all hover:border-indigo-200">
@@ -953,6 +1090,11 @@ export default function AluDatabasePage() {
                                                     setActiveProfileIdx(null);
                                                     setActiveGlassIdx(null);
                                                 }}
+                                                onClick={() => {
+                                                    setActiveAccessoryIdx(idx);
+                                                    setActiveProfileIdx(null);
+                                                    setActiveGlassIdx(null);
+                                                }}
                                                 onChange={e => {
                                                     const next = [...appForm.accessoryBOM];
                                                     next[idx].accessoryCode = e.target.value.toUpperCase();
@@ -966,13 +1108,13 @@ export default function AluDatabasePage() {
                                             />
 
                                             {/* Autocomplete Dropdown */}
-                                            {activeAccessoryIdx === idx && filteredAccessories.length > 0 && (
+                                            {activeAccessoryIdx === idx && (
                                                 <div 
                                                     className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
                                                     onMouseDown={e => e.preventDefault()}
                                                 >
                                                     <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                                                        <span>Raw Material Hardware & Accessories</span>
+                                                        <span>Raw Material Hardware & Accessories ({filteredAccessories.length})</span>
                                                         <button 
                                                             type="button"
                                                             onClick={() => setActiveAccessoryIdx(null)}
@@ -981,35 +1123,42 @@ export default function AluDatabasePage() {
                                                             <X size={12} />
                                                         </button>
                                                     </div>
-                                                    {filteredAccessories.map((a, aIdx) => (
-                                                        <div
-                                                            key={aIdx}
-                                                            onClick={() => {
-                                                                const next = [...appForm.accessoryBOM];
-                                                                next[idx].accessoryCode = a.code;
-                                                                // Use actual code from unified list
-                                                                next[idx].actualCode = a.actualCode || a.code;
-                                                                setAppForm({ ...appForm, accessoryBOM: next });
-                                                                setActiveAccessoryIdx(null);
-                                                            }}
-                                                            className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex items-center justify-between transition-colors"
-                                                        >
-                                                            <div>
-                                                                <span className="font-mono font-bold text-indigo-700">{a.code}</span>
-                                                                {a.actualCode && a.actualCode !== a.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({a.actualCode})</span>}
-                                                                <span className="text-slate-600 ml-2">{a.name}</span>
+                                                    {filteredAccessories.length > 0 ? (
+                                                        filteredAccessories.map((a, aIdx) => (
+                                                            <div
+                                                                key={aIdx}
+                                                                onClick={() => {
+                                                                    const next = [...appForm.accessoryBOM];
+                                                                    next[idx].accessoryCode = a.code;
+                                                                    // Use actual code from unified list
+                                                                    next[idx].actualCode = a.actualCode || a.code;
+                                                                    setAppForm({ ...appForm, accessoryBOM: next });
+                                                                    setActiveAccessoryIdx(null);
+                                                                }}
+                                                                className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex items-center justify-between transition-colors"
+                                                            >
+                                                                <div>
+                                                                    <span className="font-mono font-bold text-indigo-700">{a.code}</span>
+                                                                    {a.actualCode && a.actualCode !== a.code && <span className="text-[10px] text-indigo-600 ml-1.5 font-mono">({a.actualCode})</span>}
+                                                                    <span className="text-slate-600 ml-2">{a.name}</span>
+                                                                </div>
+                                                                {a.stockQty > 0 ? (
+                                                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                        ● {a.stockQty} {a.unit} in stock
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
+                                                                        0 in stock (Auto PO)
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            {a.stockQty > 0 ? (
-                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                    ● {a.stockQty} {a.unit} in stock
-                                                                </span>
-                                                            ) : (
-                                                                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                    0 in stock (Auto PO)
-                                                                </span>
-                                                            )}
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-[11px] text-slate-500 bg-slate-50 flex items-center gap-1.5">
+                                                            <Sparkles size={13} className="text-indigo-600 flex-shrink-0" />
+                                                            <span>No stock accessory matching "<strong>{ab.accessoryCode}</strong>". Custom code accepted — PO will be generated automatically.</span>
                                                         </div>
-                                                    ))}
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
