@@ -108,11 +108,9 @@ export default function AluDatabasePage() {
     // Filter glass items from raw materials (GL type)
     const glassItemsFromRawMaterials = React.useMemo(() => {
         const products = rawMaterials.products || [];
-        console.log('Raw Materials Products:', products); // Debug log
         const glassItems = products.filter(p => 
             p.aluCategory === 'glass'
         );
-        console.log('Filtered Glass Items (by category only):', glassItems); // Debug log
         return glassItems;
     }, [rawMaterials]);
 

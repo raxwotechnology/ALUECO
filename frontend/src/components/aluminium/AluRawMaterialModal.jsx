@@ -16,6 +16,7 @@ const UNIT_OPTIONS = [
     { value: 'Kg', label: 'Kg (Kilograms)' },
     { value: 'Meters', label: 'Meters (Running Length)' },
     { value: 'Rolls', label: 'Rolls (Coils)' },
+    { value: 'Ft', label: 'Ft (Feet)' },
 ];
 
 const TYPE_OPTIONS = [
@@ -91,6 +92,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             profile: '',
             colour: '',
             length: '',
+            width: '',
+            height: '',
             side: '',
             description: '',
         },
@@ -104,6 +107,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             profile: '',
             colour: '',
             length: '',
+            width: '',
+            height: '',
             side: '',
             description: '',
         }
@@ -155,10 +160,20 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         // Extract length (remove mm if present)
         const length = (item.length || '').replace(/[^0-9]/g, '');
         
-        // Build the code: Type + Profile + Colour + Side + Length (no spaces)
-        // Example: APSWISSTEK100MMATTLACKTOPFRAME6000
-        const parts = [typeCode, profileCode, colourCode, sideCode, length];
-        return parts.filter(part => part !== '').join('');
+        // Extract width and height for Glass/Accessories
+        const width = (item.width || '').replace(/[^0-9]/g, '');
+        const height = (item.height || '').replace(/[^0-9]/g, '');
+        
+        // Build the code based on type
+        // For profiles: Type + Profile + Colour + Side + Length
+        // For glass/accessories: Type + Profile + Colour + Side + Width + Height
+        if (typeCode === 'GL' || typeCode === 'AC') {
+            const parts = [typeCode, profileCode, colourCode, sideCode, width, height];
+            return parts.filter(part => part !== '').join('');
+        } else {
+            const parts = [typeCode, profileCode, colourCode, sideCode, length];
+            return parts.filter(part => part !== '').join('');
+        }
     };
 
     const updateItem = (idx, field, value) => {
@@ -166,7 +181,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         next[idx] = { ...next[idx], [field]: value };
         
         // Auto-generate product code when relevant fields change
-        if (['type', 'profile', 'colour', 'length', 'side'].includes(field)) {
+        if (['type', 'profile', 'colour', 'length', 'side', 'width', 'height'].includes(field)) {
             next[idx].productCode = generateProductCode(next[idx]);
         }
         
@@ -190,6 +205,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 profile: '',
                 colour: '',
                 length: '',
+                width: '',
+                height: '',
                 side: '',
                 description: '',
             }
@@ -257,6 +274,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                             profile: it.profile || '',
                             colour: it.colour || '',
                             length: it.length || '',
+                            width: it.width || '',
+                            height: it.height || '',
                             side: it.side || '',
                             description: it.description || '',
                         }
@@ -516,7 +535,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 />
                                             </div>
 
-                                            {/* Side */}
+                                            {/* Side - For all types */}
                                             <div>
                                                 <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Side</label>
                                                 <input
@@ -528,17 +547,47 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 />
                                             </div>
 
-                                            {/* Length */}
-                                            <div>
-                                                <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Length (mm)</label>
-                                                <input
-                                                    type="text"
-                                                    value={it.length || ''}
-                                                    onChange={e => updateItem(idx, 'length', e.target.value)}
-                                                    placeholder="e.g. 6000"
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                />
-                                            </div>
+                                            {/* Length - Only for non-Glass/Accessories */}
+                                            {it.type !== 'GL' && it.type !== 'AC' && (
+                                                <div>
+                                                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Length (mm)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={it.length || ''}
+                                                        onChange={e => updateItem(idx, 'length', e.target.value)}
+                                                        placeholder="e.g. 6000"
+                                                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Width - Only for Glass/Accessories */}
+                                            {(it.type === 'GL' || it.type === 'AC') && (
+                                                <div>
+                                                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Width (mm)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={it.width || ''}
+                                                        onChange={e => updateItem(idx, 'width', e.target.value)}
+                                                        placeholder="e.g. 1000"
+                                                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Height - Only for Glass/Accessories */}
+                                            {(it.type === 'GL' || it.type === 'AC') && (
+                                                <div>
+                                                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Height (mm)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={it.height || ''}
+                                                        onChange={e => updateItem(idx, 'height', e.target.value)}
+                                                        placeholder="e.g. 1200"
+                                                        className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Description */}
