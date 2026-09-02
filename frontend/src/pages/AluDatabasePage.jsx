@@ -106,7 +106,14 @@ export default function AluDatabasePage() {
         return map;
     }, [rawMaterials]);
 
-
+    // Filter glass items from raw materials (GL type)
+    const glassItemsFromRawMaterials = React.useMemo(() => {
+        const products = rawMaterials.products || [];
+        const glassItems = products.filter(p => 
+            p.aluCategory === 'glass'
+        );
+        return glassItems;
+    }, [rawMaterials]);
 
     // Unified Profiles list with stock
     const unifiedProfiles = React.useMemo(() => {
@@ -813,105 +820,28 @@ export default function AluDatabasePage() {
                             </button>
                         </div>
                         {appForm.glassBOM.map((gb, idx) => {
-                            const matchedGlass = unifiedGlass.find(g => 
-                                (g.glassCode || '').toUpperCase() === (gb.glassCode || '').trim().toUpperCase() ||
-                                (g.typeName || '').toLowerCase() === (gb.glassCode || '').trim().toLowerCase()
-                            );
-                            const filteredGlass = unifiedGlass.filter(g => {
-                                const q = (gb.glassCode || '').trim().toLowerCase();
-                                if (!q) return true;
-                                return (g.glassCode || '').toLowerCase().includes(q) ||
-                                       (g.typeName || '').toLowerCase().includes(q) ||
-                                       (g.thickness || '').toLowerCase().includes(q);
-                            });
-
                             return (
                                 <div key={idx} className="p-3 bg-blue-50/40 border border-blue-150 rounded-xl space-y-2 transition-all hover:border-blue-300">
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 relative">
-                                        {/* Glass Code Input with Autocomplete */}
-                                        <div className="sm:col-span-4 relative">
+                                        {/* Glass Code Dropdown */}
+                                        <div className="sm:col-span-4">
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Glass Code</label>
-                                            <input
-                                                type="text"
-                                                maxLength={30}
-                                                placeholder="Glass Code (e.g. GL-05-CLR)"
+                                            <select
                                                 value={gb.glassCode || ''}
-                                                onFocus={() => {
-                                                    setActiveGlassIdx(idx);
-                                                    setActiveProfileIdx(null);
-                                                    setActiveAccessoryIdx(null);
-                                                }}
-                                                onClick={() => {
-                                                    setActiveGlassIdx(idx);
-                                                    setActiveProfileIdx(null);
-                                                    setActiveAccessoryIdx(null);
-                                                }}
                                                 onChange={e => {
                                                     const next = [...appForm.glassBOM];
-                                                    next[idx].glassCode = e.target.value.toUpperCase();
+                                                    next[idx].glassCode = e.target.value;
                                                     setAppForm({ ...appForm, glassBOM: next });
-                                                    setActiveGlassIdx(idx);
                                                 }}
-                                                required
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600 bg-white"
-                                            />
-
-                                            {/* Autocomplete Dropdown */}
-                                            {activeGlassIdx === idx && (
-                                                <div 
-                                                    className="absolute z-50 left-0 right-0 sm:w-80 top-full mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
-                                                    onMouseDown={e => e.preventDefault()}
-                                                >
-                                                    <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                                                        <span>Raw Material Glass Stock ({filteredGlass.length})</span>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => setActiveGlassIdx(null)}
-                                                            className="text-slate-400 hover:text-slate-600"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                    {filteredGlass.length > 0 ? (
-                                                        filteredGlass.map((g, gIdx) => (
-                                                            <div
-                                                                key={gIdx}
-                                                                onClick={() => {
-                                                                    const next = [...appForm.glassBOM];
-                                                                    next[idx].glassCode = g.glassCode || g.typeName;
-                                                                    setAppForm({ ...appForm, glassBOM: next });
-                                                                    setActiveGlassIdx(null);
-                                                                }}
-                                                                className="p-2 text-xs hover:bg-indigo-50/80 cursor-pointer flex flex-col gap-0.5 transition-colors"
-                                                            >
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="font-mono font-bold text-indigo-700">{g.glassCode || g.typeName}</span>
-                                                                    {g.stockQty > 0 ? (
-                                                                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                            ● {g.stockQty} in stock
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.2 rounded-full">
-                                                                            0 in stock (Auto PO)
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-[11px] text-slate-600 truncate">{g.typeName}</span>
-                                                                {g.thickness && (
-                                                                    <span className="text-[10px] text-slate-400">
-                                                                        Thickness: {g.thickness} {g.ratePerSqFt ? `| Rate: Rs. ${g.ratePerSqFt}/sqft` : ''}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-3 text-[11px] text-slate-500 bg-slate-50 flex items-center gap-1.5">
-                                                            <Sparkles size={13} className="text-indigo-600 flex-shrink-0" />
-                                                            <span>No stock glass matching "<strong>{gb.glassCode}</strong>". Custom code accepted — PO will be generated automatically.</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                            >
+                                                <option value="">Select Glass Code</option>
+                                                {glassItemsFromRawMaterials.map(g => (
+                                                    <option key={g._id} value={g.productCode}>
+                                                        {g.productCode} - {g.name}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
 
                                         {/* Qty Formula */}
