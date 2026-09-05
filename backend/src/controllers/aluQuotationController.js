@@ -1,0 +1,1849 @@
+import asyncHandler from 'express-async-handler';
+import AluProfile from '../models/AluProfile.js';
+import AluGlass from '../models/AluGlass.js';
+import AluAccessory from '../models/AluAccessory.js';
+import AluApplication from '../models/AluApplication.js';
+import AluQuotation from '../models/AluQuotation.js';
+import AluPurchaseOrder from '../models/AluPurchaseOrder.js';
+import SalesOrder from '../models/SalesOrder.js';
+import Product from '../models/Product.js';
+import StockItem from '../models/StockItem.js';
+import Warehouse from '../models/Warehouse.js';
+import AluScrap from '../models/AluScrap.js';
+import AluJobCard from '../models/AluJobCard.js';
+import { createAuditLog } from '../utils/auditLogger.js';
+import { solve2DGlassPacking } from '../utils/aluGlassSolver.js';
+import { evaluateFormula } from '../utils/aluFormulaHelper.js';
+import { decreaseStock } from '../services/stockService.js';
+
+// === Helper Functions ===
+
+// 1D Bin Packing Optimization
+const solve1DPacking = (requiredCuts, availableBars) => {
+    const sortedBars = [...availableBars].sort((a, b) => a.lengthMm - b.lengthMm);
+    const sortedCuts = [...requiredCuts].sort((a, b) => b - a);
+    
+    if (sortedCuts.length === 0) return [];
+    
+    const maxBarLength = sortedBars[sortedBars.length - 1].lengthMm;
+    const validCuts = [];
+    const oversizedCuts = [];
+    for (const cut of sortedCuts) {
+        if (cut > maxBarLength) {
+            oversizedCuts.push(cut);
+        } else {
+            validCuts.push(cut);
+        }
+    }
+    
+    let bestSolution = null;
+    let bestCost = Infinity;
+    
+    // Backtracking
+    function search(cutIdx, openBars) {
+        const currentCost = openBars.reduce((sum, bar) => sum + bar.price, 0);
+        if (currentCost >= bestCost) {
+            return;
+        }
+        
+        if (cutIdx === validCuts.length) {
+            bestCost = currentCost;
+            bestSolution = openBars.map(bar => ({
+                length: bar.length,
+                price: bar.price,
+                cuts: [...bar.cuts],
+                used: bar.used,
+                waste: bar.length - bar.used
+            }));
+            return;
+        }
+        
+        const cut = validCuts[cutIdx];
+        const triedCapacities = new Set();
+        for (let i = 0; i < openBars.length; i++) {
+            const bar = openBars[i];
+            const remaining = bar.length - bar.used;
+            if (remaining >= cut && !triedCapacities.has(remaining)) {
+                triedCapacities.add(remaining);
+                bar.cuts.push(cut);
+                bar.used += cut;
+                
+                search(cutIdx + 1, openBars);
+                
+                bar.used -= cut;
+                bar.cuts.pop();
+            }
+        }
+        
+        for (const stdBar of sortedBars) {
+            if (stdBar.lengthMm >= cut) {
+                const newBar = {
+                    length: stdBar.lengthMm,
+                    price: stdBar.price,
+                    cuts: [cut],
+                    used: cut
+                };
+                openBars.push(newBar);
+                search(cutIdx + 1, openBars);
+                openBars.pop();
+            }
+        }
+    }
+    
+    if (validCuts.length <= 15) {
+        search(0, []);
+    }
+    
+    if (!bestSolution) {
+        bestSolution = [];
+        for (const cut of validCuts) {
+            let bestBarIdx = -1;
+            let minWasteAfterCut = Infinity;
+            
+            for (let i = 0; i < bestSolution.length; i++) {
+                const bar = bestSolution[i];
+                const remaining = bar.length - bar.used;
+                if (remaining >= cut) {
+                    const wasteAfter = remaining - cut;
+                    if (wasteAfter < minWasteAfterCut) {
+                        minWasteAfterCut = wasteAfter;
+                        bestBarIdx = i;
+                    }
+                }
+            }
+            
+            if (bestBarIdx !== -1) {
+                bestSolution[bestBarIdx].cuts.push(cut);
+                bestSolution[bestBarIdx].used += cut;
+                bestSolution[bestBarIdx].waste = bestSolution[bestBarIdx].length - bestSolution[bestBarIdx].used;
+            } else {
+                let chosenBar = null;
+                for (const bar of sortedBars) {
+                    if (bar.lengthMm >= cut) {
+                        chosenBar = bar;
+                        break;
+                    }
+                }
+                
+                if (chosenBar) {
+                    bestSolution.push({
+                        length: chosenBar.lengthMm,
+                        price: chosenBar.price,
+                        cuts: [cut],
+                        used: cut,
+                        waste: chosenBar.lengthMm - cut
+                    });
+                }
+            }
+        }
+    }
+    
+    for (const cut of oversizedCuts) {
+        bestSolution.push({
+            length: maxBarLength,
+            price: sortedBars[sortedBars.length - 1].price,
+            cuts: [cut],
+            used: cut,
+            waste: 0,
+            isOversized: true
+        });
+    }
+    
+    return bestSolution;
+};
+
+// Compile rates snapshot
+const captureRatesSnapshot = async () => {
+    const profiles = await AluProfile.find({ isActive: true });
+    const glass = await AluGlass.find({ isActive: true });
+    const accessories = await AluAccessory.find({ isActive: true });
+    const applications = await AluApplication.find({ isActive: true });
+    
+    const snapshot = {
+        profiles: {},
+        glass: {},
+        accessories: {},
+        applications: {}
+    };
+    
+    profiles.forEach(p => {
+        snapshot.profiles[p.profileCode] = {
+            description: p.description,
+            supplier: p.supplier,
+            standardLengths: p.standardLengths.map(l => ({ lengthMm: l.lengthMm, price: l.price }))
+        };
+    });
+    
+    glass.forEach(g => {
+        snapshot.glass[g.typeName] = {
+            thickness: g.thickness,
+            ratePerSqFt: g.ratePerSqFt,
+            ratePerSqM: g.ratePerSqM,
+            temperingCharge: g.temperingCharge,
+            processingCharge: g.processingCharge
+        };
+    });
+    
+    accessories.forEach(a => {
+        snapshot.accessories[a.code] = {
+            name: a.name,
+            brand: a.brand,
+            unit: a.unit,
+            purchaseRate: a.purchaseRate,
+            sellingRate: a.sellingRate
+        };
+    });
+    
+    applications.forEach(app => {
+        snapshot.applications[`${app.type}_${app.configuration}`] = {
+            profileBOM: app.profileBOM,
+            glassBOM: app.glassBOM,
+            accessoryBOM: app.accessoryBOM,
+            labourMethod: app.labourMethod,
+            labourRate: app.labourRate,
+            profileSpec: app.profileSpec,
+            glassSpec: app.glassSpec,
+            hardwareSpec: app.hardwareSpec,
+            scopeSpec: app.scopeSpec
+        };
+    });
+    
+    return snapshot;
+};
+
+// Calculate and Optimize Quotation Pipeline
+const calculateQuotation = async (itemsInput, rates, transportCost = 0, additionalCosts = [], profitMarginPercent = 20) => {
+    let totalAluminiumCost = 0;
+    let totalGlassCost = 0;
+    let totalAccessoriesCost = 0;
+    let totalLabourCost = 0;
+    
+    const projectCuts = {}; // profileCode -> array of cut lengths (in mm)
+    const projectGlassPanels = {}; // glassCode -> array of { width, height, glassCode }
+    
+    // Step 1: Calculate individual elements (Cuts, Glass, Accessories)
+    const items = [];
+    
+    for (const item of itemsInput) {
+        const { applicationType, configuration, width, height, quantity } = item;
+        
+        // Parse panel count
+        let P = 1;
+        const panelMatch = configuration.match(/^(\d+)\s*Panel/i);
+        if (panelMatch) {
+            P = parseInt(panelMatch[1]);
+        }
+        
+        const variables = { W: width, H: height, P, Q: quantity };
+        
+        // Find application configuration details with graceful fallback for custom configurations
+        const appKey = `${applicationType}_${configuration}`;
+        let appData = rates.applications[appKey];
+        if (!appData) {
+            const fallbackKeys = Object.keys(rates.applications).filter(k => k.startsWith(applicationType));
+            if (fallbackKeys.length > 0) {
+                appData = rates.applications[fallbackKeys[0]];
+            } else {
+                appData = rates.applications[Object.keys(rates.applications)[0]];
+            }
+        }
+        if (!appData) {
+            throw new Error(`Application configuration "${applicationType} - ${configuration}" is not defined in system templates.`);
+        }
+        
+        // Profile cuts
+        const profileCuts = [];
+        appData.profileBOM.forEach(pb => {
+            const qty = evaluateFormula(pb.quantityFormula, variables);
+            const length = evaluateFormula(pb.lengthFormula, variables);
+            if (qty > 0 && length > 0) {
+                // Round length to nearest integer
+                const roundedLength = Math.round(length);
+                const totalQty = qty * quantity; // multiplier for number of openings
+                
+                profileCuts.push({
+                    profileCode: pb.profileCode,
+                    actualCode: pb.actualCode || pb.profileCode,
+                    description: pb.description,
+                    length: roundedLength,
+                    qty: qty,
+                    totalLength: roundedLength * qty
+                });
+                
+                // Add to project-wide cuts for packing optimization
+                if (!projectCuts[pb.profileCode]) {
+                    projectCuts[pb.profileCode] = [];
+                }
+                for (let k = 0; k < totalQty; k++) {
+                    projectCuts[pb.profileCode].push(roundedLength);
+                }
+            }
+        });
+        
+        // Glass items
+        const glassItems = [];
+        let itemGlassCost = 0;
+        appData.glassBOM.forEach(gb => {
+            const gQty = evaluateFormula(gb.quantityFormula, variables);
+            const gW = evaluateFormula(gb.widthFormula, variables);
+            const gH = evaluateFormula(gb.heightFormula, variables);
+            
+            if (gQty > 0 && gW > 0 && gH > 0) {
+                // Calculate area: Area of single sheet in sqft
+                const areaSqFt = (gW * gH) / 92903.04;
+                const totalAreaSqFt = areaSqFt * gQty * quantity;
+                
+                const glassRate = rates.glass[gb.glassCode];
+                if (glassRate) {
+                    // Use pricing formula: (base21ftPrice/21) * glassSheetLength * 1.05 if base21ftPrice is provided
+                    let cost;
+                    if (gb.base21ftPrice && gb.base21ftPrice > 0) {
+                        const sheetLength = parseFloat(gb.glassSheetLength) || 8;
+                        const pricePerFoot = gb.base21ftPrice / 21;
+                        const sheetCost = pricePerFoot * sheetLength * 1.05;
+                        cost = totalAreaSqFt * sheetCost;
+                    } else {
+                        const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
+                        cost = totalAreaSqFt * unitRate;
+                    }
+
+                    glassItems.push({
+                        glassCode: gb.glassCode,
+                        width: Math.round(gW),
+                        height: Math.round(gH),
+                        qty: gQty * quantity,
+                        areaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
+                        unitRate: parseFloat((gb.base21ftPrice ? (gb.base21ftPrice / 21) * parseFloat(gb.glassSheetLength || 8) * 1.05 : (glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge)).toFixed(2)),
+                        cost: parseFloat(cost.toFixed(2)),
+                        glassSheetLength: gb.glassSheetLength || '8',
+                        base21ftPrice: gb.base21ftPrice || 0
+                    });
+
+                    itemGlassCost += cost;
+
+                    // Accumulate panels for 2D optimization with sheet length
+                    if (!projectGlassPanels[gb.glassCode]) {
+                        projectGlassPanels[gb.glassCode] = [];
+                    }
+                    const totalQty = gQty * quantity;
+                    for (let k = 0; k < totalQty; k++) {
+                        projectGlassPanels[gb.glassCode].push({
+                            width: Math.round(gW),
+                            height: Math.round(gH),
+                            glassCode: gb.glassCode,
+                            glassSheetLength: gb.glassSheetLength || '8',
+                            base21ftPrice: gb.base21ftPrice || 0
+                        });
+                    }
+                }
+            }
+        });
+        totalGlassCost += itemGlassCost;
+        
+        // Accessories
+        const accessories = [];
+        let itemAccCost = 0;
+        appData.accessoryBOM.forEach(ab => {
+            const accQty = evaluateFormula(ab.quantityFormula, variables);
+            if (accQty > 0) {
+                const totalAccQty = accQty * quantity;
+                const accRate = rates.accessories[ab.accessoryCode];
+                if (accRate) {
+                    const cost = totalAccQty * accRate.sellingRate; // use selling rate for quotation
+                    accessories.push({
+                        code: ab.accessoryCode,
+                        actualCode: ab.actualCode || ab.accessoryCode,
+                        name: accRate.name,
+                        qty: totalAccQty,
+                        unitRate: accRate.sellingRate,
+                        cost: parseFloat(cost.toFixed(2))
+                    });
+                    itemAccCost += cost;
+                }
+            }
+        });
+        totalAccessoriesCost += itemAccCost;
+        
+        // Labour Calculation (supports Square Feet Rate, linear feet, opening, fixed, percentage)
+        let labourCost = 0;
+        const totalAreaSqFt = (width * height * quantity) / 92903.04;
+        const totalAreaSqM = (width * height * quantity) / 1000000;
+        const totalLinearFeet = (2 * (width + height) / 304.8) * quantity;
+        
+        const effectiveRatePerSqFt = Number(item.labourRatePerSqFt) || (appData.labourMethod === 'sqft' && Number(appData.labourRate)) || 0;
+
+        if (effectiveRatePerSqFt > 0) {
+            labourCost = totalAreaSqFt * effectiveRatePerSqFt;
+        } else if (appData.labourMethod === 'linear_feet' || appData.labourMethod === 'feet') {
+            labourCost = totalLinearFeet * (appData.labourRate || 0);
+        } else if (appData.labourMethod === 'sqm') {
+            labourCost = totalAreaSqM * (appData.labourRate || 0);
+        } else if (appData.labourMethod === 'opening') {
+            labourCost = quantity * (appData.labourRate || 0);
+        } else if (appData.labourMethod === 'fixed') {
+            labourCost = appData.labourRate || 0;
+        } else if (appData.labourMethod === 'percentage') {
+            labourCost = (itemGlassCost + itemAccCost) * (appData.labourRate || 0) / 100;
+        } else if (Number(item.labourCost) > 0) {
+            labourCost = Number(item.labourCost);
+        } else {
+            // Default standard sqft labour rate (150 LKR/sqft)
+            labourCost = totalAreaSqFt * 150;
+        }
+        
+        labourCost = parseFloat(labourCost.toFixed(2));
+        totalLabourCost += labourCost;
+        
+        items.push({
+            applicationType,
+            configuration,
+            width,
+            height,
+            quantity,
+            trackSystem: item.trackSystem,
+            topSection: item.topSection,
+            panelArrangement: item.panelArrangement,
+            description: item.description,
+            profileSpec: item.profileSpec || appData.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+            glassSpec: item.glassSpec || appData.glassSpec || '5mm Single Tempered Clear Glass',
+            hardwareSpec: item.hardwareSpec || appData.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+            scopeSpec: item.scopeSpec || appData.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
+            sketchImage: item.sketchImage,
+            totalAreaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
+            labourRatePerSqFt: effectiveRatePerSqFt || 150,
+            labourMethod: 'sqft',
+            profileCuts,
+            glassItems,
+            accessories,
+            labourCost,
+            unitPrice: 0, // updated after project optimization & profit margin
+            totalPrice: 0
+        });
+    }
+    
+    // Step 2: 1D Cutting Optimization across all profiles in project
+    const cuttingOptimizationResults = {};
+    
+    for (const code in projectCuts) {
+        const cuts = projectCuts[code];
+        const profile = rates.profiles[code];
+        if (profile && profile.standardLengths && profile.standardLengths.length > 0) {
+            // Find available scraps for this profile
+            const dbScraps = await AluScrap.find({ profileCode: code, status: 'available' }).lean();
+            
+            // Map to a mutable scrap pool
+            let scrapPool = dbScraps.map(s => ({
+                id: s._id,
+                length: s.lengthMm,
+                used: 0,
+                cuts: [],
+                isScrap: true,
+                price: 0
+            }));
+            
+            // Try to match cuts to scrap first (Best-Fit Decreasing match)
+            const sortedCuts = [...cuts].sort((a, b) => b - a);
+            const cutsForNewBars = [];
+            
+            for (const cut of sortedCuts) {
+                // Sort scraps by remaining capacity ascending (Best-Fit)
+                scrapPool.sort((a, b) => (a.length - a.used) - (b.length - b.used));
+                
+                let matchedScrap = null;
+                for (const scrap of scrapPool) {
+                    const remaining = scrap.length - scrap.used;
+                    if (remaining >= cut) {
+                        matchedScrap = scrap;
+                        break;
+                    }
+                }
+                
+                if (matchedScrap) {
+                    matchedScrap.cuts.push(cut);
+                    matchedScrap.used += cut;
+                } else {
+                    cutsForNewBars.push(cut);
+                }
+            }
+            
+            // Collect the scrap bars actually used
+            const usedScraps = scrapPool.filter(s => s.used > 0).map(s => ({
+                length: s.length,
+                price: 0,
+                cuts: s.cuts,
+                used: s.used,
+                waste: s.length - s.used,
+                isScrap: true,
+                scrapId: s.id
+            }));
+            
+            // For the remaining cuts, solve using standard bars
+            const newBarsPacking = solve1DPacking(cutsForNewBars, profile.standardLengths);
+            
+            // Combine scrap bars and new bars
+            const packingLayout = [...usedScraps, ...newBarsPacking];
+            
+            // Calculate costs and waste lengths (only charge for new bars purchased)
+            const totalBarsPurchased = newBarsPacking.length;
+            const purchasedLength = newBarsPacking.reduce((sum, bar) => sum + bar.length, 0);
+            const usedLength = cuts.reduce((sum, len) => sum + len, 0);
+            const totalBarLength = packingLayout.reduce((sum, bar) => sum + bar.length, 0);
+            const wasteLength = totalBarLength - usedLength;
+            const wastePercent = totalBarLength > 0 ? (wasteLength / totalBarLength) * 100 : 0;
+            const cost = newBarsPacking.reduce((sum, bar) => sum + bar.price, 0);
+            
+            cuttingOptimizationResults[code] = {
+                profileCode: code,
+                description: profile.description,
+                supplier: profile.supplier,
+                requiredCuts: cuts.sort((a, b) => b - a),
+                bars: packingLayout,
+                totalBarsPurchased,
+                purchasedLengthMm: purchasedLength,
+                usedLengthMm: usedLength,
+                wasteLengthMm: wasteLength,
+                wastePercent: parseFloat(wastePercent.toFixed(1)),
+                totalCost: parseFloat(cost.toFixed(2))
+            };
+            
+            totalAluminiumCost += cost;
+        }
+    }
+    
+    // Step 2.5: 2D Glass Cutting Optimization
+    const glassOptimizationResults = {};
+    let totalOptimizedGlassCost = 0;
+    
+    // Standard glass sheet dimensions (length in ft to mm, standard height 4ft = 1219mm)
+    const GLASS_SHEET_DIMENSIONS = {
+        '4': { lengthMm: 1219, heightMm: 1219, areaSqFt: 16.0 },
+        '7': { lengthMm: 2134, heightMm: 1219, areaSqFt: 28.0 },
+        '8': { lengthMm: 2438, heightMm: 1219, areaSqFt: 32.0 },
+        '14': { lengthMm: 4267, heightMm: 1219, areaSqFt: 56.0 },
+        '16': { lengthMm: 4877, heightMm: 1219, areaSqFt: 64.0 },
+        '21': { lengthMm: 6401, heightMm: 1219, areaSqFt: 84.0 }
+    };
+    
+    for (const type in projectGlassPanels) {
+        const panels = projectGlassPanels[type];
+        const glassRate = rates.glass[type];
+        if (glassRate) {
+            const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
+            const cuttingCharge = glassRate.cuttingServiceCharge || 0;
+            
+            // Group panels by sheet length
+            const panelsBySheetLength = {};
+            panels.forEach(panel => {
+                const sheetLength = panel.glassSheetLength || '8';
+                if (!panelsBySheetLength[sheetLength]) {
+                    panelsBySheetLength[sheetLength] = [];
+                }
+                panelsBySheetLength[sheetLength].push(panel);
+            });
+            
+            // Optimize for each sheet length
+            const sheetPackingLayout = [];
+            let sheetsPurchased = 0;
+            let totalCost = 0;
+            
+            for (const sheetLength in panelsBySheetLength) {
+                const sheetDims = GLASS_SHEET_DIMENSIONS[sheetLength] || GLASS_SHEET_DIMENSIONS['8'];
+                const panelsForLength = panelsBySheetLength[sheetLength];
+                const packingLayout = solve2DGlassPacking(panelsForLength, sheetDims.lengthMm, sheetDims.heightMm);
+                
+                sheetPackingLayout.push(...packingLayout);
+                sheetsPurchased += packingLayout.length;
+                
+                // Use pricing formula: (base21ftPrice/21) * sheetLength * 1.05 if base21ftPrice is provided
+                const base21ftPrice = panelsForLength[0]?.base21ftPrice || 0;
+                if (base21ftPrice > 0) {
+                    const pricePerFoot = base21ftPrice / 21;
+                    const sheetCost = pricePerFoot * parseFloat(sheetLength) * 1.05;
+                    totalCost += packingLayout.length * sheetCost;
+                } else {
+                    totalCost += packingLayout.length * sheetDims.areaSqFt * unitRate;
+                }
+                
+                // Add cutting service charge per sheet
+                totalCost += packingLayout.length * cuttingCharge;
+            }
+            
+            glassOptimizationResults[type] = {
+                glassCode: type,
+                thickness: glassRate.thickness,
+                requiredPanels: panels,
+                sheets: sheetPackingLayout,
+                sheetsPurchased,
+                totalCost: parseFloat(totalCost.toFixed(2)),
+                cuttingServiceCharge: cuttingCharge
+            };
+            
+            totalOptimizedGlassCost += totalCost;
+        }
+    }
+    
+    // Override glass cost to reflect actual sheets purchased
+    if (Object.keys(projectGlassPanels).length > 0) {
+        totalGlassCost = totalOptimizedGlassCost;
+    }
+    
+    // Resolve labour percentage methods that require aluminium cost
+    items.forEach((item, index) => {
+        const appKey = `${item.applicationType}_${item.configuration}`;
+        const appData = rates.applications[appKey];
+        if (appData && appData.labourMethod === 'percentage') {
+            // Estimate item-level profile cost as proportional to its total cuts length vs total project cuts length
+            // This is a reasonable proxy for itemized pricing
+            let itemProfileCost = 0;
+            item.profileCuts.forEach(pc => {
+                const opt = cuttingOptimizationResults[pc.profileCode];
+                if (opt && opt.purchasedLengthMm > 0) {
+                    const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
+                    itemProfileCost += opt.totalCost * proportion;
+                }
+            });
+            
+            const matCost = itemProfileCost + item.glassItems.reduce((s, g) => s + g.cost, 0) + item.accessories.reduce((s, a) => s + a.cost, 0);
+            const labour = matCost * appData.labourRate / 100;
+            item.labourCost = parseFloat(labour.toFixed(2));
+        }
+    });
+    
+    // Re-sum labour
+    totalLabourCost = items.reduce((sum, item) => sum + item.labourCost, 0);
+    
+    // Step 3: Quotation Summary Costs
+    const sumAdditional = additionalCosts.reduce((sum, ac) => sum + ac.cost, 0);
+    const materialCost = totalAluminiumCost + totalGlassCost + totalAccessoriesCost;
+    const baseCostBeforeMargin = materialCost + totalLabourCost + transportCost + sumAdditional;
+    
+    // Profit margin added
+    const profitCost = baseCostBeforeMargin * (profitMarginPercent / 100);
+    const calculatedSellingPrice = baseCostBeforeMargin + profitCost;
+    
+    // Calculate final unit prices for client view
+    items.forEach(item => {
+        // Calculate item base cost (proportional profile cost + item glass + item accessory + item labour)
+        let itemProfileCost = 0;
+        item.profileCuts.forEach(pc => {
+            const opt = cuttingOptimizationResults[pc.profileCode];
+            if (opt && opt.usedLengthMm > 0) {
+                const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
+                itemProfileCost += opt.totalCost * proportion;
+            }
+        });
+        
+        const itemGlass = item.glassItems.reduce((s, g) => s + g.cost, 0);
+        const itemAcc = item.accessories.reduce((s, a) => s + a.cost, 0);
+        const itemBaseCost = (itemProfileCost + itemGlass + itemAcc + (item.labourCost)) / item.quantity;
+        
+        // Add proportional transport + additional + margin
+        // Calculate the proportion of this item's cost to the total project cost (excluding transport/additional)
+        const totalBaseCost = materialCost + totalLabourCost;
+        const itemProportionOfCost = totalBaseCost > 0 ? (itemBaseCost * item.quantity) / totalBaseCost : 0;
+        const proportionalExtras = (transportCost + sumAdditional) * itemProportionOfCost / item.quantity;
+        
+        const unitCost = itemBaseCost + proportionalExtras;
+        const unitSelling = unitCost * (1 + profitMarginPercent / 100);
+        
+        item.unitPrice = parseFloat(unitSelling.toFixed(2));
+        item.totalPrice = parseFloat((item.unitPrice * item.quantity).toFixed(2));
+    });
+    
+    return {
+        items,
+        totalAluminiumCost: parseFloat(totalAluminiumCost.toFixed(2)),
+        totalGlassCost: parseFloat(totalGlassCost.toFixed(2)),
+        totalAccessoriesCost: parseFloat(totalAccessoriesCost.toFixed(2)),
+        totalLabourCost: parseFloat(totalLabourCost.toFixed(2)),
+        calculatedSellingPrice: parseFloat(calculatedSellingPrice.toFixed(2)),
+        cuttingOptimizationResults,
+        glassOptimizationResults
+    };
+};
+
+// === Controller Actions ===
+
+// Get all latest quotations (filtered to latest revisions)
+export const getAluQuotations = asyncHandler(async (req, res) => {
+    const filter = { isLatestRevision: true };
+    const quotations = await AluQuotation.find(filter).sort({ createdAt: -1 });
+    res.json({ success: true, data: quotations });
+});
+
+// Get quotation details (by specific ID)
+export const getAluQuotationById = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    // Find all revisions of this quotation
+    const revisions = await AluQuotation.find({ revisionGroupCode: quotation.revisionGroupCode })
+        .select('version status finalSellingPrice createdAt isLatestRevision')
+        .sort({ version: -1 });
+        
+    res.json({ success: true, data: quotation, revisions });
+});
+
+// Create new quotation (Revision 00)
+export const createAluQuotation = asyncHandler(async (req, res) => {
+    const {
+        customerName,
+        projectName,
+        location,
+        validTill,
+        items,
+        transportCost,
+        additionalCosts,
+        profitMarginPercent,
+        discount,
+        manualAdjustment,
+        terms,
+        checklist,
+        includeVat,
+        distributeTransportCost
+    } = req.body;
+    
+    const rates = await captureRatesSnapshot();
+    
+    const calc = await calculateQuotation(
+        items,
+        rates,
+        Number(transportCost || 0),
+        additionalCosts || [],
+        Number(profitMarginPercent || 20)
+    );
+    
+    // Generate unique quote number
+    const date = new Date();
+    const prefix = `QOT-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await AluQuotation.countDocuments({ quoteNumber: { $regex: `^${prefix}` } });
+    const quoteNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+    
+    // Apply VAT if enabled
+    let finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    let vatAmount = 0;
+    let finalPriceWithVat = finalPrice;
+    
+    if (includeVat) {
+        vatAmount = finalPrice * 0.18; // 18% VAT
+        finalPriceWithVat = finalPrice + vatAmount;
+    }
+    
+    let discountStatus = 'none';
+    let discountApprovedBy = undefined;
+    if (discount > 0) {
+        const discountPercent = (discount / calc.calculatedSellingPrice) * 100;
+        if (discountPercent > 10) {
+            if (req.user && req.user.role === 'admin') {
+                discountStatus = 'approved';
+                discountApprovedBy = req.user._id;
+            } else {
+                discountStatus = 'pending';
+            }
+        } else {
+            discountStatus = 'approved';
+        }
+    }
+
+    const quotation = await AluQuotation.create({
+        quoteNumber,
+        version: 0,
+        revisionGroupCode: quoteNumber,
+        isLatestRevision: true,
+        customerName,
+        projectName,
+        location,
+        date: date,
+        validTill: validTill || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // default 30 days
+        items: calc.items,
+        totalAluminiumCost: calc.totalAluminiumCost,
+        totalGlassCost: calc.totalGlassCost,
+        totalAccessoriesCost: calc.totalAccessoriesCost,
+        totalLabourCost: calc.totalLabourCost,
+        transportCost: Number(transportCost || 0),
+        additionalCosts: additionalCosts || [],
+        profitMarginPercent: Number(profitMarginPercent || 20),
+        calculatedSellingPrice: calc.calculatedSellingPrice,
+        discount: Number(discount || 0),
+        discountStatus,
+        discountApprovedBy,
+        manualAdjustment: Number(manualAdjustment || 0),
+        finalSellingPrice: parseFloat(finalPrice.toFixed(2)),
+        vatAmount: parseFloat(vatAmount.toFixed(2)),
+        finalPriceWithVat: parseFloat(finalPriceWithVat.toFixed(2)),
+        status: 'draft',
+        rateSnapshot: rates,
+        cuttingOptimizationResults: calc.cuttingOptimizationResults,
+        glassOptimizationResults: calc.glassOptimizationResults,
+        terms: terms || [],
+        checklist: checklist || [],
+        includeVat: includeVat !== undefined ? includeVat : true,
+        distributeTransportCost: distributeTransportCost !== undefined ? distributeTransportCost : false,
+        createdBy: req.user._id
+    });
+    
+    // Auto-create/integrate Lead into Sales Pipeline / Lead Follow-up Dashboard
+    try {
+        const { default: Inquiry } = await import('../models/Inquiry.js');
+        const quoteVal = quotation.finalSellingPrice || quotation.calculatedSellingPrice || 0;
+        const officerName = req.user ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim()) : 'Sales Officer';
+        const followDate = quotation.validTill || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        await Inquiry.create({
+            customerName: customerName,
+            companyName: customerName,
+            contactPerson: customerName,
+            projectLocation: location || projectName || 'Colombo',
+            requirement: `Aluminium Works - ${projectName || 'Custom Openings'}`,
+            inquirySource: 'Direct',
+            source: 'Direct',
+            quotationNo: quotation.quoteNumber,
+            quotationValue: quoteVal,
+            aluQuotations: [quotation._id],
+            status: 'Quotation Sent',
+            result: 'Pending',
+            nextFollowUpDate: followDate,
+            followUpDate: followDate,
+            notes: `Aluminium Quotation #${quotation.quoteNumber} (${projectName || 'Custom Project'})`,
+            followUpHistory: [{
+                date: new Date(),
+                salesOfficer: officerName,
+                user: req.user?._id,
+                note: `Aluminium Quotation #${quotation.quoteNumber} generated directly (Quoted Value: Rs. ${quoteVal.toLocaleString()})`,
+                nextFollowUpDate: followDate
+            }],
+            createdBy: req.user?._id
+        });
+    } catch (inqErr) {
+        console.warn('Failed to auto-create lead in pipeline:', inqErr.message);
+    }
+
+    await createAuditLog({
+        action: 'CREATE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Created aluminium quotation ${quotation.quoteNumber}`,
+        req
+    });
+    
+    res.status(201).json({ success: true, data: quotation });
+});
+
+// Update existing draft quotation
+export const updateAluQuotation = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    if (quotation.status !== 'draft') {
+        res.status(400);
+        throw new Error('Only draft quotations can be updated directly. Please create a revision instead.');
+    }
+    
+    const {
+        customerName,
+        projectName,
+        location,
+        validTill,
+        items,
+        transportCost,
+        additionalCosts,
+        profitMarginPercent,
+        discount,
+        manualAdjustment,
+        terms,
+        checklist,
+        status,
+        includeVat,
+        distributeTransportCost
+    } = req.body;
+    
+    // Recalculate using snapshot rates preserved in the document
+    const calc = await calculateQuotation(
+        items,
+        quotation.rateSnapshot,
+        Number(transportCost || 0),
+        additionalCosts || [],
+        Number(profitMarginPercent || 20)
+    );
+    
+    // Apply VAT if enabled
+    let finalPrice = calc.calculatedSellingPrice - (discount || 0) + (manualAdjustment || 0);
+    let vatAmount = 0;
+    let finalPriceWithVat = finalPrice;
+    
+    if (includeVat) {
+        vatAmount = finalPrice * 0.18; // 18% VAT
+        finalPriceWithVat = finalPrice + vatAmount;
+    }
+
+    let discountStatus = 'none';
+    let discountApprovedBy = undefined;
+    if (discount > 0) {
+        const discountPercent = (discount / calc.calculatedSellingPrice) * 100;
+        if (discountPercent > 10) {
+            if (req.user && req.user.role === 'admin') {
+                discountStatus = 'approved';
+                discountApprovedBy = req.user._id;
+            } else {
+                discountStatus = 'pending';
+            }
+        } else {
+            discountStatus = 'approved';
+        }
+    }
+    
+    quotation.customerName = customerName;
+    quotation.projectName = projectName;
+    quotation.location = location;
+    if (validTill) quotation.validTill = validTill;
+    quotation.items = calc.items;
+    quotation.totalAluminiumCost = calc.totalAluminiumCost;
+    quotation.totalGlassCost = calc.totalGlassCost;
+    quotation.totalAccessoriesCost = calc.totalAccessoriesCost;
+    quotation.totalLabourCost = calc.totalLabourCost;
+    quotation.transportCost = Number(transportCost || 0);
+    quotation.additionalCosts = additionalCosts || [];
+    quotation.profitMarginPercent = Number(profitMarginPercent || 20);
+    quotation.calculatedSellingPrice = calc.calculatedSellingPrice;
+    quotation.discount = Number(discount || 0);
+    quotation.discountStatus = discountStatus;
+    if (discountApprovedBy) quotation.discountApprovedBy = discountApprovedBy;
+    quotation.manualAdjustment = Number(manualAdjustment || 0);
+    quotation.finalSellingPrice = parseFloat(finalPrice.toFixed(2));
+    quotation.vatAmount = parseFloat(vatAmount.toFixed(2));
+    quotation.finalPriceWithVat = parseFloat(finalPriceWithVat.toFixed(2));
+    if (status) {
+        quotation.status = status;
+        if (status === 'sent') {
+            try {
+                const { default: Inquiry } = await import('../models/Inquiry.js');
+                await Inquiry.updateMany(
+                    { companyName: quotation.customerName, status: 'Quotation Pending' },
+                    { status: 'Quotation Sent' }
+                );
+            } catch (inqErr) {
+                console.warn('Failed to update lead status to Quotation Sent:', inqErr.message);
+            }
+        }
+    }
+    quotation.cuttingOptimizationResults = calc.cuttingOptimizationResults;
+    quotation.glassOptimizationResults = calc.glassOptimizationResults;
+    if (terms) quotation.terms = terms;
+    if (checklist) quotation.checklist = checklist;
+    if (includeVat !== undefined) quotation.includeVat = includeVat;
+    if (distributeTransportCost !== undefined) quotation.distributeTransportCost = distributeTransportCost;
+    
+    await quotation.save();
+    
+    await createAuditLog({
+        action: 'UPDATE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Updated aluminium quotation ${quotation.quoteNumber} (Rev ${quotation.version})`,
+        req
+    });
+    
+    res.json({ success: true, data: quotation });
+});
+
+// Delete quotation (soft delete)
+export const deleteAluQuotation = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    // If it's the latest, mark another revision as latest
+    if (quotation.isLatestRevision) {
+        const otherRev = await AluQuotation.findOne({
+            revisionGroupCode: quotation.revisionGroupCode,
+            _id: { $ne: quotation._id }
+        }).sort({ version: -1 });
+        
+        if (otherRev) {
+            otherRev.isLatestRevision = true;
+            await otherRev.save();
+        }
+    }
+    
+    await AluQuotation.findByIdAndDelete(req.params.id);
+    
+    await createAuditLog({
+        action: 'DELETE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Deleted aluminium quotation ${quotation.quoteNumber} (Rev ${quotation.version})`,
+        req
+    });
+    
+    res.json({ success: true, message: 'Quotation deleted successfully' });
+});
+
+// Revise quotation (creates a new version copy using latest rates)
+export const reviseAluQuotation = asyncHandler(async (req, res) => {
+    const sourceQuote = await AluQuotation.findById(req.params.id);
+    if (!sourceQuote) {
+        res.status(404);
+        throw new Error('Source quotation not found');
+    }
+    
+    // Clear latest flag on all existing versions of this quote
+    await AluQuotation.updateMany(
+        { revisionGroupCode: sourceQuote.revisionGroupCode },
+        { isLatestRevision: false }
+    );
+    
+    // Fetch latest active rates
+    const rates = await captureRatesSnapshot();
+    
+    // Calculate using the source quote items but with the LATEST active rates
+    const calc = await calculateQuotation(
+        sourceQuote.items.map(item => ({
+            applicationType: item.applicationType,
+            configuration: item.configuration,
+            width: item.width,
+            height: item.height,
+            quantity: item.quantity
+        })),
+        rates,
+        sourceQuote.transportCost,
+        sourceQuote.additionalCosts,
+        sourceQuote.profitMarginPercent
+    );
+    
+    const nextVersion = sourceQuote.version + 1;
+    const finalPrice = calc.calculatedSellingPrice - sourceQuote.discount + sourceQuote.manualAdjustment;
+    
+    const newRevision = await AluQuotation.create({
+        quoteNumber: sourceQuote.quoteNumber,
+        version: nextVersion,
+        revisionGroupCode: sourceQuote.revisionGroupCode,
+        isLatestRevision: true,
+        customerName: sourceQuote.customerName,
+        projectName: sourceQuote.projectName,
+        location: sourceQuote.location,
+        date: new Date(),
+        validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // reset validity
+        items: calc.items,
+        totalAluminiumCost: calc.totalAluminiumCost,
+        totalGlassCost: calc.totalGlassCost,
+        totalAccessoriesCost: calc.totalAccessoriesCost,
+        totalLabourCost: calc.totalLabourCost,
+        transportCost: sourceQuote.transportCost,
+        additionalCosts: sourceQuote.additionalCosts,
+        profitMarginPercent: sourceQuote.profitMarginPercent,
+        calculatedSellingPrice: calc.calculatedSellingPrice,
+        discount: sourceQuote.discount,
+        manualAdjustment: sourceQuote.manualAdjustment,
+        finalSellingPrice: parseFloat(finalPrice.toFixed(2)),
+        status: 'draft', // revision starts as draft
+        rateSnapshot: rates,
+        cuttingOptimizationResults: calc.cuttingOptimizationResults,
+        glassOptimizationResults: calc.glassOptimizationResults,
+        terms: sourceQuote.terms,
+        checklist: sourceQuote.checklist,
+        includeVat: sourceQuote.includeVat !== undefined ? sourceQuote.includeVat : true,
+        distributeTransportCost: sourceQuote.distributeTransportCost !== undefined ? sourceQuote.distributeTransportCost : false,
+        createdBy: req.user._id
+    });
+    
+    await createAuditLog({
+        action: 'CREATE',
+        module: 'CRM',
+        documentId: newRevision._id,
+        documentCode: newRevision.quoteNumber,
+        description: `Created revision ${nextVersion} for aluminium quotation ${newRevision.quoteNumber}`,
+        req
+    });
+    
+    res.status(201).json({ success: true, data: newRevision });
+});
+
+// Duplicate quotation (creates an exact independent clone as a new quote number)
+export const duplicateAluQuotation = asyncHandler(async (req, res) => {
+    const sourceQuote = await AluQuotation.findById(req.params.id);
+    if (!sourceQuote) {
+        res.status(404);
+        throw new Error('Source quotation not found');
+    }
+
+    const date = new Date();
+    const prefix = `QUO-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await AluQuotation.countDocuments({ quoteNumber: { $regex: `^${prefix}` } });
+    const newQuoteNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+
+    const duplicate = await AluQuotation.create({
+        quoteNumber: newQuoteNumber,
+        version: 0,
+        revisionGroupCode: newQuoteNumber,
+        isLatestRevision: true,
+        customerName: sourceQuote.customerName,
+        projectName: `${sourceQuote.projectName} (Copy)`,
+        location: sourceQuote.location,
+        date: new Date(),
+        validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        items: sourceQuote.items,
+        totalAluminiumCost: sourceQuote.totalAluminiumCost,
+        totalGlassCost: sourceQuote.totalGlassCost,
+        totalAccessoriesCost: sourceQuote.totalAccessoriesCost,
+        totalLabourCost: sourceQuote.totalLabourCost,
+        transportCost: sourceQuote.transportCost,
+        additionalCosts: sourceQuote.additionalCosts,
+        profitMarginPercent: sourceQuote.profitMarginPercent,
+        calculatedSellingPrice: sourceQuote.calculatedSellingPrice,
+        discount: sourceQuote.discount,
+        manualAdjustment: sourceQuote.manualAdjustment,
+        finalSellingPrice: sourceQuote.finalSellingPrice,
+        status: 'draft',
+        rateSnapshot: sourceQuote.rateSnapshot,
+        cuttingOptimizationResults: sourceQuote.cuttingOptimizationResults,
+        glassOptimizationResults: sourceQuote.glassOptimizationResults,
+        terms: sourceQuote.terms,
+        checklist: sourceQuote.checklist,
+        includeVat: sourceQuote.includeVat !== undefined ? sourceQuote.includeVat : true,
+        distributeTransportCost: sourceQuote.distributeTransportCost !== undefined ? sourceQuote.distributeTransportCost : false,
+        createdBy: req.user._id
+    });
+
+    await createAuditLog({
+        action: 'CREATE',
+        module: 'CRM',
+        documentId: duplicate._id,
+        documentCode: duplicate.quoteNumber,
+        description: `Duplicated aluminium quotation from ${sourceQuote.quoteNumber} to ${duplicate.quoteNumber}`,
+        req
+    });
+
+    res.status(201).json({ success: true, data: duplicate });
+});
+
+// Convert quotation to Sales Order
+export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    if (quotation.status === 'converted') {
+        res.status(400);
+        throw new Error('Quotation has already been converted to a sales order.');
+    }
+    
+    // Create standard Product mapping or order line items
+    // In this ERP, SalesOrder references Products. Let's see if we should create a generic or custom wholesale product
+    // or map items directly as custom line items.
+    // Let's create a Sales Order document
+    
+    const items = quotation.items.map((item, idx) => ({
+        lineNumber: idx + 1,
+        productName: `${item.applicationType} (${item.configuration})`,
+        description: item.description || `Size: ${item.width} x ${item.height} mm`,
+        orderedQuantity: item.quantity,
+        unitOfMeasure: 'Pcs',
+        unitPrice: item.unitPrice,
+        lineSubtotal: item.totalPrice,
+        lineTotal: item.totalPrice,
+        applicationType: item.applicationType,
+        configuration: item.configuration,
+        width: item.width,
+        height: item.height,
+        profileSpec: item.profileSpec,
+        glassSpec: item.glassSpec,
+        hardwareSpec: item.hardwareSpec,
+        scopeSpec: item.scopeSpec,
+        topSection: item.topSection,
+        panelArrangement: item.panelArrangement,
+        trackSystem: item.trackSystem,
+        sketchImage: item.sketchImage,
+        totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * (item.quantity || 1)) / 92903.04).toFixed(2)),
+        labourRatePerSqFt: item.labourRatePerSqFt || 150,
+        labourCost: item.labourCost || 0
+    }));
+    
+    // Find or create a default wholesale client
+    const { default: Customer } = await import('../models/Customer.js');
+    let customer = await Customer.findOne({ displayName: quotation.customerName });
+    if (!customer) {
+        customer = await Customer.create({
+            displayName: quotation.customerName,
+            companyName: quotation.customerName,
+            status: 'active'
+        });
+    }
+    
+    // Create the Sales Order
+    const date = new Date();
+    const prefix = `SO-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await SalesOrder.countDocuments({ orderNumber: { $regex: `^${prefix}` } });
+    const orderNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+    
+    const salesOrder = await SalesOrder.create({
+        orderNumber,
+        businessType: 'alueco',
+        quotationId: quotation._id,
+        projectName: quotation.projectName,
+        customerId: customer._id,
+        customerName: quotation.customerName,
+        orderDate: date,
+        deliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        items,
+        totalAmount: quotation.calculatedSellingPrice - quotation.discount,
+        discount: quotation.discount,
+        tax: 0,
+        grandTotal: quotation.finalSellingPrice,
+        status: 'pending',
+        notes: `Converted from Aluminium Quotation: ${quotation.quoteNumber} (Rev ${quotation.version}). Project: ${quotation.projectName}`,
+        createdBy: req.user._id
+    });
+
+    // Automatically create Invoice for this Sales Order
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const invoiceItems = quotation.items.map((item, idx) => ({
+        lineNumber: idx + 1,
+        productName: `${item.applicationType} (${item.configuration})`,
+        description: item.description || `Size: ${item.width} x ${item.height} mm`,
+        quantity: item.quantity,
+        unitOfMeasure: 'Pcs',
+        unitPrice: item.unitPrice,
+        discountPercent: 0,
+        taxRate: 0,
+        taxable: false,
+        lineSubtotal: item.totalPrice,
+        lineTotal: item.totalPrice,
+        applicationType: item.applicationType,
+        configuration: item.configuration,
+        width: item.width,
+        height: item.height,
+        profileSpec: item.profileSpec,
+        glassSpec: item.glassSpec,
+        hardwareSpec: item.hardwareSpec,
+        scopeSpec: item.scopeSpec,
+        topSection: item.topSection,
+        panelArrangement: item.panelArrangement,
+        trackSystem: item.trackSystem,
+        sketchImage: item.sketchImage,
+        totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * (item.quantity || 1)) / 92903.04).toFixed(2)),
+        labourRatePerSqFt: item.labourRatePerSqFt || 150,
+        labourCost: item.labourCost || 0
+    }));
+
+    const invoice = await Invoice.create({
+        businessType: 'alueco',
+        customerId: customer._id,
+        customerName: customer.displayName || quotation.customerName,
+        customerSnapshot: {
+            name: customer.displayName || quotation.customerName,
+            code: customer.customerCode,
+            taxRegistrationNumber: customer.taxRegistrationNumber,
+            contactName: customer.primaryContact?.name,
+        },
+        billingAddress: customer.billingAddress,
+        salesOrderIds: [salesOrder._id],
+        salesOrderNumbers: [salesOrder.orderNumber],
+        invoiceType: 'standard',
+        invoiceDate: date,
+        items: invoiceItems,
+        subtotal: quotation.calculatedSellingPrice - quotation.discount,
+        totalDiscount: quotation.discount,
+        totalTax: 0,
+        grandTotal: quotation.finalSellingPrice,
+        amountPaid: 0,
+        balanceDue: quotation.finalSellingPrice,
+        paymentStatus: 'unpaid',
+        status: 'approved',
+        notes: `Auto-generated Invoice for Sales Order ${salesOrder.orderNumber} (Quotation ${quotation.quoteNumber})`,
+        createdBy: req.user._id
+    });
+
+    // Link Invoice to Sales Order & update status
+    salesOrder.invoiceId = invoice._id;
+    salesOrder.status = 'invoiced';
+    await salesOrder.save();
+    
+    // Update Scrap Database (Reserve used scraps, save new scraps)
+    if (quotation.cuttingOptimizationResults) {
+        for (const code in quotation.cuttingOptimizationResults) {
+            const result = quotation.cuttingOptimizationResults[code];
+            if (result.bars && Array.isArray(result.bars)) {
+                for (const bar of result.bars) {
+                    if (bar.isScrap && bar.scrapId) {
+                        // Mark scrap as used
+                        await AluScrap.findByIdAndUpdate(bar.scrapId, { status: 'used' });
+                    } else if (!bar.isScrap && bar.waste >= 500) {
+                        // Save new scrap length
+                        await AluScrap.create({
+                            profileCode: code,
+                            lengthMm: bar.waste,
+                            status: 'available',
+                            sourceQuotationId: quotation._id,
+                            notes: `Leftover from quotation ${quotation.quoteNumber} (Rev ${quotation.version})`
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Update quotation status
+    quotation.status = 'converted';
+    await quotation.save();
+    
+    // Create production job card (Kanban)
+    const jobPrefix = `JOB-${date.getFullYear()}`;
+    const jobCount = await AluJobCard.countDocuments({ jobCardNumber: { $regex: `^${jobPrefix}` } });
+    const jobCardNumber = `${jobPrefix}-${String(jobCount + 1).padStart(4, '0')}`;
+    
+    const jobCardItems = quotation.items.map(item => ({
+        applicationType: item.applicationType,
+        configuration: item.configuration,
+        width: item.width,
+        height: item.height,
+        quantity: item.quantity,
+        cuttingQty: item.quantity, // Start all items in cutting stage
+        assemblyQty: 0,
+        glazingQty: 0,
+        qaQty: 0,
+        readyQty: 0,
+        completedQty: 0
+    }));
+
+    await AluJobCard.create({
+        jobCardNumber,
+        salesOrderId: salesOrder._id,
+        quotationId: quotation._id,
+        customerName: quotation.customerName,
+        projectName: quotation.projectName,
+        status: 'cutting',
+        items: jobCardItems,
+        notes: `Production instructions for order ${salesOrder.orderNumber}`
+    });
+
+    // Resolve warehouse for stock deduction
+    let warehouse = await Warehouse.findOne({ isDefault: true, deletedAt: null }) || await Warehouse.findOne({ deletedAt: null });
+    const whId = warehouse?._id;
+
+    // Check stock for all required materials, deduct available raw materials, and auto-generate AluEco PO for shortages
+    let aluPurchaseOrder = null;
+    const shortageItems = [];
+    const deductedItems = [];
+
+    // 1. Check & Deduct Profiles
+    if (quotation.cuttingOptimizationResults) {
+        for (const pCode in quotation.cuttingOptimizationResults) {
+            const opt = quotation.cuttingOptimizationResults[pCode];
+            const barCount = opt.bars?.length || 0;
+            if (barCount > 0) {
+                const pCodeClean = pCode.toUpperCase().slice(0, 50);
+                const product = await Product.findOne({ productCode: pCodeClean, deletedAt: null });
+                let availableQty = 0;
+                let unitCost = 0;
+                if (product) {
+                    const stockItems = await StockItem.find({ productId: product._id });
+                    availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+                    unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || 0;
+                } else {
+                    const prof = await AluProfile.findOne({ profileCode: pCodeClean });
+                    unitCost = prof?.standardLengths?.[0]?.price || 0;
+                }
+
+                const neededQty = barCount;
+                const qtyToDeduct = Math.min(availableQty, neededQty);
+                const shortage = +(Math.max(0, neededQty - availableQty)).toFixed(2);
+
+                // Deduct available stock immediately
+                if (qtyToDeduct > 0 && product && whId) {
+                    try {
+                        await decreaseStock({
+                            productId: product._id,
+                            warehouseId: whId,
+                            quantity: qtyToDeduct,
+                            movementType: 'production_consume',
+                            sourceDocument: {
+                                type: 'invoice',
+                                id: invoice._id,
+                                number: invoice.invoiceNumber
+                            },
+                            reason: `Aluminium Profile auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                            userId: req.user._id
+                        });
+                        deductedItems.push({ itemCode: pCodeClean, name: opt.description || `Profile ${pCodeClean}`, quantity: qtyToDeduct, unitOfMeasure: 'bar' });
+                    } catch (deductErr) {
+                        console.warn(`[Auto Stock Deduction Error] Profile ${pCodeClean}:`, deductErr.message);
+                    }
+                }
+
+                // Add shortage to PO
+                if (shortage > 0) {
+                    shortageItems.push({
+                        itemCode: pCodeClean,
+                        materialType: 'profile',
+                        productName: opt.description || `Profile ${pCodeClean}`,
+                        productId: product?._id,
+                        requiredQuantity: shortage,
+                        receivedQuantity: 0,
+                        pendingQuantity: shortage,
+                        unitOfMeasure: 'bar',
+                        estimatedUnitCost: unitCost,
+                        estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                        supplierId: null,
+                        status: 'pending',
+                        notes: `Shortage for Project ${quotation.projectName} (${neededQty} bars needed, ${availableQty} in stock)`
+                    });
+                }
+            }
+        }
+    }
+
+    // 2. Check & Deduct Glass
+    const glassMap = {};
+    quotation.items.forEach(item => {
+        (item.glassItems || []).forEach(g => {
+            const code = (g.glassCode || 'GLASS').toUpperCase();
+            if (!glassMap[code]) {
+                glassMap[code] = { areaSqFt: 0, cost: g.cost || 0 };
+            }
+            glassMap[code].areaSqFt += (g.areaSqFt || 0);
+        });
+    });
+    for (const gCode in glassMap) {
+        const neededSqFt = +glassMap[gCode].areaSqFt.toFixed(2);
+        const gCodeClean = gCode.slice(0, 50);
+        const product = await Product.findOne({ productCode: gCodeClean, deletedAt: null });
+        let availableQty = 0;
+        let unitCost = 0;
+        if (product) {
+            const stockItems = await StockItem.find({ productId: product._id });
+            availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+            unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || 0;
+        } else {
+            const glassDoc = await AluGlass.findOne({ typeName: gCodeClean });
+            unitCost = glassDoc?.ratePerSqFt || 0;
+        }
+
+        const qtyToDeduct = Math.min(availableQty, neededSqFt);
+        const shortage = +(Math.max(0, neededSqFt - availableQty)).toFixed(2);
+
+        // Deduct available stock immediately
+        if (qtyToDeduct > 0 && product && whId) {
+            try {
+                await decreaseStock({
+                    productId: product._id,
+                    warehouseId: whId,
+                    quantity: qtyToDeduct,
+                    movementType: 'production_consume',
+                    sourceDocument: {
+                        type: 'invoice',
+                        id: invoice._id,
+                        number: invoice.invoiceNumber
+                    },
+                    reason: `Glass auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                    userId: req.user._id
+                });
+                deductedItems.push({ itemCode: gCodeClean, name: `${gCodeClean} Glass`, quantity: qtyToDeduct, unitOfMeasure: 'sqft' });
+            } catch (deductErr) {
+                console.warn(`[Auto Stock Deduction Error] Glass ${gCodeClean}:`, deductErr.message);
+            }
+        }
+
+        // Add shortage to PO
+        if (shortage > 0) {
+            shortageItems.push({
+                itemCode: gCodeClean,
+                materialType: 'glass',
+                productName: `${gCodeClean} Glass`,
+                productId: product?._id,
+                requiredQuantity: shortage,
+                receivedQuantity: 0,
+                pendingQuantity: shortage,
+                unitOfMeasure: 'sqft',
+                estimatedUnitCost: unitCost,
+                estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                supplierId: null,
+                status: 'pending',
+                notes: `Shortage for Project ${quotation.projectName} (${neededSqFt} sqft needed, ${availableQty} in stock)`
+            });
+        }
+    }
+
+    // 3. Check & Deduct Accessories
+    const accMap = {};
+    quotation.items.forEach(item => {
+        (item.accessories || []).forEach(a => {
+            const code = (a.code || 'ACC').toUpperCase();
+            if (!accMap[code]) {
+                accMap[code] = { name: a.name, qty: 0, unitRate: a.unitRate || 0 };
+            }
+            accMap[code].qty += (a.qty || 0);
+        });
+    });
+    for (const aCode in accMap) {
+        const neededQty = +accMap[aCode].qty.toFixed(2);
+        const aCodeClean = aCode.slice(0, 50);
+        const product = await Product.findOne({ productCode: aCodeClean, deletedAt: null });
+        let availableQty = 0;
+        let unitCost = accMap[aCode].unitRate;
+        if (product) {
+            const stockItems = await StockItem.find({ productId: product._id });
+            availableQty = stockItems.reduce((s, st) => s + Math.max(0, (st.quantities?.openStock !== undefined ? st.quantities.openStock : (st.quantities?.available || 0))), 0);
+            unitCost = product.basePrice || product.costs?.lastPurchaseCost || product.costs?.averageCost || unitCost;
+        } else {
+            const accDoc = await AluAccessory.findOne({ code: aCodeClean });
+            unitCost = accDoc?.purchaseRate || unitCost;
+        }
+
+        const qtyToDeduct = Math.min(availableQty, neededQty);
+        const shortage = +(Math.max(0, neededQty - availableQty)).toFixed(2);
+
+        // Deduct available stock immediately
+        if (qtyToDeduct > 0 && product && whId) {
+            try {
+                await decreaseStock({
+                    productId: product._id,
+                    warehouseId: whId,
+                    quantity: qtyToDeduct,
+                    movementType: 'production_consume',
+                    sourceDocument: {
+                        type: 'invoice',
+                        id: invoice._id,
+                        number: invoice.invoiceNumber
+                    },
+                    reason: `Accessory auto-deducted for Project ${quotation.projectName} (Invoice #${invoice.invoiceNumber})`,
+                    userId: req.user._id
+                });
+                deductedItems.push({ itemCode: aCodeClean, name: accMap[aCode].name || `Accessory ${aCodeClean}`, quantity: qtyToDeduct, unitOfMeasure: 'pcs' });
+            } catch (deductErr) {
+                console.warn(`[Auto Stock Deduction Error] Accessory ${aCodeClean}:`, deductErr.message);
+            }
+        }
+
+        // Add shortage to PO
+        if (shortage > 0) {
+            shortageItems.push({
+                itemCode: aCodeClean,
+                materialType: 'accessory',
+                productName: accMap[aCode].name || `Accessory ${aCodeClean}`,
+                productId: product?._id,
+                requiredQuantity: shortage,
+                receivedQuantity: 0,
+                pendingQuantity: shortage,
+                unitOfMeasure: 'pcs',
+                estimatedUnitCost: unitCost,
+                estimatedTotalCost: +(shortage * unitCost).toFixed(2),
+                supplierId: null,
+                status: 'pending',
+                notes: `Shortage for Project ${quotation.projectName} (${neededQty} pcs needed, ${availableQty} in stock)`
+            });
+        }
+    }
+
+    if (shortageItems.length > 0) {
+        aluPurchaseOrder = await AluPurchaseOrder.create({
+            sourceType: 'quotation_shortage',
+            quotationId: quotation._id,
+            salesOrderId: salesOrder._id,
+            projectName: quotation.projectName,
+            customerName: quotation.customerName,
+            items: shortageItems,
+            status: 'pending',
+            priority: 'high',
+            notes: `Auto-generated material shortage PO for Project: ${quotation.projectName} (${salesOrder.orderNumber})`,
+            createdBy: req.user._id
+        });
+    }
+
+    await createAuditLog({
+        action: 'CREATE',
+        module: 'CRM',
+        documentId: salesOrder._id,
+        documentCode: salesOrder.orderNumber,
+        description: `Converted aluminium quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & generated Job Card ${jobCardNumber}${aluPurchaseOrder ? ` and AluEco PO ${aluPurchaseOrder.poNumber}` : ''}. Deducted ${deductedItems.length} raw materials from stock.`,
+        req
+    });
+    
+    res.status(201).json({ 
+        success: true, 
+        data: { 
+            salesOrder, 
+            invoice, 
+            invoiceId: invoice._id, 
+            invoiceNumber: invoice.invoiceNumber,
+            jobCardNumber,
+            deductedItemCount: deductedItems.length,
+            deductedItems,
+            aluPurchaseOrder: aluPurchaseOrder ? {
+                _id: aluPurchaseOrder._id,
+                poNumber: aluPurchaseOrder.poNumber,
+                shortageItemCount: shortageItems.length,
+                totalEstimatedCost: aluPurchaseOrder.totalEstimatedCost
+            } : null
+        } 
+    });
+});
+
+// Export CNC Double-Head Saw G-Code list
+export const exportAluQuotationToCNC = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+
+    let gcode = `[ALUECO CNC DOUBLE-HEAD SAW FILE]\n`;
+    gcode += `JOB_NUMBER: JOB-${quotation._id.toString().slice(-6).toUpperCase()}\n`;
+    gcode += `CLIENT_NAME: ${quotation.customerName}\n`;
+    gcode += `PROJECT_NAME: ${quotation.projectName}\n`;
+    gcode += `DATE: ${new Date().toISOString().split('T')[0]}\n\n`;
+    gcode += `[CUTTING LIST]\n`;
+    gcode += `; Format: PROFILE | LENGTH (mm) | LEFT ANGLE | RIGHT ANGLE | BAR INDEX\n`;
+
+    if (quotation.cuttingOptimizationResults) {
+        for (const code in quotation.cuttingOptimizationResults) {
+            const opt = quotation.cuttingOptimizationResults[code];
+            if (opt.bars && Array.isArray(opt.bars)) {
+                opt.bars.forEach((bar, barIdx) => {
+                    bar.cuts.forEach(cut => {
+                        // Standard window casements cut at 45 deg, frames/sliding at 90 deg
+                        const isCasement = opt.description?.toLowerCase().includes('casement') || opt.description?.toLowerCase().includes('window');
+                        const angleLeft = isCasement ? 45 : 90;
+                        const angleRight = isCasement ? 45 : 90;
+                        
+                        gcode += `${code.padEnd(10)} | ${String(cut).padEnd(6)} | ${angleLeft} | ${angleRight} | BAR_${String(barIdx + 1).padStart(2, '0')}\n`;
+                    });
+                });
+            }
+        }
+    }
+
+    res.json({ success: true, gcode });
+});
+
+// Approve/Reject pending discount
+export const approveAluQuotationDiscount = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+    
+    if (req.user.role !== 'admin') {
+        res.status(403);
+        throw new Error('Only administrators can approve high discounts.');
+    }
+    
+    const { action } = req.body; // 'approve' or 'reject'
+    if (action === 'approve') {
+        quotation.discountStatus = 'approved';
+        quotation.discountApprovedBy = req.user._id;
+    } else {
+        quotation.discountStatus = 'rejected';
+        quotation.discount = 0; // reset discount
+        // Recalculate price
+        quotation.finalSellingPrice = quotation.calculatedSellingPrice + quotation.manualAdjustment;
+    }
+    
+    await quotation.save();
+    
+    await createAuditLog({
+        action: 'UPDATE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Discount ${action === 'approve' ? 'Approved' : 'Rejected'} for quotation ${quotation.quoteNumber}`,
+        req
+    });
+    
+    res.json({ success: true, data: quotation });
+});
+
+// Get Standard vs. Actual Wastage Variance Report
+export const getWastageVarianceReport = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+    
+    const filter = { status: 'converted' };
+    if (startDate || endDate) {
+        filter.updatedAt = {};
+        if (startDate) filter.updatedAt.$gte = new Date(startDate);
+        if (endDate) filter.updatedAt.$lte = new Date(endDate);
+    }
+    
+    const quotations = await AluQuotation.find(filter).lean();
+    const report = [];
+    
+    for (const q of quotations) {
+        if (!q.cuttingOptimizationResults) continue;
+        
+        let totalStdPurchasedLength = 0;
+        let totalStdUsedLength = 0;
+        let totalStdWasteLength = 0;
+        
+        for (const code in q.cuttingOptimizationResults) {
+            const opt = q.cuttingOptimizationResults[code];
+            totalStdPurchasedLength += opt.purchasedLengthMm || 0;
+            totalStdUsedLength += opt.usedLengthMm || 0;
+            totalStdWasteLength += opt.wasteLengthMm || 0;
+        }
+        
+        const stdWastePercent = totalStdPurchasedLength > 0 
+            ? (totalStdWasteLength / totalStdPurchasedLength) * 100 
+            : 0;
+            
+        const SalesOrder = mongoose.model('SalesOrder');
+        const salesOrder = await SalesOrder.findOne({ quotationId: q._id }).lean();
+        
+        let actualIssuedQty = 0;
+        if (salesOrder) {
+            const StockMovement = mongoose.model('StockMovement');
+            const movements = await StockMovement.find({
+                'sourceDocument.id': salesOrder._id,
+                movementType: 'production_issue'
+            }).lean();
+            
+            movements.forEach(m => {
+                if (m.unitOfMeasure === 'bar') {
+                    actualIssuedQty += m.quantity;
+                }
+            });
+        }
+        
+        const actualIssuedLength = actualIssuedQty * 6000;
+        const actualWasteLength = Math.max(0, actualIssuedLength - totalStdUsedLength);
+        const actualWastePercent = actualIssuedLength > 0 
+            ? (actualWasteLength / actualIssuedLength) * 100 
+            : 0;
+            
+        report.push({
+            quotationId: q._id,
+            quoteNumber: q.quoteNumber,
+            projectName: q.projectName,
+            customerName: q.customerName,
+            standardPurchasedLengthMm: totalStdPurchasedLength,
+            standardUsedLengthMm: totalStdUsedLength,
+            standardWasteLengthMm: totalStdWasteLength,
+            standardWastePercent: parseFloat(stdWastePercent.toFixed(2)),
+            actualIssuedLengthMm: actualIssuedLength,
+            actualWasteLengthMm: actualWasteLength,
+            actualWastePercent: parseFloat(actualWastePercent.toFixed(2)),
+            varianceLengthMm: parseFloat((actualWasteLength - totalStdWasteLength).toFixed(2)),
+            variancePercent: parseFloat((actualWastePercent - stdWastePercent).toFixed(2))
+        });
+    }
+    
+    res.json({ success: true, data: report });
+});
+
+// Get Project Costing Sheet (Budget vs Actual)
+export const getProjectCostingSheet = asyncHandler(async (req, res) => {
+    const { id } = req.params; // salesOrderId
+    
+    const SalesOrder = mongoose.model('SalesOrder');
+    const salesOrder = await SalesOrder.findById(id);
+    if (!salesOrder) {
+        res.status(404);
+        throw new Error('Sales Order not found');
+    }
+    
+    const quotation = await AluQuotation.findById(salesOrder.quotationId);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found for this project');
+    }
+    
+    // --- 1. Budget (Estimated) Costs ---
+    const budget = {
+        aluminium: quotation.totalAluminiumCost || 0,
+        glass: quotation.totalGlassCost || 0,
+        accessories: quotation.totalAccessoriesCost || 0,
+        labour: quotation.totalLabourCost || 0,
+        transport: quotation.transportCost || 0,
+        additional: (quotation.additionalCosts || []).reduce((s, a) => s + a.amount, 0),
+        total: 0
+    };
+    budget.total = budget.aluminium + budget.glass + budget.accessories + budget.labour + budget.transport + budget.additional;
+    
+    // --- 2. Actual Costs (issued materials from stock) ---
+    const StockMovement = mongoose.model('StockMovement');
+    const movements = await StockMovement.find({
+        'sourceDocument.id': salesOrder._id,
+        movementType: 'production_issue'
+    }).populate('productId').lean();
+    
+    let actualAluminium = 0;
+    let actualGlass = 0;
+    let actualAccessories = 0;
+    
+    movements.forEach(m => {
+        const cost = m.quantity * m.costPerUnit;
+        const code = m.productCode || '';
+        
+        if (m.unitOfMeasure === 'bar' || code.includes('ALU') || code.includes('PRF')) {
+            actualAluminium += cost;
+        } else if (m.unitOfMeasure === 'sqft' || code.includes('GLS') || code.includes('GLA')) {
+            actualGlass += cost;
+        } else {
+            actualAccessories += cost;
+        }
+    });
+    
+    const actual = {
+        aluminium: parseFloat(actualAluminium.toFixed(2)),
+        glass: parseFloat(actualGlass.toFixed(2)),
+        accessories: parseFloat(actualAccessories.toFixed(2)),
+        labour: budget.labour,
+        transport: budget.transport,
+        additional: 0,
+        total: 0
+    };
+    actual.total = actual.aluminium + actual.glass + actual.accessories + actual.labour + actual.transport + actual.additional;
+    
+    // --- 3. Variance ---
+    const variance = {
+        aluminium: parseFloat((actual.aluminium - budget.aluminium).toFixed(2)),
+        glass: parseFloat((actual.glass - budget.glass).toFixed(2)),
+        accessories: parseFloat((actual.accessories - budget.accessories).toFixed(2)),
+        labour: parseFloat((actual.labour - budget.labour).toFixed(2)),
+        transport: parseFloat((actual.transport - budget.transport).toFixed(2)),
+        additional: parseFloat((actual.additional - budget.additional).toFixed(2)),
+        total: parseFloat((actual.total - budget.total).toFixed(2))
+    };
+    
+    // --- 4. Profitability ---
+    const revenue = salesOrder.grandTotal;
+    const budgetedProfit = revenue - budget.total;
+    const actualProfit = revenue - actual.total;
+    
+    const profitability = {
+        revenue,
+        budgetedCost: budget.total,
+        budgetedProfit: parseFloat(budgetedProfit.toFixed(2)),
+        budgetedProfitPercent: revenue > 0 ? parseFloat(((budgetedProfit / revenue) * 100).toFixed(2)) : 0,
+        actualCost: actual.total,
+        actualProfit: parseFloat(actualProfit.toFixed(2)),
+        actualProfitPercent: revenue > 0 ? parseFloat(((actualProfit / revenue) * 100).toFixed(2)) : 0,
+        varianceProfit: parseFloat((actualProfit - budgetedProfit).toFixed(2))
+    };
+    
+    res.json({
+        success: true,
+        data: {
+            salesOrderId: salesOrder._id,
+            orderNumber: salesOrder.orderNumber,
+            projectName: salesOrder.projectName,
+            customerName: salesOrder.customerSnapshot?.name || salesOrder.customerName,
+            budget,
+            actual,
+            variance,
+            profitability
+        }
+    });
+});

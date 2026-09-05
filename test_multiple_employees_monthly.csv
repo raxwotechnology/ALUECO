@@ -1,0 +1,4 @@
+EmpCode,Name,Designation,Present,HL,WO,Absent,Leave,PaidDays,LateHrs,WorkHrs,OvTim,Arrived Time_01,Dept. Time_01,Working Hrs._01,O.Times Hrs._01,Status_01,Arrived Time_02,Dept. Time_02,Working Hrs._02,O.Times Hrs._02,Status_02,Arrived Time_03,Dept. Time_03,Working Hrs._03,O.Times Hrs._03,Status_03
+EMP-1001,Buddika,DEMO,3,0,0,0,0,3,0:45,24:00,0:00,08:00,17:00,09:00,01:00,present,08:30,17:00,08:30,00:30,present,08:15,17:00,08:45,00:45,present
+EMP-1002,John Doe,DEVELOPER,3,0,0,0,0,3,1:30,24:00,0:00,09:00,18:00,09:00,01:00,present,08:45,17:30,08:45,00:45,present,09:30,18:00,08:30,00:30,present
+EMP-1003,Jane Smith,DESIGNER,3,0,0,0,0,3,0:00,24:00,0:00,08:00,17:00,09:00,01:00,present,08:00,17:00,09:00,01:00,present,08:00,17:00,09:00,01:00,present

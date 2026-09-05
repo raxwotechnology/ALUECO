@@ -1,0 +1,6 @@
+Employee Code,Employee Name,Status,Check In,Check Out
+EMP-1001,John Doe,present,08:00,17:00
+EMP-1002,Jane Smith,present,08:15,17:30
+EMP-1003,Bob Johnson,absent,,
+EMP-1004,Alice Williams,late,08:45,17:00
+EMP-1005,Charlie Brown,half_day,08:00,12:00

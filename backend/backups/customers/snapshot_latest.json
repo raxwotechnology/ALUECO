@@ -1,0 +1,165 @@
+[
+  {
+    "_id": "6a8fdc8b910364268acbeef9",
+    "customerCode": "CUST-001",
+    "customerType": "company",
+    "businessType": "retailer",
+    "companyName": "Perera Residencies",
+    "displayName": "Mr. Chaminda Perera",
+    "tags": [],
+    "primaryContact": {
+      "name": "Chaminda Perera",
+      "email": "chaminda@example.com",
+      "phone": "0771234567"
+    },
+    "billingAddress": {
+      "line1": "No 45, Flower Road",
+      "city": "Colombo 07",
+      "country": "Sri Lanka",
+      "isDefault": false,
+      "_id": "6a8fdc8b910364268acbeefa"
+    },
+    "paymentTerms": {
+      "type": "cod",
+      "creditDays": 0,
+      "creditLimit": 0
+    },
+    "defaultDiscountPercent": 0,
+    "creditStatus": {
+      "currentBalance": 0,
+      "overdueAmount": 0,
+      "availableCredit": 0,
+      "isOverdue": false,
+      "daysPastDue": 0,
+      "onCreditHold": false
+    },
+    "analytics": {
+      "totalOrders": 0,
+      "totalOrderValue": 0,
+      "totalPaidAmount": 0
+    },
+    "status": "active",
+    "deletedAt": null,
+    "contacts": [],
+    "shippingAddresses": [],
+    "__v": 0,
+    "createdAt": "2026-08-27T06:43:23.724Z",
+    "updatedAt": "2026-08-27T06:43:23.724Z",
+    "groupName": "—",
+    "phone": "0771234567"
+  },
+  {
+    "_id": "6a8fdc8b910364268acbeefb",
+    "customerCode": "CUST-002",
+    "customerType": "company",
+    "businessType": "retailer",
+    "companyName": "Luxo Construction Pvt Ltd",
+    "displayName": "Luxo Construction Pvt Ltd",
+    "tags": [],
+    "primaryContact": {
+      "name": "Eng. Bandara",
+      "email": "projects@luxo.lk",
+      "phone": "0742899977"
+    },
+    "billingAddress": {
+      "line1": "145B Wallawatta",
+      "city": "Weliweriya",
+      "country": "Sri Lanka",
+      "isDefault": false,
+      "_id": "6a8fdc8b910364268acbeefc"
+    },
+    "paymentTerms": {
+      "type": "cod",
+      "creditDays": 0,
+      "creditLimit": 0
+    },
+    "defaultDiscountPercent": 0,
+    "creditStatus": {
+      "currentBalance": 0,
+      "overdueAmount": 0,
+      "availableCredit": 0,
+      "isOverdue": false,
+      "daysPastDue": 0,
+      "onCreditHold": false
+    },
+    "analytics": {
+      "totalOrders": 0,
+      "totalOrderValue": 0,
+      "totalPaidAmount": 0
+    },
+    "status": "active",
+    "deletedAt": null,
+    "contacts": [],
+    "shippingAddresses": [],
+    "__v": 0,
+    "createdAt": "2026-08-27T06:43:23.726Z",
+    "updatedAt": "2026-08-27T06:43:23.726Z",
+    "groupName": "—",
+    "phone": "0742899977"
+  },
+  {
+    "_id": "6a8ff87441b3e6f57c34ac77",
+    "customerType": "company",
+    "businessType": "retailer",
+    "companyName": "Perera Constructions (Pvt) Ltd",
+    "displayName": "Perera Constructions",
+    "customerGroupId": {
+      "_id": "6a8fdc64ed3975e4b27c45c9",
+      "name": "Platinum Contractors"
+    },
+    "tags": [],
+    "businessRegistrationNumber": "PV 00458219",
+    "taxRegistrationNumber": "VAT-114728563",
+    "industry": "Construction & Property Development",
+    "primaryContact": {
+      "name": "Kasun Perera",
+      "email": "kasun.perera@example.com",
+      "phone": "011 278 4567",
+      "mobile": "077 456 7821"
+    },
+    "contacts": [],
+    "billingAddress": {
+      "label": "",
+      "line1": "",
+      "line2": "",
+      "city": "",
+      "state": "",
+      "country": "Sri Lanka",
+      "postalCode": "",
+      "phone": "",
+      "deliveryInstructions": "",
+      "isDefault": true,
+      "_id": "6a8ff87441b3e6f57c34ac78"
+    },
+    "shippingAddresses": [],
+    "paymentTerms": {
+      "type": "cod",
+      "creditDays": 0,
+      "creditLimit": 0
+    },
+    "defaultDiscountPercent": 5,
+    "creditStatus": {
+      "currentBalance": 0,
+      "overdueAmount": 0,
+      "availableCredit": 0,
+      "isOverdue": false,
+      "daysPastDue": 0,
+      "onCreditHold": false
+    },
+    "analytics": {
+      "totalOrders": 0,
+      "totalOrderValue": 0,
+      "totalPaidAmount": 0
+    },
+    "status": "active",
+    "notes": "Regular construction customer. Mainly purchases aluminium doors, windows and glass partitions for residential projects.",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "createdAt": "2026-08-27T08:42:29.019Z",
+    "updatedAt": "2026-08-27T08:42:29.019Z",
+    "customerCode": "CUST-1",
+    "__v": 0,
+    "groupName": "Platinum Contractors",
+    "phone": "011 278 4567"
+  }
+]

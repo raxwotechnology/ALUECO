@@ -1,0 +1,40 @@
+{
+  "name": "wholesale-system-backend",
+  "version": "1.0.0",
+  "description": "Backend for wholesale manufacturing & distribution system",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "csv-writer": "^1.6.0",
+    "date-fns": "^4.3.0",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^8.3.2",
+    "fs-extra": "^11.3.5",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.4.1",
+    "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "pdfkit": "^0.18.0",
+    "pdfkit-table": "^0.2.11",
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

@@ -1,0 +1,567 @@
+[
+  {
+    "_id": "6a901384139985de2f5fb109",
+    "productCode": "P-ALU-SLP-26239-09",
+    "sku": "AL-SLP-2H-6000",
+    "barcode": "8901234567012",
+    "name": "2\" Heavy Sliding Frame Profile",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "SLP-2H",
+    "description": "Heavy-duty aluminium sliding door frame profile suitable for residential and commercial applications.",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c5",
+      "name": "Aluminium Profiles"
+    },
+    "brandId": null,
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "m",
+    "basePrice": 1850,
+    "mrp": 2150,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18,
+      "hsCode": "7604.29"
+    },
+    "costs": {
+      "lastPurchaseCost": 1800,
+      "averageCost": 1800,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 50,
+      "reorderLevel": 100,
+      "maximumLevel": 500
+    },
+    "packaging": {
+      "unitsPerCarton": 10,
+      "cartonsPerPallet": 20
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 10,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "Standard 6m length. Store horizontally on profile racks.",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-27T10:37:56.047Z",
+    "updatedAt": "2026-08-27T14:13:02.354Z",
+    "__v": 0,
+    "categoryName": "Aluminium Profiles",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a9015dd139985de2f5fb10b",
+    "productCode": "P-GLS-CTG-26239-13",
+    "sku": "GL-CLR-TGH-5",
+    "name": "5mm Clear Toughened Glass",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "CTG-5MM",
+    "description": "5mm clear toughened safety glass for aluminium doors and windows.",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c6",
+      "name": "Glass Sheets"
+    },
+    "brandId": null,
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "sqft",
+    "basePrice": 850,
+    "mrp": 950,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18,
+      "hsCode": "7007.19"
+    },
+    "costs": {
+      "lastPurchaseCost": 850,
+      "averageCost": 850,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 100,
+      "reorderLevel": 250,
+      "maximumLevel": 1000
+    },
+    "packaging": {
+      "unitsPerCarton": 10,
+      "cartonsPerPallet": 5
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 20,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "Handle vertically using glass racks. Avoid edge impact.",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-27T10:47:57.454Z",
+    "updatedAt": "2026-08-27T15:05:40.275Z",
+    "__v": 0,
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Glass Sheets",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcde4c7682c62c978836",
+    "name": "Aluminium Sliding Window (4x3 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Sliding Window 4x3",
+    "description": "Ready-made aluminium sliding window, 4ft x 3ft size",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 15000,
+    "mrp": 18000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 5,
+      "reorderLevel": 10,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:34.601Z",
+    "updatedAt": "2026-08-28T03:13:34.601Z",
+    "productCode": "P-FIN-PRD-26240-01",
+    "__v": 0,
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978837",
+    "name": "Aluminium Casement Door (3x7 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Casement Door 3x7",
+    "description": "Ready-made aluminium casement door, 3ft x 7ft size",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 25000,
+    "mrp": 30000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 3,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.235Z",
+    "updatedAt": "2026-08-28T03:13:35.235Z",
+    "productCode": "P-FIN-PRD-26240-02",
+    "__v": 0,
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978838",
+    "name": "Window Handle Set (Stainless Steel)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Window Handle",
+    "description": "Stainless steel window handle set with locking mechanism",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 450,
+    "mrp": 550,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 20,
+      "reorderLevel": 50,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.407Z",
+    "updatedAt": "2026-08-28T03:13:35.407Z",
+    "productCode": "P-ACC-PRD-26240-03",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978839",
+    "name": "Door Lock Set (Heavy Duty)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Door Lock",
+    "description": "Heavy duty door lock set with 3 keys",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 1200,
+    "mrp": 1500,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 15,
+      "reorderLevel": 30,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.620Z",
+    "updatedAt": "2026-08-28T03:13:35.620Z",
+    "productCode": "P-ACC-PRD-26240-04",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c97883a",
+    "name": "Rubber Gasket Roll (Black)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Rubber Gasket",
+    "description": "Black rubber gasket roll for windows and doors",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "MTR",
+    "basePrice": 85,
+    "mrp": 100,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 85,
+      "averageCost": 79.87,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 50,
+      "reorderLevel": 100,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.760Z",
+    "updatedAt": "2026-08-28T12:53:10.771Z",
+    "productCode": "P-ACC-PRD-26240-05",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c97883b",
+    "name": "Glass Shelf Bracket (Aluminium)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Glass Bracket",
+    "description": "Aluminium bracket for glass shelves",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 350,
+    "mrp": 450,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 25,
+      "reorderLevel": 50,
+      "maximumLevel": 160
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 2,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.958Z",
+    "updatedAt": "2026-08-28T12:54:06.133Z",
+    "productCode": "P-ACC-PRD-26240-06",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fce04c7682c62c97883c",
+    "name": "Fixed Glass Window (3x2 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Fixed Window 3x2",
+    "description": "Fixed glass window with aluminium frame, 3ft x 2ft",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 8000,
+    "mrp": 10000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 18000,
+      "averageCost": 18000,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 5,
+      "reorderLevel": 10,
+      "maximumLevel": 2000
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:36.331Z",
+    "updatedAt": "2026-08-28T12:53:57.189Z",
+    "productCode": "P-FIN-PRD-26240-07",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fce04c7682c62c97883d",
+    "name": "Sliding Door Roller Set",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Door Rollers",
+    "description": "Heavy duty sliding door roller set (2 pieces)",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "SET",
+    "basePrice": 1800,
+    "mrp": 2200,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 10,
+      "reorderLevel": 20,
+      "maximumLevel": 5000
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:36.467Z",
+    "updatedAt": "2026-08-28T12:53:48.843Z",
+    "productCode": "P-ACC-PRD-26240-08",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  }
+]

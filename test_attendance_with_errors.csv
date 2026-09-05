@@ -1,0 +1,6 @@
+Employee Code,Employee Name,Status,Check In,Check Out
+EMP-1001,John Doe,present,08:00,17:00
+EMP-9999,Unknown Employee,present,08:00,17:00
+EMP-1002,Jane Smith,invalid_status,08:00,17:00
+EMP-1003,Wrong Name,present,08:00,17:00
+EMP-1004,Alice Williams,present,25:00,17:00
