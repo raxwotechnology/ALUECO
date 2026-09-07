@@ -176,11 +176,22 @@ export default function PurchaseOrderDetailPage() {
                             <tbody className="divide-y">
                                 {po.items.map((item) => {
                                     const pendingQty = Math.max(0, item.orderedQuantity - (item.receivedQuantity || 0));
+                                    const isCustomItem = !item.productId;
                                     return (
                                         <tr key={item._id || item.lineNumber}>
                                             <td className="px-4 py-3">
-                                                <p className="font-medium text-sm">{item.productName}</p>
-                                                <p className="text-xs font-mono text-gray-500">{item.productCode}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-sm">{item.productName}</p>
+                                                    {isCustomItem && (
+                                                        <Badge variant="warning" className="text-xs">Custom</Badge>
+                                                    )}
+                                                </div>
+                                                {item.productCode && (
+                                                    <p className="text-xs font-mono text-gray-500">{item.productCode}</p>
+                                                )}
+                                                {item.description && (
+                                                    <p className="text-xs text-gray-400 mt-1">{item.description}</p>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right text-sm font-semibold">{item.orderedQuantity} {item.unitOfMeasure}</td>
                                             <td className="px-4 py-3 text-right text-sm text-emerald-600 font-bold">

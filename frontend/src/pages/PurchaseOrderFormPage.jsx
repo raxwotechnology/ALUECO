@@ -10,6 +10,7 @@ import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
+import ProductAutocompleteSelect from '../components/ui/ProductAutocompleteSelect';
 
 import { suppliersApi } from '../features/suppliers/suppliersApi';
 import { productsApi } from '../features/products/productsApi';
@@ -316,8 +317,20 @@ export default function PurchaseOrderFormPage() {
                                                     ) : (
                                                         <div className="flex gap-2 items-end">
                                                             <div className="flex-1">
-                                                                <Select placeholder="Select product..." options={productOptions}
-                                                                    value={item.productId} onChange={(e) => updateItem(idx, 'productId', e.target.value)} />
+                                                                <ProductAutocompleteSelect
+                                                                    placeholder="Search product by name or code..."
+                                                                    products={products}
+                                                                    value={item.productId}
+                                                                    onChange={(productId, product) => {
+                                                                        updateItem(idx, 'productId', productId);
+                                                                        if (product) {
+                                                                            updateItem(idx, 'unitPrice', product.costs?.lastPurchaseCost || 0);
+                                                                            updateItem(idx, 'taxRate', product.tax?.taxRate || 0);
+                                                                            updateItem(idx, 'taxable', product.tax?.taxable ?? true);
+                                                                        }
+                                                                    }}
+                                                                    productType="raw_material"
+                                                                />
                                                             </div>
                                                             <Button
                                                                 variant="outline"
