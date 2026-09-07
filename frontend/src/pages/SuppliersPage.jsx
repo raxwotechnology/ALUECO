@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Search, Truck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit, Trash2, Search, Truck, ShoppingBag } from 'lucide-react';
 
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -29,9 +30,11 @@ const categoryLabels = {
 };
 
 export default function SuppliersPage() {
+    const navigate = useNavigate();
     const { user } = useAuthStore();
     const canManage = ['admin', 'manager', 'accountant'].includes(user?.role);
     const canDelete = ['admin', 'manager'].includes(user?.role);
+    const canCreatePO = ['admin', 'manager', 'accountant'].includes(user?.role);
 
     const [filters, setFilters] = useState({
         search: '', category: '', status: '',
@@ -113,9 +116,18 @@ export default function SuppliersPage() {
             render: (r) => <Badge variant={statusVariant[r.status]}>{r.status}</Badge>,
         },
         {
-            key: 'actions', label: 'Actions', width: '120px',
+            key: 'actions', label: 'Actions', width: '160px',
             render: (r) => (
                 <div className="flex gap-1">
+                    {canCreatePO && r.status === 'active' && (
+                        <button
+                            onClick={() => navigate(`/purchase-orders/new?supplierId=${r._id}`)}
+                            className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                            title="Request Order"
+                        >
+                            <ShoppingBag size={16} />
+                        </button>
+                    )}
                     {canManage && (
                         <button onClick={() => { setEditing(r); setIsFormOpen(true); }}
                             className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded" title="Edit">

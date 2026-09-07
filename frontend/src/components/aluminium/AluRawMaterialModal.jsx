@@ -68,7 +68,48 @@ const SUPPLIER_SUGGESTIONS = [
 
 
 
-export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, warehouses: propWarehouses = [] }) {
+const CATEGORY_TO_TYPE = {
+    profiles: 'AP',
+    glass: 'GL',
+    accessories: 'AC',
+    hardware: 'HW',
+    gaskets: 'GS',
+};
+
+const DEFAULT_CREATE_ITEMS = [
+    {
+        productCode: '',
+        name: '100mm 2-Track Outer Bottom Frame',
+        unitOfMeasure: 'Lengths',
+        quantity: 10,
+        purchaseCost: 1600,
+        type: '',
+        profile: '',
+        colour: '',
+        length: '',
+        width: '',
+        height: '',
+        side: '',
+        description: '',
+    },
+    {
+        productCode: '',
+        name: '100mm Sliding Window Sash Profile',
+        unitOfMeasure: 'Lengths',
+        quantity: 10,
+        purchaseCost: 1700,
+        type: '',
+        profile: '',
+        colour: '',
+        length: '',
+        width: '',
+        height: '',
+        side: '',
+        description: '',
+    }
+];
+
+export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, warehouses: propWarehouses = [], editProduct = null }) {
     const [loading, setLoading] = useState(false);
     const [warehouses, setWarehouses] = useState(propWarehouses);
 
@@ -81,38 +122,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
     });
 
     // Multi-product rows
-    const [items, setItems] = useState([
-        {
-            productCode: '',
-            name: '100mm 2-Track Outer Bottom Frame',
-            unitOfMeasure: 'Lengths',
-            quantity: 10,
-            purchaseCost: 1600,
-            type: '',
-            profile: '',
-            colour: '',
-            length: '',
-            width: '',
-            height: '',
-            side: '',
-            description: '',
-        },
-        {
-            productCode: '',
-            name: '100mm Sliding Window Sash Profile',
-            unitOfMeasure: 'Lengths',
-            quantity: 10,
-            purchaseCost: 1700,
-            type: '',
-            profile: '',
-            colour: '',
-            length: '',
-            width: '',
-            height: '',
-            side: '',
-            description: '',
-        }
-    ]);
+    const [items, setItems] = useState(DEFAULT_CREATE_ITEMS);
+
+    const isEditMode = Boolean(editProduct?._id);
 
     useEffect(() => {
         if (propWarehouses && propWarehouses.length > 0) {
@@ -143,6 +155,43 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             fetchWarehouses();
         }
     }, [isOpen, warehouses.length]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        if (editProduct?._id) {
+            const specs = editProduct.aluSpecs || {};
+            setCommonSettings({
+                warehouseId: propWarehouses[0]?._id || warehouses[0]?._id || '',
+                series: specs.series || 'Swisstek 100mm Commercial Sliding',
+                finish: specs.finish || 'Powder Coated White (RAL 9016)',
+                supplierName: specs.brand || 'Swisstek Aluminium'
+            });
+            setItems([{
+                productCode: editProduct.productCode || '',
+                name: editProduct.name || '',
+                unitOfMeasure: editProduct.unitOfMeasure || 'Lengths',
+                quantity: 0,
+                purchaseCost: editProduct.costs?.lastPurchaseCost || editProduct.basePrice || 0,
+                type: specs.type || CATEGORY_TO_TYPE[editProduct.aluCategory] || '',
+                profile: specs.profile || '',
+                colour: specs.colour || '',
+                length: specs.length || '',
+                width: '',
+                height: '',
+                side: specs.side || '',
+                description: specs.description || '',
+            }]);
+        } else {
+            setCommonSettings({
+                warehouseId: propWarehouses[0]?._id || warehouses[0]?._id || '',
+                series: 'Swisstek 100mm Commercial Sliding',
+                finish: 'Powder Coated White (RAL 9016)',
+                supplierName: 'Swisstek Aluminium'
+            });
+            setItems(DEFAULT_CREATE_ITEMS);
+        }
+    }, [isOpen, editProduct, propWarehouses, warehouses]);
 
     const generateProductCode = (item) => {
         // Type code (AP, AC, GL, HW, GS)
@@ -180,8 +229,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         const next = [...items];
         next[idx] = { ...next[idx], [field]: value };
         
-        // Auto-generate product code when relevant fields change
-        if (['type', 'profile', 'colour', 'length', 'side', 'width', 'height'].includes(field)) {
+        // Auto-generate product code when relevant fields change (create mode only)
+        if (!isEditMode && ['type', 'profile', 'colour', 'length', 'side', 'width', 'height'].includes(field)) {
             next[idx].productCode = generateProductCode(next[idx]);
         }
         
@@ -241,21 +290,52 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
 
         setLoading(true);
         try {
+            const typeToCategory = {
+                'AP': 'profiles',
+                'GL': 'glass',
+                'AC': 'accessories',
+                'HW': 'hardware',
+                'GS': 'gaskets'
+            };
+
+            if (isEditMode) {
+                const it = items[0];
+                const payload = {
+                    name: it.name.trim(),
+                    unitOfMeasure: it.unitOfMeasure,
+                    basePrice: Number(it.purchaseCost) || 0,
+                    costs: {
+                        lastPurchaseCost: Number(it.purchaseCost) || 0,
+                        standardCost: Number(it.purchaseCost) || 0,
+                        averageCost: Number(it.purchaseCost) || 0,
+                    },
+                    aluCategory: typeToCategory[it.type] || 'profiles',
+                    aluSpecs: {
+                        series: commonSettings.series,
+                        finish: commonSettings.finish,
+                        brand: commonSettings.supplierName,
+                        type: it.type || '',
+                        profile: it.profile || '',
+                        colour: it.colour || '',
+                        length: it.length || '',
+                        side: it.side || '',
+                        description: it.description || '',
+                    }
+                };
+
+                const { data } = await api.put(`/alu/raw-materials/${editProduct._id}`, payload);
+                toast.success(data.message || 'Material updated successfully!');
+                onSuccess?.();
+                onClose();
+                return;
+            }
+
             const targetWarehouseId = commonSettings.warehouseId || (warehouses[0]?._id);
             const payload = {
                 warehouseId: targetWarehouseId,
                 items: items.map(it => {
                     // Generate code if empty
                     const finalCode = it.productCode || generateProductCode(it);
-                    
-                    // Map type to aluCategory
-                    const typeToCategory = {
-                        'AP': 'profiles',
-                        'GL': 'glass',
-                        'AC': 'accessories',
-                        'HW': 'hardware',
-                        'GS': 'gaskets'
-                    };
                     
                     return {
                         productCode: finalCode.trim().toUpperCase(),
@@ -290,9 +370,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             onSuccess?.();
             onClose();
         } catch (error) {
-            console.error('Error creating materials:', error);
+            console.error('Error saving materials:', error);
             console.error('Error response:', error.response?.data);
-            toast.error(error.response?.data?.message || error.message || 'Failed to create materials');
+            toast.error(error.response?.data?.message || error.message || `Failed to ${isEditMode ? 'update' : 'create'} materials`);
         } finally {
             setLoading(false);
         }
@@ -303,7 +383,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         : [{ _id: 'wh-main', name: 'Fabrication Main Warehouse', warehouseCode: 'WH-MAIN' }];
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Add AluEco Raw Materials & Initial Stock" size="2xl">
+        <Modal isOpen={isOpen} onClose={onClose} title={isEditMode ? 'Edit AluEco Raw Material' : 'Add AluEco Raw Materials & Initial Stock'} size="2xl">
             {/* HTML5 Datalists for Universal Instant Autocomplete */}
             <datalist id="series-suggestions">
                 {SERIES_SUGGESTIONS.map((s, i) => <option key={i} value={s} />)}
@@ -335,7 +415,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className={`grid grid-cols-1 gap-3 ${isEditMode ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+                        {!isEditMode && (
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
                                 Destination Warehouse <span className="text-rose-500">*</span>
@@ -352,6 +433,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                 ))}
                             </select>
                         </div>
+                        )}
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -442,9 +524,10 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         <div className="flex items-center gap-2">
                             <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-extrabold">2</span>
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                                Aluminium Products & Stock Quantities ({items.length} Items)
+                                {isEditMode ? 'Material Details' : `Aluminium Products & Stock Quantities (${items.length} Items)`}
                             </span>
                         </div>
+                        {!isEditMode && (
                         <button
                             type="button"
                             onClick={addRow}
@@ -452,6 +535,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         >
                             <Plus size={15} /> + Add Another Product
                         </button>
+                        )}
                     </div>
 
                     <div className="space-y-3">
@@ -471,7 +555,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                             <span className="text-xs font-semibold text-slate-500">
                                                 Line Valuation: <strong className="text-emerald-700">Rs. {lineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
                                             </span>
-                                            {items.length > 1 && (
+                                            {items.length > 1 && !isEditMode && (
                                                 <button
                                                     type="button"
                                                     onClick={() => removeRow(idx)}
@@ -619,9 +703,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                     {/* 2. Standard Inventory & Pricing Fields */}
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-white p-2 border border-slate-200 rounded-xl">
                                         {/* Generated Unique Code */}
-                                        <div className="sm:col-span-4">
+                                        <div className={isEditMode ? 'sm:col-span-4' : 'sm:col-span-4'}>
                                             <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
-                                                <span>AUTO-GENERATED CODE *</span>
+                                                <span>{isEditMode ? 'ITEM CODE' : 'AUTO-GENERATED CODE *'}</span>
                                             </div>
                                             <input
                                                 type="text"
@@ -633,7 +717,8 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                             />
                                         </div>
 
-                                        {/* Stock Qty */}
+                                        {/* Stock Qty - create mode only; use Add Qty on table for stock changes */}
+                                        {!isEditMode && (
                                         <div className="sm:col-span-3">
                                             <label className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">STOCK QTY *</label>
                                             <input
@@ -647,6 +732,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 className="w-full bg-emerald-50/60 focus:bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                             />
                                         </div>
+                                        )}
 
                                         {/* Unit */}
                                         <div className="sm:col-span-2">
@@ -718,7 +804,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 cursor-pointer"
                     >
                         <Save size={16} />
-                        {loading ? 'Saving All Products...' : `Save All ${items.length} Products & Create Stock`}
+                        {loading ? (isEditMode ? 'Saving Changes...' : 'Saving All Products...') : (isEditMode ? 'Save Changes' : `Save All ${items.length} Products & Create Stock`)}
                     </button>
                 </div>
             </form>

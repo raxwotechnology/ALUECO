@@ -35,6 +35,10 @@ const attendanceSchema = new mongoose.Schema({
 
 // ── Pre-save Hook: Auto-calculate OT based on 8-hour standard shift ──────────
 attendanceSchema.pre('save', function() {
+    if (this.checkInMethod === 'excel_import') {
+        return;
+    }
+
     if (this.checkInTime && this.checkOutTime) {
         const workedMs      = new Date(this.checkOutTime) - new Date(this.checkInTime);
         const workedMinutes = Math.floor(workedMs / (1000 * 60));

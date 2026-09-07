@@ -12,6 +12,45 @@ import { generateJulianBatchCode } from '../utils/julianDate.js';
 import { getIO } from '../services/socketService.js';
 import { sendGrnConfirmationSms, sendGrnCreationSms } from '../services/smsService.js';
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Find or auto-create a catalog product for custom GRN / PO line items. */
+const resolveGrnItemProduct = async (grnItem, userId) => {
+    if (grnItem.productId) return grnItem.productId;
+
+    const name = grnItem.productName?.trim();
+    if (!name) throw new Error('GRN item is missing product information');
+
+    const ProductModel = mongoose.model('Product');
+    let product = await ProductModel.findOne({
+        name: { $regex: new RegExp(`^${escapeRegex(name)}$`, 'i') },
+    });
+
+    if (!product) {
+        product = new ProductModel({
+            name,
+            productType: 'raw_material',
+            unitOfMeasure: grnItem.unitOfMeasure || 'pcs',
+            canBePurchased: true,
+            canBeSold: false,
+            canBeManufactured: false,
+            status: 'active',
+            costs: {
+                lastPurchaseCost: grnItem.unitPrice || 0,
+                averageCost: grnItem.unitPrice || 0,
+            },
+            createdBy: userId,
+        });
+        await product.save();
+    }
+
+    grnItem.productId = product._id;
+    if (!grnItem.productCode) grnItem.productCode = product.productCode;
+    if (!grnItem.unitOfMeasure) grnItem.unitOfMeasure = product.unitOfMeasure;
+
+    return product._id;
+};
+
 /**
  * Create a GRN — saves in 'pending_approval' queue state and does NOT update active stock immediately.
  */
@@ -61,13 +100,17 @@ export const createGrn = asyncHandler(async (req, res) => {
 
         if (po) {
             const poItemsMap = new Map(po.items.map((i) => [i._id.toString(), i]));
-            const poLine = item.poLineItemId ? poItemsMap.get(item.poLineItemId) : null;
+            const poLine = item.poLineItemId ? poItemsMap.get(item.poLineItemId.toString()) : null;
             if (poLine) {
-                productCode = poLine.productCode || '';
-                productName = poLine.productName || '';
-                unitOfMeasure = poLine.unitOfMeasure || '';
+                productCode = poLine.productCode || item.productCode || '';
+                productName = poLine.productName || item.productName || '';
+                unitOfMeasure = poLine.unitOfMeasure || item.unitOfMeasure || '';
                 orderedQuantity = poLine.orderedQuantity || 0;
                 unitPrice = unitPrice || poLine.unitPrice || 0;
+            } else if (item.productName) {
+                productName = item.productName;
+                productCode = item.productCode || '';
+                unitOfMeasure = item.unitOfMeasure || '';
             }
         } else {
             const product = await Product.findById(item.productId);
@@ -80,7 +123,7 @@ export const createGrn = asyncHandler(async (req, res) => {
 
         grnItems.push({
             poLineItemId: item.poLineItemId || null,
-            productId: item.productId,
+            productId: item.productId || null,
             productCode,
             productName,
             orderedQuantity,
@@ -198,24 +241,34 @@ export const approveGrnQA = asyncHandler(async (req, res) => {
             grnItem.qcStatus = rejectedQty > 0 ? 'failed' : 'approved';
             grnItem.rejectionReason = approval.rejectionReason;
 
-            // 1. Generate Julian Tracking Batch Code
-            let codePrefix = 'SUP';
-            if (grn.sourceType === 'own_farm' && farm) {
-                codePrefix = farm.farmCode || farm.name;
-            } else if (supplier) {
-                codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
-            }
-            const ProductModel = mongoose.model('Product');
-            const productObj = await ProductModel.findById(grnItem.productId);
-            const prodShort = productObj?.productShortCode || 'PRD';
-            const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-            const batchCode = `${generateJulianBatchCode(`${codePrefix}-${prodShort}`, grn.receiptDate)}-${uniqueSuffix}`;
-            grnItem.batchNumber = approval.batchNumber || batchCode;
-
             totalPayable += acceptedQty * grnItem.unitPrice;
 
-            // 2. Increase stock for accepted quantity
             if (acceptedQty > 0) {
+                // Link custom items to catalog products (auto-create if needed)
+                await resolveGrnItemProduct(grnItem, req.user._id);
+
+                if (po && grnItem.poLineItemId) {
+                    const poLine = po.items.id(grnItem.poLineItemId);
+                    if (poLine && !poLine.productId) {
+                        poLine.productId = grnItem.productId;
+                        poLine.productCode = grnItem.productCode;
+                    }
+                }
+
+                // Generate Julian Tracking Batch Code
+                let codePrefix = 'SUP';
+                if (grn.sourceType === 'own_farm' && farm) {
+                    codePrefix = farm.farmCode || farm.name;
+                } else if (supplier) {
+                    codePrefix = supplier.supplierShortCode || supplier.supplierCode || 'SUP';
+                }
+                const ProductModel = mongoose.model('Product');
+                const productObj = await ProductModel.findById(grnItem.productId);
+                const prodShort = productObj?.productShortCode || 'PRD';
+                const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+                const batchCode = `${generateJulianBatchCode(`${codePrefix}-${prodShort}`, grn.receiptDate)}-${uniqueSuffix}`;
+                grnItem.batchNumber = approval.batchNumber || batchCode;
+
                 const result = await increaseStock({
                     productId: grnItem.productId,
                     warehouseId: grn.warehouseId,

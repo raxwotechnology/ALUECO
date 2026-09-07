@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Send, Ban, PackageCheck, Receipt, Printer, Download } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Send, Ban, Receipt, Printer, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -8,7 +8,6 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import GrnModal from '../features/purchaseOrders/GrnModal';
 import QaApprovalModal from '../features/purchaseOrders/QaApprovalModal';
 import SendGrnSmsModal from '../features/purchaseOrders/SendGrnSmsModal';
 import SendPoModal from '../features/purchaseOrders/SendPoModal';
@@ -30,7 +29,6 @@ export default function PurchaseOrderDetailPage() {
 
     const [action, setAction] = useState(null);
     const [reason, setReason] = useState('');
-    const [isGrnOpen, setIsGrnOpen] = useState(false);
     const [isSendPoOpen, setIsSendPoOpen] = useState(false);
     const [selectedGrnToApprove, setSelectedGrnToApprove] = useState(null);
     const [selectedGrnToSendSms, setSelectedGrnToSendSms] = useState(null);
@@ -68,7 +66,6 @@ export default function PurchaseOrderDetailPage() {
     if (isLoading || !po) return <div className="py-16 text-center text-gray-500">Loading...</div>;
 
     const canApprove = ['admin', 'manager', 'accountant'].includes(user.role);
-    const canReceive = ['admin', 'manager', 'warehouse_staff'].includes(user.role);
 
     const actions = [];
     if (['draft', 'pending_approval'].includes(po.status) && canApprove) {
@@ -76,9 +73,6 @@ export default function PurchaseOrderDetailPage() {
     }
     if (po.status === 'approved' && canApprove) {
         actions.push({ label: 'Mark Sent', icon: Send, variant: 'primary', status: 'sent' });
-    }
-    if (['approved', 'sent', 'partially_received'].includes(po.status) && canReceive) {
-        actions.push({ label: 'Receive Goods', icon: PackageCheck, variant: 'primary', onClick: () => setIsGrnOpen(true) });
     }
     if (['partially_received', 'fully_received'].includes(po.status) && canApprove) {
         actions.push({ label: 'Close PO', icon: CheckCircle, variant: 'outline', status: 'closed' });
@@ -286,8 +280,6 @@ export default function PurchaseOrderDetailPage() {
                     </Card>
                 </div>
             </div>
-
-            <GrnModal isOpen={isGrnOpen} onClose={() => setIsGrnOpen(false)} purchaseOrder={po} />
 
             <QaApprovalModal isOpen={!!selectedGrnToApprove} onClose={() => setSelectedGrnToApprove(null)} grn={selectedGrnToApprove} />
 

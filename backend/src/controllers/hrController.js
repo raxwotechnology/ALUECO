@@ -9,6 +9,13 @@ import Holiday from '../models/Holiday.js';
 import SalaryStructure from '../models/SalaryStructure.js';
 import LeaveStructure from '../models/LeaveStructure.js';
 import * as XLSX from 'xlsx';
+import {
+    isMonthlyPerformanceReport,
+    parseMonthlyPerformanceSheet,
+    parseDailyAttendanceRows,
+    normalizeEmployeeCode,
+    parseTimeOnDate,
+} from '../services/attendanceImportService.js';
 
 // ============================================================
 // DEPARTMENTS
@@ -396,6 +403,64 @@ export const bulkMarkAttendance = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Find employee by biometric/system employee code.
+ */
+const findEmployeeByCode = async (employeeCode) => {
+    const normalized = normalizeEmployeeCode(employeeCode);
+    if (!normalized) return null;
+
+    return Employee.findOne({
+        $or: [
+            { employeeCode: normalized },
+            { employeeCode: String(employeeCode).trim() },
+        ],
+    });
+};
+
+const upsertAttendanceRecord = async ({
+    emp,
+    attendanceDate,
+    status,
+    checkInTime,
+    checkOutTime,
+    totalWorkedMinutes,
+    overtimeMinutes,
+    markedBy,
+    fromImport = false,
+}) => {
+    let att = await Attendance.findOne({ employeeId: emp._id, date: attendanceDate });
+
+    if (!att) {
+        att = new Attendance({
+            employeeId: emp._id,
+            employeeCode: emp.employeeCode,
+            employeeName: emp.fullName,
+            date: attendanceDate,
+            markedBy,
+        });
+    }
+
+    att.status = status || 'present';
+    att.checkInTime = checkInTime || null;
+    att.checkOutTime = checkOutTime || null;
+    att.checkInMethod = fromImport ? 'excel_import' : 'manual';
+
+    if (fromImport) {
+        att.totalWorkedMinutes = totalWorkedMinutes || 0;
+        att.overtimeMinutes = overtimeMinutes || 0;
+    } else if (att.checkInTime && att.checkOutTime) {
+        const diff = (new Date(att.checkOutTime) - new Date(att.checkInTime)) / 60000;
+        att.totalWorkedMinutes = Math.max(0, Math.floor(diff));
+    } else {
+        att.totalWorkedMinutes = 0;
+        att.overtimeMinutes = 0;
+    }
+
+    await att.save();
+    return att;
+};
+
+/**
  * Import attendance from Excel file
  */
 export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
@@ -404,82 +469,116 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
         throw new Error('No file uploaded');
     }
 
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+
+    const results = [];
+    const errors = [];
+
+    // ── Monthly biometric report (Luxo / fingerprint machine format) ──
+    if (isMonthlyPerformanceReport(rawRows)) {
+        const { period, records, errors: parseErrors } = parseMonthlyPerformanceSheet(rawRows);
+        errors.push(...parseErrors);
+
+        if (!period) {
+            res.status(400);
+            throw new Error('Could not detect report month from Excel file');
+        }
+
+        for (const record of records) {
+            try {
+                const emp = await findEmployeeByCode(record.employeeCode);
+                if (!emp) {
+                    errors.push({
+                        employeeCode: record.employeeCode,
+                        employeeName: record.employeeName,
+                        date: record.date,
+                        error: `Employee not found for Emp Code: ${record.employeeCode}`,
+                    });
+                    continue;
+                }
+
+                const att = await upsertAttendanceRecord({
+                    emp,
+                    attendanceDate: record.date,
+                    status: record.status,
+                    checkInTime: record.checkInTime,
+                    checkOutTime: record.checkOutTime,
+                    totalWorkedMinutes: record.totalWorkedMinutes,
+                    overtimeMinutes: record.overtimeMinutes,
+                    markedBy: req.user._id,
+                    fromImport: true,
+                });
+                results.push(att);
+            } catch (error) {
+                errors.push({
+                    employeeCode: record.employeeCode,
+                    date: record.date,
+                    error: error.message,
+                });
+            }
+        }
+
+        return res.json({
+            success: true,
+            format: 'monthly',
+            period: { month: period.month, year: period.year },
+            imported: results.length,
+            errors: errors.length,
+            data: results,
+            errorDetails: errors,
+        });
+    }
+
+    // ── Simple daily flat format ──
     const { date } = req.body;
     if (!date) {
         res.status(400);
-        throw new Error('Date is required');
+        throw new Error('Date is required for daily attendance import');
     }
 
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
 
-    // Read Excel file
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    const dailyRows = parseDailyAttendanceRows(jsonData);
 
-    const results = [];
-    const errors = [];
-
-    for (const row of jsonData) {
+    for (const row of dailyRows) {
         try {
-            // Find employee by code
-            const employeeCode = row['Employee Code'] || row['employee_code'] || row['EmployeeCode'];
-            if (!employeeCode) {
-                errors.push({ row, error: 'Employee Code missing' });
-                continue;
-            }
-
-            const emp = await Employee.findOne({ employeeCode });
+            const emp = await findEmployeeByCode(row.employeeCode);
             if (!emp) {
-                errors.push({ row, error: `Employee not found: ${employeeCode}` });
+                errors.push({ row, error: `Employee not found: ${row.employeeCode}` });
                 continue;
             }
 
-            // Check if attendance already exists
-            let att = await Attendance.findOne({ employeeId: emp._id, date: attendanceDate });
+            let checkInTime = null;
+            let checkOutTime = null;
 
-            if (!att) {
-                att = new Attendance({
-                    employeeId: emp._id,
-                    employeeCode: emp.employeeCode,
-                    employeeName: emp.fullName,
-                    date: attendanceDate,
-                    markedBy: req.user._id,
-                });
+            if (row.checkInTime) {
+                const parsedIn = row.checkInTime instanceof Date
+                    ? row.checkInTime
+                    : parseTimeOnDate(row.checkInTime, attendanceDate) || new Date(row.checkInTime);
+                if (!isNaN(parsedIn.getTime())) checkInTime = parsedIn;
             }
 
-            // Update attendance from Excel data
-            att.status = row['Status'] || row['status'] || 'present';
-
-            const checkInTime = row['Check In'] || row['check_in'] || row['CheckIn'];
-            const checkOutTime = row['Check Out'] || row['check_out'] || row['CheckOut'];
-
-            if (checkInTime) {
-                const checkIn = new Date(checkInTime);
-                if (!isNaN(checkIn.getTime())) {
-                    att.checkInTime = checkIn;
-                }
+            if (row.checkOutTime) {
+                const parsedOut = row.checkOutTime instanceof Date
+                    ? row.checkOutTime
+                    : parseTimeOnDate(row.checkOutTime, attendanceDate) || new Date(row.checkOutTime);
+                if (!isNaN(parsedOut.getTime())) checkOutTime = parsedOut;
             }
 
-            if (checkOutTime) {
-                const checkOut = new Date(checkOutTime);
-                if (!isNaN(checkOut.getTime())) {
-                    att.checkOutTime = checkOut;
-                }
-            }
-
-            // Calculate worked minutes
-            if (att.checkInTime && att.checkOutTime) {
-                const diff = (new Date(att.checkOutTime) - new Date(att.checkInTime)) / 60000;
-                att.totalWorkedMinutes = Math.max(0, Math.floor(diff));
-            } else {
-                att.totalWorkedMinutes = 0;
-                att.overtimeMinutes = 0;
-            }
-
-            await att.save();
+            const att = await upsertAttendanceRecord({
+                emp,
+                attendanceDate,
+                status: row.status,
+                checkInTime,
+                checkOutTime,
+                markedBy: req.user._id,
+                fromImport: false,
+            });
             results.push(att);
         } catch (error) {
             errors.push({ row, error: error.message });
@@ -488,6 +587,7 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
+        format: 'daily',
         imported: results.length,
         errors: errors.length,
         data: results,

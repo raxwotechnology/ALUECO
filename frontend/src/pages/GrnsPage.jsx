@@ -78,12 +78,19 @@ export default function GrnsPage() {
         setLoading(true);
         try {
             const [grnRes, supRes, farmRes, whRes, prodRes, poRes, bankRes] = await Promise.all([
-                api.get('/grns', { params: { startDate: '', endDate: '' } }), // Bypass global date filter
+                api.get('/grns', { params: { startDate: '1970-01-01T00:00:00.000Z', endDate: '2099-12-31T23:59:59.999Z' } }),
                 api.get('/suppliers'),
                 api.get('/farms?status=active'),
                 api.get('/warehouses'),
                 api.get('/products'),
-                api.get('/purchase-orders?status=approved,sent,partially_received'),
+                api.get('/purchase-orders', {
+                    params: {
+                        status: 'approved,sent,partially_received',
+                        limit: 500,
+                        startDate: '1970-01-01T00:00:00.000Z',
+                        endDate: '2099-12-31T23:59:59.999Z',
+                    },
+                }),
                 api.get('/finance/bank-accounts')
             ]);
             setGrns(grnRes.data.data || []);
@@ -91,7 +98,10 @@ export default function GrnsPage() {
             setFarms(farmRes.data.data || []);
             setWarehouses(whRes.data.data || []);
             setProducts(prodRes.data.data || []);
-            setPurchaseOrders(poRes.data.data || []);
+            const receivablePos = (poRes.data.data || []).filter((po) =>
+                po.items?.some((item) => (item.orderedQuantity - (item.receivedQuantity || 0)) > 0)
+            );
+            setPurchaseOrders(receivablePos);
             setBankAccounts(bankRes.data.data || []);
         } catch (err) {
             toast.error('Failed to load material receipts (GRNs)');
@@ -143,9 +153,11 @@ export default function GrnsPage() {
             purchaseOrderId: poId,
             sourceType: 'supplier',
             supplierId: selectedPo.supplierId?._id || selectedPo.supplierId || '',
-            items: selectedPo.items.map(item => ({
+            items: selectedPo.items
+                .filter((item) => (item.orderedQuantity - (item.receivedQuantity || 0)) > 0)
+                .map(item => ({
                 poLineItemId: item._id,
-                productId: item.productId?._id || item.productId,
+                productId: item.productId?._id || item.productId || undefined,
                 productName: item.productName || item.productId?.name,
                 productCode: item.productCode || item.productId?.productCode,
                 orderedQuantity: item.orderedQuantity,
@@ -202,16 +214,45 @@ export default function GrnsPage() {
         if (formData.sourceType === 'own_farm' && !formData.farmId) return toast.error('Please select a farm');
         if (formData.items.length === 0) return toast.error('Please add at least one line item');
 
-        const payload = { ...formData };
-        if (!payload.purchaseOrderId) {
-            delete payload.purchaseOrderId;
-        }
-        if (payload.sourceType === 'supplier') {
-            delete payload.farmId;
-            if (!payload.supplierId) delete payload.supplierId;
-        } else if (payload.sourceType === 'own_farm') {
-            delete payload.supplierId;
-            if (!payload.farmId) delete payload.farmId;
+        const grnItems = formData.items
+            .filter((item) => Number(item.receivedQuantity) > 0)
+            .map((item) => {
+                const line = {
+                    receivedQuantity: Number(item.receivedQuantity),
+                    unitPrice: Number(item.unitPrice) || 0,
+                };
+                if (item.poLineItemId) line.poLineItemId = item.poLineItemId;
+                if (item.productId) {
+                    line.productId = item.productId;
+                } else if (item.productName?.trim()) {
+                    line.productName = item.productName.trim();
+                    if (item.productCode) line.productCode = item.productCode;
+                    if (item.unitOfMeasure) line.unitOfMeasure = item.unitOfMeasure;
+                }
+                return line;
+            });
+
+        if (grnItems.length === 0) return toast.error('Please add at least one item with quantity');
+
+        const payload = {
+            warehouseId: formData.warehouseId,
+            sourceType: formData.sourceType,
+            receiptDate: formData.receiptDate,
+            supplierDeliveryNoteNumber: formData.supplierDeliveryNoteNumber || undefined,
+            supplierInvoiceNumber: formData.supplierInvoiceNumber || undefined,
+            vehicleNumber: formData.vehicleNumber || undefined,
+            driverName: formData.driverName || undefined,
+            transportCompany: formData.transportCompany || undefined,
+            notes: formData.notes || undefined,
+            items: grnItems,
+        };
+
+        if (formData.purchaseOrderId) {
+            payload.purchaseOrderId = formData.purchaseOrderId;
+        } else if (formData.sourceType === 'supplier') {
+            payload.supplierId = formData.supplierId;
+        } else {
+            payload.farmId = formData.farmId;
         }
 
         try {
@@ -704,7 +745,9 @@ export default function GrnsPage() {
                                 >
                                     <option value="">Receive against PO</option>
                                     {purchaseOrders.map(po => (
-                                        <option key={po._id} value={po._id}>{po.poNumber}</option>
+                                        <option key={po._id} value={po._id}>
+                                            {po.poNumber} — {po.supplierSnapshot?.name || po.supplierId?.displayName || 'Supplier'}
+                                        </option>
                                     ))}
                                 </select>
                             </div>

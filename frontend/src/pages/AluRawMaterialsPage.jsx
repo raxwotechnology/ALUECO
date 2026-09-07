@@ -33,6 +33,7 @@ export default function AluRawMaterialsPage() {
     const [warehouses, setWarehouses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
     const [isGrnModalOpen, setIsGrnModalOpen] = useState(false);
 
     // Stock Quantity Add / Adjustment Modal State
@@ -128,14 +129,19 @@ export default function AluRawMaterialsPage() {
     };
 
     const handleEditItem = (item) => {
-        const productId = item.productId?._id || item.productId;
+        const product = item.productId;
+        const productId = product?._id || item.productId;
         if (!productId) {
             toast.error('Cannot edit: Product ID not found');
             return;
         }
-        // Open the modal in edit mode with the product data
-        // For now, we'll just show a toast since the modal needs edit mode support
-        toast.info('Edit functionality will be implemented in the modal');
+        setEditingProduct(typeof product === 'object' ? product : allProducts.find(p => p._id === productId) || { _id: productId });
+        setIsFormOpen(true);
+    };
+
+    const closeMaterialForm = () => {
+        setIsFormOpen(false);
+        setEditingProduct(null);
     };
 
     const handleDeleteItem = async (item) => {
@@ -378,7 +384,7 @@ export default function AluRawMaterialsPage() {
                             <PackageCheck size={16} className="mr-1.5" />
                             Receive Stock (GRN)
                         </Button>
-                        <Button variant="primary" onClick={() => setIsFormOpen(true)}>
+                        <Button variant="primary" onClick={() => { setEditingProduct(null); setIsFormOpen(true); }}>
                             <Plus size={16} className="mr-1.5" />
                             Add Aluminium Material & Stock
                         </Button>
@@ -490,7 +496,8 @@ export default function AluRawMaterialsPage() {
             <AluRawMaterialModal
                 isOpen={isFormOpen}
                 warehouses={warehouses}
-                onClose={() => setIsFormOpen(false)}
+                editProduct={editingProduct}
+                onClose={closeMaterialForm}
                 onSuccess={fetchAllData}
             />
 

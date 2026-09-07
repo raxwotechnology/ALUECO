@@ -491,12 +491,22 @@ export const updateAluRawMaterial = asyncHandler(async (req, res) => {
     const Product = (await import('../models/Product.js')).default;
     const { id } = req.params;
 
-    const product = await Product.findByIdAndUpdate(id, req.body, { new: true });
-    if (!product) {
+    const existing = await Product.findById(id);
+    if (!existing) {
         res.status(404);
         throw new Error('Raw material not found');
     }
-    res.json({ success: true, data: product });
+
+    const update = { ...req.body };
+    if (update.costs) {
+        update.costs = { ...(existing.costs?.toObject?.() || existing.costs || {}), ...update.costs };
+    }
+    if (update.aluSpecs) {
+        update.aluSpecs = { ...(existing.aluSpecs?.toObject?.() || existing.aluSpecs || {}), ...update.aluSpecs };
+    }
+
+    const product = await Product.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    res.json({ success: true, message: 'Raw material updated successfully', data: product });
 });
 
 export const deleteAluRawMaterial = asyncHandler(async (req, res) => {

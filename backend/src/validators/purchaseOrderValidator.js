@@ -7,7 +7,11 @@ const optionalObjectId = z.union([
 ]).transform(val => val === '' ? undefined : val).optional();
 
 const poLineSchema = z.object({
-    productId: objectId,
+    productId: optionalObjectId,
+    productName: z.string().optional(),
+    productCode: z.string().optional(),
+    unitOfMeasure: z.string().optional(),
+    description: z.string().optional(),
     orderedQuantity: z.coerce.number().min(0.01),
     unitPrice: z.coerce.number().min(0),
     discountPercent: z.coerce.number().min(0).max(100).optional(),
@@ -15,7 +19,10 @@ const poLineSchema = z.object({
     taxRate: z.coerce.number().min(0).optional(),
     taxable: z.boolean().optional(),
     notes: z.string().optional(),
-});
+}).refine(
+    (item) => item.productId || (item.productName && item.productName.trim().length > 0),
+    { message: 'Each item must have either a product from catalog or a custom product name' }
+);
 
 export const createPurchaseOrderSchema = z.object({
     supplierId: objectId,
@@ -36,7 +43,10 @@ export const updatePurchaseOrderSchema = createPurchaseOrderSchema.partial();
 
 const grnLineSchema = z.object({
     poLineItemId: optionalObjectId,
-    productId: objectId,
+    productId: optionalObjectId,
+    productName: z.string().optional(),
+    productCode: z.string().optional(),
+    unitOfMeasure: z.string().optional(),
     receivedQuantity: z.coerce.number().min(0),
     acceptedQuantity: z.coerce.number().min(0).optional(),
     rejectedQuantity: z.coerce.number().min(0).optional(),
@@ -47,7 +57,10 @@ const grnLineSchema = z.object({
     expiryDate: z.string().optional(),
     rejectionReason: z.string().optional(),
     notes: z.string().optional(),
-});
+}).refine(
+    (item) => item.productId || (item.productName && item.productName.trim().length > 0),
+    { message: 'Each GRN item must have a catalog product or a product name' }
+);
 
 export const createGrnSchema = z.object({
     purchaseOrderId: optionalObjectId,

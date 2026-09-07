@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Calendar as CalendarIcon, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,6 +21,7 @@ const statusVariant = {
 };
 
 export default function AttendancePage() {
+    const queryClient = useQueryClient();
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
     const [departmentId, setDepartmentId] = useState('');
     const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -108,20 +109,29 @@ export default function AttendancePage() {
         try {
             const formData = new FormData();
             formData.append('file', importFile);
-            formData.append('date', selectedDate);
+            if (selectedDate) {
+                formData.append('date', selectedDate);
+            }
 
             const result = await attendanceApi.importFromExcel(formData);
             
             if (result.success) {
-                toast.success(`Successfully imported ${result.imported} attendance records`);
-                if (result.errors > 0) {
-                    toast.warning(`${result.errors} records had errors`);
+                if (result.format === 'monthly' && result.period) {
+                    const monthLabel = new Date(result.period.year, result.period.month - 1)
+                        .toLocaleDateString('en-LK', { month: 'long', year: 'numeric' });
+                    toast.success(`Imported ${result.imported} records for ${monthLabel}`);
+                } else {
+                    toast.success(`Successfully imported ${result.imported} attendance records`);
                 }
+                if (result.errors > 0) {
+                    toast.warning(`${result.errors} records had errors — check Emp Codes match employee profiles`);
+                }
+                queryClient.invalidateQueries({ queryKey: ['attendance'] });
                 setIsImportOpen(false);
                 setImportFile(null);
             }
         } catch (error) {
-            toast.error('Failed to import attendance');
+            toast.error(error.response?.data?.message || 'Failed to import attendance');
             console.error(error);
         } finally {
             setIsImporting(false);
@@ -245,18 +255,21 @@ export default function AttendancePage() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                         <p className="text-xs text-gray-500 mt-2">
-                            Excel file should contain columns: Employee Code, Employee Name, Status, Check In, Check Out
+                            Supports biometric <strong>Monthly Performance Report</strong> (auto-detects month) or daily format with columns: Employee Code, Status, Check In, Check Out.
                         </p>
                     </div>
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Date for Attendance
+                            Date for Daily Import (optional)
                         </label>
                         <Input
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Only needed for simple daily Excel files. Monthly biometric reports ignore this.
+                        </p>
                     </div>
                 </div>
                 <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">

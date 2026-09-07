@@ -38,6 +38,7 @@ export default function EmployeeFormPage() {
     const { data: leavesData } = useLeaveStructures({ isActive: 'true' });
 
     const [form, setForm] = useState({
+        employeeCode: '',
         firstName: '', lastName: '', gender: '', dateOfBirth: '', nationalIdNumber: '',
         maritalStatus: '', nationality: 'Sri Lankan', bloodGroup: '',
         email: '', phone: '', mobile: '',
@@ -64,6 +65,7 @@ export default function EmployeeFormPage() {
             const e = existingData.data;
             setForm({
                 ...form,
+                employeeCode: e.employeeCode || '',
                 firstName: e.firstName || '', lastName: e.lastName || '',
                 gender: e.gender || '', dateOfBirth: e.dateOfBirth ? e.dateOfBirth.slice(0, 10) : '',
                 nationalIdNumber: e.nationalIdNumber || '',
@@ -117,6 +119,7 @@ export default function EmployeeFormPage() {
         try {
             const payload = {
                 ...form,
+                employeeCode: form.employeeCode?.trim() || undefined,
                 basicSalary: +form.basicSalary || 0,
                 departmentId: form.departmentId || undefined,
                 designationId: form.designationId || undefined,
@@ -163,6 +166,15 @@ export default function EmployeeFormPage() {
                 <div className="p-6 space-y-4">
                     {tab === 'basic' && (
                         <>
+                            <Input
+                                label="Emp Code (Biometric ID)"
+                                value={form.employeeCode}
+                                onChange={(e) => update('employeeCode', e.target.value)}
+                                placeholder="e.g. 2, 12, 17 — same as fingerprint machine"
+                            />
+                            <p className="text-xs text-gray-500 -mt-2">
+                                Enter the Emp Code from your biometric attendance report. Leave blank to auto-generate (EMP-001).
+                            </p>
                             <div className="grid grid-cols-2 gap-4">
                                 <Input label="First Name" required value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
                                 <Input label="Last Name" required value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />

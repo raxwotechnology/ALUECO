@@ -16,25 +16,43 @@ export const createPurchaseOrder = asyncHandler(async (req, res) => {
     const warehouse = await Warehouse.findById(deliverTo.warehouseId);
     if (!warehouse) { res.status(404); throw new Error('Warehouse not found'); }
 
-    // Enrich items with product info
-    const productIds = items.map((i) => i.productId);
-    const products = await Product.find({ _id: { $in: productIds } });
+    // Enrich items with product info (catalog items) or accept custom/manual items
+    const productIds = items.filter((i) => i.productId).map((i) => i.productId);
+    const products = productIds.length ? await Product.find({ _id: { $in: productIds } }) : [];
     const productMap = new Map(products.map((p) => [p._id.toString(), p]));
 
     const enrichedItems = items.map((item) => {
-        const p = productMap.get(item.productId);
-        if (!p) throw new Error(`Product ${item.productId} not found`);
+        if (item.productId) {
+            const p = productMap.get(item.productId);
+            if (!p) throw new Error(`Product ${item.productId} not found`);
+            return {
+                productId: p._id,
+                productCode: p.productCode,
+                productName: p.name,
+                orderedQuantity: item.orderedQuantity,
+                unitOfMeasure: p.unitOfMeasure,
+                unitPrice: item.unitPrice,
+                discountPercent: item.discountPercent || 0,
+                discountAmount: item.discountAmount || 0,
+                taxRate: item.taxRate ?? (p.tax?.taxRate || 0),
+                taxable: item.taxable ?? (p.tax?.taxable ?? true),
+                notes: item.notes,
+            };
+        }
+
+        const name = item.productName?.trim();
+        if (!name) throw new Error('Custom item requires a product name');
         return {
-            productId: p._id,
-            productCode: p.productCode,
-            productName: p.name,
+            productName: name,
+            productCode: item.productCode?.trim() || undefined,
+            description: item.description?.trim() || undefined,
+            unitOfMeasure: item.unitOfMeasure?.trim() || 'pcs',
             orderedQuantity: item.orderedQuantity,
-            unitOfMeasure: p.unitOfMeasure,
             unitPrice: item.unitPrice,
             discountPercent: item.discountPercent || 0,
             discountAmount: item.discountAmount || 0,
-            taxRate: item.taxRate ?? (p.tax?.taxRate || 0),
-            taxable: item.taxable ?? (p.tax?.taxable ?? true),
+            taxRate: item.taxRate ?? 0,
+            taxable: item.taxable ?? true,
             notes: item.notes,
         };
     });
@@ -88,7 +106,10 @@ export const getPurchaseOrders = asyncHandler(async (req, res) => {
         ];
     }
     if (supplierId) filter.supplierId = supplierId;
-    if (status) filter.status = status;
+    if (status) {
+        const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+        filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
+    }
     if (warehouseId) filter['deliverTo.warehouseId'] = warehouseId;
     if (startDate || endDate) {
         filter.poDate = {};
@@ -139,19 +160,28 @@ export const updatePurchaseOrder = asyncHandler(async (req, res) => {
     }
 
     if (req.body.items) {
-        const productIds = req.body.items.map((i) => i.productId);
-        const products = await Product.find({ _id: { $in: productIds } });
+        const productIds = req.body.items.filter((i) => i.productId).map((i) => i.productId);
+        const products = productIds.length ? await Product.find({ _id: { $in: productIds } }) : [];
         const map = new Map(products.map((p) => [p._id.toString(), p]));
 
         req.body.items = req.body.items.map((item) => {
-            const p = map.get(item.productId);
+            if (item.productId) {
+                const p = map.get(item.productId);
+                return {
+                    ...item,
+                    productCode: p?.productCode,
+                    productName: p?.name,
+                    unitOfMeasure: p?.unitOfMeasure,
+                    taxRate: item.taxRate ?? (p?.tax?.taxRate || 0),
+                    taxable: item.taxable ?? (p?.tax?.taxable ?? true),
+                };
+            }
             return {
                 ...item,
-                productCode: p?.productCode,
-                productName: p?.name,
-                unitOfMeasure: p?.unitOfMeasure,
-                taxRate: item.taxRate ?? (p?.tax?.taxRate || 0),
-                taxable: item.taxable ?? (p?.tax?.taxable ?? true),
+                productName: item.productName?.trim(),
+                productCode: item.productCode?.trim() || undefined,
+                description: item.description?.trim() || undefined,
+                unitOfMeasure: item.unitOfMeasure?.trim() || 'pcs',
             };
         });
     }
