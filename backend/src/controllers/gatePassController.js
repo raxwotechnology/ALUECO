@@ -71,7 +71,7 @@ export const updateGatePass = async (req, res) => {
         const gp = await GatePass.findByIdAndUpdate(
             req.params.id,
             { ...req.body },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
         if (!gp) return res.status(404).json({ success: false, message: 'Gate pass not found' });
         res.json({ success: true, data: gp });
@@ -174,7 +174,7 @@ export const deleteGatePass = async (req, res) => {
         const gp = await GatePass.findByIdAndUpdate(
             req.params.id,
             { deletedAt: new Date() },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!gp) return res.status(404).json({ success: false, message: 'Gate pass not found' });
         res.json({ success: true, message: 'Gate pass deleted' });

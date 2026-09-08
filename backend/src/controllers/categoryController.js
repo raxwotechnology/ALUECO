@@ -63,7 +63,7 @@ export const updateCategory = asyncHandler(async (req, res) => {
     const category = await Category.findByIdAndUpdate(
         req.params.id,
         req.body,
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
     if (!category) {
         res.status(404);

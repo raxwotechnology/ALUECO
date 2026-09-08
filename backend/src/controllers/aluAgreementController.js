@@ -93,7 +93,7 @@ export const updateAgreement = asyncHandler(async (req, res) => {
     const updated = await AluAgreement.findByIdAndUpdate(
         req.params.id,
         { $set: req.body },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
 
     res.json({ success: true, data: updated });

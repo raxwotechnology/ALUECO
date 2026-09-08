@@ -72,7 +72,7 @@ export const updateMaintenanceStatus = asyncHandler(async (req, res) => {
     const request = await MaintenanceRequest.findByIdAndUpdate(
         req.params.id,
         { ...req.body },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     createAuditLog({

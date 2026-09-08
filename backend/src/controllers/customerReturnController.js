@@ -19,7 +19,7 @@ export const updateReturnStatus = asyncHandler(async (req, res) => {
     const returnRecord = await CustomerReturn.findByIdAndUpdate(
         req.params.id,
         { status },
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (!returnRecord) {
         res.status(404);

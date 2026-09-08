@@ -92,7 +92,7 @@ export const updateCustomer = asyncHandler(async (req, res) => {
 
     const oldData = await Customer.findById(req.params.id);
     const customer = await Customer.findByIdAndUpdate(req.params.id, payload, {
-        new: true, runValidators: true,
+        returnDocument: 'after', runValidators: true,
     })
         .populate('customerGroupId', 'name code color')
         .populate('assignedSalesRep', 'firstName lastName');

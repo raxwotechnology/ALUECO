@@ -24,7 +24,7 @@ export const getCustomerGroupById = asyncHandler(async (req, res) => {
 
 export const updateCustomerGroup = asyncHandler(async (req, res) => {
     const group = await CustomerGroup.findByIdAndUpdate(req.params.id, req.body, {
-        new: true, runValidators: true,
+        returnDocument: 'after', runValidators: true,
     });
     if (!group) { res.status(404); throw new Error('Customer group not found'); }
     res.json({ success: true, data: group });

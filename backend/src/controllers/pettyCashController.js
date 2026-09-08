@@ -207,7 +207,7 @@ export const updatePettyCashEntry = asyncHandler(async (req, res) => {
         throw new Error('Petty cash entry not found');
     }
 
-    const entry = await PettyCash.findOneAndUpdate({ _id: req.params.id, deletedAt: null }, { ...req.body, runValidators: true }, { new: true });
+    const entry = await PettyCash.findOneAndUpdate({ _id: req.params.id, deletedAt: null }, { ...req.body, runValidators: true }, { returnDocument: 'after' });
     if (!entry) {
         res.status(404);
         throw new Error('Petty cash entry not found');
@@ -270,7 +270,7 @@ export const updatePettyCashStatus = asyncHandler(async (req, res) => {
     const entry = await PettyCash.findByIdAndUpdate(
         req.params.id,
         { status, approvedBy: req.user._id },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     if (!entry) {

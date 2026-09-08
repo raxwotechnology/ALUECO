@@ -123,7 +123,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     const product = await Product.findByIdAndUpdate(
         req.params.id,
         { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     )
         .populate('categoryId', 'name code')
         .populate('brandId', 'name');

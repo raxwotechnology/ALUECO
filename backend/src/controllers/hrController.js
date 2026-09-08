@@ -77,7 +77,7 @@ export const getDesignations = asyncHandler(async (req, res) => {
 });
 
 export const updateDesignation = asyncHandler(async (req, res) => {
-    const d = await Designation.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const d = await Designation.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!d) { res.status(404); throw new Error('Designation not found'); }
     res.json({ success: true, data: d });
 });
@@ -187,7 +187,7 @@ export const updateEmployee = asyncHandler(async (req, res) => {
     const emp = await Employee.findByIdAndUpdate(
         req.params.id,
         { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
     if (!emp) { res.status(404); throw new Error('Employee not found'); }
     res.json({ success: true, data: emp });
@@ -767,7 +767,7 @@ export const getHolidays = asyncHandler(async (req, res) => {
 });
 
 export const updateHoliday = asyncHandler(async (req, res) => {
-    const h = await Holiday.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const h = await Holiday.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!h) { res.status(404); throw new Error('Holiday not found'); }
     res.json({ success: true, data: h });
 });
@@ -827,7 +827,7 @@ export const getLeaveStructures = asyncHandler(async (req, res) => {
 });
 
 export const updateLeaveStructure = asyncHandler(async (req, res) => {
-    const s = await LeaveStructure.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const s = await LeaveStructure.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!s) { res.status(404); throw new Error('Leave structure not found'); }
     res.json({ success: true, data: s });
 });

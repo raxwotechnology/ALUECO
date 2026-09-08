@@ -56,8 +56,13 @@ const productSchema = new mongoose.Schema(
             profile: { type: String, trim: true },
             colour: { type: String, trim: true },
             length: { type: String, trim: true },
+            width: { type: String, trim: true },
+            height: { type: String, trim: true },
             side: { type: String, trim: true },
             description: { type: String, trim: true },
+            standardLength: { type: String, trim: true },
+            cutLength: { type: String, trim: true },
+            fullBarPrice: { type: Number, default: 0 },
         },
         productType: {
             type: String,

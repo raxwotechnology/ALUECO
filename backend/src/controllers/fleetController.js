@@ -128,7 +128,7 @@ export const createVehicle = asyncHandler(async (req, res) => {
  */
 export const updateVehicle = asyncHandler(async (req, res) => {
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true
     });
 

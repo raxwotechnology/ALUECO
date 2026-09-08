@@ -130,7 +130,7 @@ export const updateExportShipment = asyncHandler(async (req, res) => {
     const shipment = await ExportShipment.findByIdAndUpdate(
         req.params.id,
         mappedData,
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
 
     if (!shipment) {

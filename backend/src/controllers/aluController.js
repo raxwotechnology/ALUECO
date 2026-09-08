@@ -19,7 +19,7 @@ export const createProfile = asyncHandler(async (req, res) => {
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {
-    const profile = await AluProfile.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const profile = await AluProfile.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!profile) {
         res.status(404);
         throw new Error('Profile not found');
@@ -48,7 +48,7 @@ export const createGlass = asyncHandler(async (req, res) => {
 });
 
 export const updateGlass = asyncHandler(async (req, res) => {
-    const glass = await AluGlass.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const glass = await AluGlass.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!glass) {
         res.status(404);
         throw new Error('Glass type not found');
@@ -77,7 +77,7 @@ export const createAccessory = asyncHandler(async (req, res) => {
 });
 
 export const updateAccessory = asyncHandler(async (req, res) => {
-    const accessory = await AluAccessory.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const accessory = await AluAccessory.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!accessory) {
         res.status(404);
         throw new Error('Accessory not found');
@@ -106,7 +106,7 @@ export const createApplication = asyncHandler(async (req, res) => {
 });
 
 export const updateApplication = asyncHandler(async (req, res) => {
-    const application = await AluApplication.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const application = await AluApplication.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!application) {
         res.status(404);
         throw new Error('Application template not found');
@@ -140,7 +140,7 @@ export const createScrap = asyncHandler(async (req, res) => {
 });
 
 export const updateScrap = asyncHandler(async (req, res) => {
-    const scrap = await AluScrap.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const scrap = await AluScrap.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!scrap) {
         res.status(404);
         throw new Error('Scrap record not found');
@@ -192,7 +192,7 @@ export const updateJobCardStatus = asyncHandler(async (req, res) => {
     const jobCard = await AluJobCard.findByIdAndUpdate(
         req.params.id,
         { status },
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (!jobCard) {
         res.status(404);
@@ -244,7 +244,7 @@ export const createSurvey = asyncHandler(async (req, res) => {
 });
 
 export const updateSurvey = asyncHandler(async (req, res) => {
-    const survey = await AluSurvey.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const survey = await AluSurvey.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!survey) {
         res.status(404);
         throw new Error('Survey record not found');
@@ -438,8 +438,14 @@ export const createAluRawMaterial = asyncHandler(async (req, res) => {
                 profile: specs.profile || '',
                 colour: specs.colour || '',
                 length: specs.length || '',
+                width: specs.width || '',
+                height: specs.height || '',
                 side: specs.side || '',
                 description: specs.description || '',
+                // Add profile pricing fields
+                standardLength: specs.standardLength || '',
+                cutLength: specs.cutLength || '',
+                fullBarPrice: Number(specs.fullBarPrice) || 0,
             },
             productType: 'raw_material',
             type: 'raw_material',
@@ -491,13 +497,27 @@ export const updateAluRawMaterial = asyncHandler(async (req, res) => {
     const Product = (await import('../models/Product.js')).default;
     const { id } = req.params;
 
+    console.log('=== updateAluRawMaterial called ===');
+    console.log('Product ID:', id);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     const existing = await Product.findById(id);
     if (!existing) {
+        console.log('ERROR: Product not found');
         res.status(404);
         throw new Error('Raw material not found');
     }
 
+    console.log('Existing product:', existing);
+
     const update = { ...req.body };
+    
+    // Check if productCode is being changed
+    const oldProductCode = existing.productCode;
+    const newProductCode = update.productCode?.trim().toUpperCase();
+    const isProductCodeChanged = newProductCode && oldProductCode && newProductCode !== oldProductCode;
+
+    // Merge costs and aluSpecs properly to preserve existing data
     if (update.costs) {
         update.costs = { ...(existing.costs?.toObject?.() || existing.costs || {}), ...update.costs };
     }
@@ -505,7 +525,114 @@ export const updateAluRawMaterial = asyncHandler(async (req, res) => {
         update.aluSpecs = { ...(existing.aluSpecs?.toObject?.() || existing.aluSpecs || {}), ...update.aluSpecs };
     }
 
-    const product = await Product.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    console.log('Final update object:', update);
+
+    // Update the product directly to avoid pre-save hook conflicts
+    const product = await Product.findByIdAndUpdate(id, update, { returnDocument: 'after', runValidators: true });
+    
+    console.log('Updated product:', product);
+
+    // Update StockItem costPerUnit if cost changed
+    if (update.costs && (update.costs.lastPurchaseCost !== undefined || update.basePrice !== undefined)) {
+        const newCost = update.costs.lastPurchaseCost || update.basePrice || 0;
+        const StockItem = (await import('../models/StockItem.js')).default;
+        
+        console.log('Updating StockItem costPerUnit to:', newCost);
+        console.log('StockItem update condition met - costs:', update.costs, 'basePrice:', update.basePrice);
+        
+        const updateResult = await StockItem.updateMany(
+            { productId: id },
+            { costPerUnit: newCost }
+        );
+        
+        console.log('StockItem updateMany result:', updateResult);
+        
+        // Also update totalValue for all stock items
+        const stockItems = await StockItem.find({ productId: id });
+        console.log('Found stock items to update:', stockItems.length);
+        
+        for (const stockItem of stockItems) {
+            stockItem.totalValue = +(stockItem.quantities.onHand * newCost).toFixed(2);
+            await stockItem.save();
+        }
+        
+        console.log('StockItem costs updated successfully');
+    } else {
+        console.log('StockItem cost update condition not met');
+        console.log('update.costs:', update.costs);
+        console.log('update.basePrice:', update.basePrice);
+    }
+
+    // Cascade productCode update to all related collections
+    if (isProductCodeChanged) {
+        console.log(`Cascading productCode change from ${oldProductCode} to ${newProductCode}`);
+        
+        const StockItem = (await import('../models/StockItem.js')).default;
+        const StockMovement = (await import('../models/StockMovement.js')).default;
+        const BillOfMaterials = (await import('../models/BillOfMaterials.js')).default;
+        const PurchaseOrder = (await import('../models/PurchaseOrder.js')).default;
+        const SalesOrder = (await import('../models/SalesOrder.js')).default;
+        const Invoice = (await import('../models/Invoice.js')).default;
+        const ProductionOrder = (await import('../models/ProductionOrder.js')).default;
+        const GoodsReceiptNote = (await import('../models/GoodsReceiptNote.js')).default;
+
+        // Update StockItem
+        await StockItem.updateMany(
+            { productId: id },
+            { productCode: newProductCode }
+        );
+
+        // Update StockMovement
+        await StockMovement.updateMany(
+            { productId: id },
+            { productCode: newProductCode }
+        );
+
+        // Update BillOfMaterials components
+        await BillOfMaterials.updateMany(
+            { 'components.productId': id },
+            { 'components.$[elem].productCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        // Update PurchaseOrder items
+        await PurchaseOrder.updateMany(
+            { 'items.productId': id },
+            { 'items.$[elem].itemCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        // Update SalesOrder items
+        await SalesOrder.updateMany(
+            { 'items.productId': id },
+            { 'items.$[elem].productCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        // Update Invoice items
+        await Invoice.updateMany(
+            { 'items.productId': id },
+            { 'items.$[elem].productCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        // Update ProductionOrder items
+        await ProductionOrder.updateMany(
+            { 'items.productId': id },
+            { 'items.$[elem].productCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        // Update GoodsReceiptNote items
+        await GoodsReceiptNote.updateMany(
+            { 'items.productId': id },
+            { 'items.$[elem].itemCode': newProductCode },
+            { arrayFilters: [{ 'elem.productId': id }] }
+        );
+
+        console.log('Cascading update completed');
+    }
+
     res.json({ success: true, message: 'Raw material updated successfully', data: product });
 });
 
@@ -513,7 +640,7 @@ export const deleteAluRawMaterial = asyncHandler(async (req, res) => {
     const Product = (await import('../models/Product.js')).default;
     const { id } = req.params;
 
-    const product = await Product.findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true });
+    const product = await Product.findByIdAndUpdate(id, { deletedAt: new Date() }, { returnDocument: 'after' });
     if (!product) {
         res.status(404);
         throw new Error('Raw material not found');

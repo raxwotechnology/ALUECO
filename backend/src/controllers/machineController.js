@@ -26,7 +26,7 @@ export const createMachine = asyncHandler(async (req, res) => {
  * @route   PUT /api/production/machines/:id
  */
 export const updateMachine = asyncHandler(async (req, res) => {
-    const machine = await Machine.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const machine = await Machine.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!machine) { res.status(404); throw new Error('Machine not found'); }
     res.json({ success: true, data: machine });
 });

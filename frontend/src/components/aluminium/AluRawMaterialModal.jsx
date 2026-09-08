@@ -27,6 +27,15 @@ const TYPE_OPTIONS = [
     { value: 'GS', label: 'Gaskets' },
 ];
 
+const STANDARD_LENGTH_OPTIONS = [
+    { value: '12', label: '12 ft', isCuttable: false, cutLengths: [] },
+    { value: '18', label: '18 ft', isCuttable: false, cutLengths: [] },
+    { value: '20', label: '20 ft', isCuttable: true, cutLengths: ['10'] },
+    { value: '21', label: '21 ft', isCuttable: true, cutLengths: ['7', '8', '14', '16'] },
+];
+
+const CUTTING_CHARGE_PERCENTAGE = 5;
+
 
 
 
@@ -91,6 +100,9 @@ const DEFAULT_CREATE_ITEMS = [
         height: '',
         side: '',
         description: '',
+        standardLength: '',
+        cutLength: '',
+        fullBarPrice: '',
     },
     {
         productCode: '',
@@ -106,6 +118,9 @@ const DEFAULT_CREATE_ITEMS = [
         height: '',
         side: '',
         description: '',
+        standardLength: '',
+        cutLength: '',
+        fullBarPrice: '',
     }
 ];
 
@@ -160,7 +175,13 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         if (!isOpen) return;
 
         if (editProduct?._id) {
+            console.log('Loading edit product data:', editProduct);
             const specs = editProduct.aluSpecs || {};
+            const isAluminiumProfile = specs.type === 'AP' || editProduct.aluCategory === 'profiles';
+            
+            // Convert length from mm to feet for Aluminium Profile
+            const lengthInFeet = isAluminiumProfile && specs.length ? mmToFeet(specs.length) : (specs.length || '');
+            
             setCommonSettings({
                 warehouseId: propWarehouses[0]?._id || warehouses[0]?._id || '',
                 series: specs.series || 'Swisstek 100mm Commercial Sliding',
@@ -176,22 +197,97 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 type: specs.type || CATEGORY_TO_TYPE[editProduct.aluCategory] || '',
                 profile: specs.profile || '',
                 colour: specs.colour || '',
-                length: specs.length || '',
-                width: '',
-                height: '',
+                length: lengthInFeet,
+                width: specs.width || '',
+                height: specs.height || '',
                 side: specs.side || '',
                 description: specs.description || '',
+                // Load profile pricing fields - preserve actual values including 0
+                standardLength: specs.standardLength !== undefined && specs.standardLength !== null ? specs.standardLength.toString() : '',
+                cutLength: specs.cutLength !== undefined && specs.cutLength !== null ? specs.cutLength.toString() : '',
+                fullBarPrice: specs.fullBarPrice !== undefined && specs.fullBarPrice !== null ? specs.fullBarPrice.toString() : '',
             }]);
         } else {
             setCommonSettings({
-                warehouseId: propWarehouses[0]?._id || warehouses[0]?._id || '',
                 series: 'Swisstek 100mm Commercial Sliding',
                 finish: 'Powder Coated White (RAL 9016)',
                 supplierName: 'Swisstek Aluminium'
             });
             setItems(DEFAULT_CREATE_ITEMS);
         }
-    }, [isOpen, editProduct, propWarehouses, warehouses]);
+    }, [isOpen, editProduct, propWarehouses, warehouses, isEditMode]);
+
+    // Conversion helpers
+    const feetToMm = (feet) => {
+        const numFeet = parseFloat(feet);
+        if (isNaN(numFeet)) return '';
+        // Use more precise conversion: 1 foot = 304.8 mm exactly
+        return Math.round(numFeet * 304.8).toString();
+    };
+
+    const mmToFeet = (mm) => {
+        const numMm = parseFloat(mm);
+        if (isNaN(numMm)) return '';
+        // Use more precise conversion: 1 mm = 0.00328084 feet
+        return (numMm / 304.8).toFixed(2);
+    };
+
+    // Price calculation for Aluminium Profiles
+    const calculateProfilePrice = (item) => {
+        if (item.type !== 'AP' || !item.standardLength) {
+            return { price: item.purchaseCost || 0, calculation: '', breakdown: null };
+        }
+
+        const standardLength = parseFloat(item.standardLength);
+        const fullBarPrice = parseFloat(item.fullBarPrice);
+
+        console.log('calculateProfilePrice - standardLength:', standardLength, 'fullBarPrice:', fullBarPrice);
+
+        // Check if values are valid numbers (not NaN, not null, not undefined, not empty string)
+        // Allow fullBarPrice to be 0, but standardLength must be positive
+        if (isNaN(standardLength) || standardLength <= 0 || item.fullBarPrice === '' || isNaN(fullBarPrice) || fullBarPrice < 0) {
+            console.log('Price calculation failed validation');
+            return { price: item.purchaseCost || 0, calculation: '', breakdown: null };
+        }
+
+        const standardLengthConfig = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === item.standardLength);
+        
+        if (!standardLengthConfig.isCuttable) {
+            // Non-cuttable profiles (12ft, 18ft) - use standard price directly
+            return {
+                price: fullBarPrice,
+                calculation: 'Standard Price (No Cutting)',
+                breakdown: {
+                    fullBarPrice,
+                    pricePerFt: fullBarPrice / standardLength,
+                    cuttingCharge: 0,
+                    formula: 'Standard Supplier Length'
+                }
+            };
+        }
+
+        // Cuttable profiles (20ft, 21ft)
+        const cutLength = parseFloat(item.cutLength);
+        if (isNaN(cutLength) || cutLength <= 0) {
+            return { price: item.purchaseCost || 0, calculation: '', breakdown: null };
+        }
+
+        const pricePerFt = fullBarPrice / standardLength;
+        const basePrice = pricePerFt * cutLength;
+        const cuttingCharge = basePrice * (CUTTING_CHARGE_PERCENTAGE / 100);
+        const finalPrice = basePrice + cuttingCharge;
+
+        return {
+            price: finalPrice,
+            calculation: `(${fullBarPrice} ÷ ${standardLength}) × ${cutLength} × 105%`,
+            breakdown: {
+                fullBarPrice,
+                pricePerFt,
+                cuttingCharge: CUTTING_CHARGE_PERCENTAGE,
+                formula: `(${fullBarPrice} ÷ ${standardLength}) × ${cutLength} × 1.05`
+            }
+        };
+    };
 
     const generateProductCode = (item) => {
         // Type code (AP, AC, GL, HW, GS)
@@ -206,8 +302,17 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         // Side - full word, no spaces, uppercase
         const sideCode = (item.side || '').replace(/\s+/g, '').toUpperCase();
         
-        // Extract length (remove mm if present)
-        const length = (item.length || '').replace(/[^0-9]/g, '');
+        // Extract length - use cut length for AP profiles, regular length for others
+        let length = '';
+        if (typeCode === 'AP') {
+            // For aluminium profiles, use cut length if available, otherwise use standard length
+            const lengthValue = item.cutLength || item.standardLength || item.length || '';
+            // Use feet value directly for product code (remove decimal point for code)
+            length = lengthValue.toString().replace(/[^0-9]/g, '');
+        } else {
+            // Use as-is for other types (already in mm)
+            length = (item.length || '').replace(/[^0-9]/g, '');
+        }
         
         // Extract width and height for Glass/Accessories
         const width = (item.width || '').replace(/[^0-9]/g, '');
@@ -227,10 +332,53 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
 
     const updateItem = (idx, field, value) => {
         const next = [...items];
-        next[idx] = { ...next[idx], [field]: value };
+        const currentItem = next[idx];
+        const previousType = currentItem.type;
         
-        // Auto-generate product code when relevant fields change (create mode only)
-        if (!isEditMode && ['type', 'profile', 'colour', 'length', 'side', 'width', 'height'].includes(field)) {
+        // Handle type change for length conversion
+        if (field === 'type') {
+            const newType = value;
+            const oldType = previousType;
+            
+            // Convert length when switching between AP and other types
+            if (oldType === 'AP' && newType !== 'AP' && currentItem.length) {
+                // Convert from feet to mm
+                const convertedLength = feetToMm(currentItem.length);
+                if (convertedLength) {
+                    currentItem.length = convertedLength;
+                }
+            } else if (oldType !== 'AP' && newType === 'AP' && currentItem.length) {
+                // Convert from mm to feet
+                const convertedLength = mmToFeet(currentItem.length);
+                if (convertedLength) {
+                    currentItem.length = convertedLength;
+                }
+            }
+            
+            // Reset profile-specific fields when changing type (only in create mode)
+            if (newType !== 'AP' && !isEditMode) {
+                currentItem.standardLength = '';
+                currentItem.cutLength = '';
+                currentItem.fullBarPrice = '';
+            }
+        }
+        
+        next[idx] = { ...currentItem, [field]: value };
+        
+        // Auto-calculate price for Aluminium Profiles when relevant fields change
+        if (field === 'standardLength' || field === 'cutLength' || field === 'fullBarPrice') {
+            if (next[idx].type === 'AP') {
+                console.log('Calculating price for field:', field, 'with value:', value);
+                console.log('Current item:', next[idx]);
+                const priceCalc = calculateProfilePrice(next[idx]);
+                console.log('Price calculation result:', priceCalc);
+                next[idx].purchaseCost = priceCalc.price;
+                console.log('Updated purchaseCost:', next[idx].purchaseCost);
+            }
+        }
+        
+        // Auto-generate product code when relevant fields change (only in create mode)
+        if (!isEditMode && ['type', 'profile', 'colour', 'length', 'side', 'width', 'height', 'standardLength', 'cutLength'].includes(field)) {
             next[idx].productCode = generateProductCode(next[idx]);
         }
         
@@ -258,6 +406,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 height: '',
                 side: '',
                 description: '',
+                standardLength: '',
+                cutLength: '',
+                fullBarPrice: '',
             }
         ]);
     };
@@ -275,16 +426,39 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        console.log('=== Form submission started ===');
+        console.log('Is edit mode:', isEditMode);
+        console.log('Current items:', items);
+        console.log('Common settings:', commonSettings);
+
         // Validate all rows
         for (let i = 0; i < items.length; i++) {
             const it = items[i];
-            if (!it.type) {
+            // Only validate type in create mode, not edit mode
+            if (!isEditMode && !it.type) {
                 toast.error(`Row #${i + 1}: Type is required`);
                 return;
             }
             if (!it.name || !it.name.trim()) {
                 toast.error(`Row #${i + 1}: Material name is required`);
                 return;
+            }
+            // Validate type-specific fields for AP profiles (only in create mode)
+            if (!isEditMode && it.type === 'AP' && !it.standardLength) {
+                toast.error(`Row #${i + 1}: Standard Length is required for Aluminium Profiles`);
+                return;
+            }
+            if (!isEditMode && it.type === 'AP' && (it.fullBarPrice === '' || it.fullBarPrice === null || it.fullBarPrice === undefined)) {
+                toast.error(`Row #${i + 1}: Full Bar Price is required for Aluminium Profiles`);
+                return;
+            }
+            // Validate cut length for cuttable profiles (only in create mode)
+            if (!isEditMode && it.type === 'AP' && it.standardLength) {
+                const isCuttable = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable;
+                if (isCuttable && !it.cutLength) {
+                    toast.error(`Row #${i + 1}: Cut Length is required for this Standard Length`);
+                    return;
+                }
             }
         }
 
@@ -300,7 +474,13 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
 
             if (isEditMode) {
                 const it = items[0];
+                const isAluminiumProfile = it.type === 'AP';
+                
+                // Convert length from feet to mm for Aluminium Profile
+                const lengthInMm = isAluminiumProfile && it.length ? feetToMm(it.length) : (it.length || '');
+                
                 const payload = {
+                    productCode: it.productCode?.trim().toUpperCase() || '',
                     name: it.name.trim(),
                     unitOfMeasure: it.unitOfMeasure,
                     basePrice: Number(it.purchaseCost) || 0,
@@ -309,24 +489,43 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         standardCost: Number(it.purchaseCost) || 0,
                         averageCost: Number(it.purchaseCost) || 0,
                     },
-                    aluCategory: typeToCategory[it.type] || 'profiles',
+                    aluCategory: typeToCategory[it.type] || editProduct.aluCategory || 'profiles',
                     aluSpecs: {
                         series: commonSettings.series,
                         finish: commonSettings.finish,
                         brand: commonSettings.supplierName,
-                        type: it.type || '',
-                        profile: it.profile || '',
-                        colour: it.colour || '',
-                        length: it.length || '',
-                        side: it.side || '',
-                        description: it.description || '',
+                        type: it.type || editProduct.aluSpecs?.type || '',
+                        profile: it.profile || editProduct.aluSpecs?.profile || '',
+                        colour: it.colour || editProduct.aluSpecs?.colour || '',
+                        length: lengthInMm,
+                        width: it.width || editProduct.aluSpecs?.width || '',
+                        height: it.height || editProduct.aluSpecs?.height || '',
+                        side: it.side || editProduct.aluSpecs?.side || '',
+                        description: it.description || editProduct.aluSpecs?.description || '',
+                        // Add profile pricing fields
+                        standardLength: it.standardLength !== undefined && it.standardLength !== null && it.standardLength !== '' ? it.standardLength : (editProduct.aluSpecs?.standardLength || ''),
+                        cutLength: it.cutLength !== undefined && it.cutLength !== null && it.cutLength !== '' ? it.cutLength : (editProduct.aluSpecs?.cutLength || ''),
+                        fullBarPrice: it.fullBarPrice !== undefined && it.fullBarPrice !== null && it.fullBarPrice !== '' ? it.fullBarPrice : (editProduct.aluSpecs?.fullBarPrice || ''),
                     }
                 };
 
+                console.log('Sending update payload:', payload);
+                console.log('Edit product ID:', editProduct._id);
+                console.log('Payload costs:', payload.costs);
+                console.log('Payload basePrice:', payload.basePrice);
+                
                 const { data } = await api.put(`/alu/raw-materials/${editProduct._id}`, payload);
-                toast.success(data.message || 'Material updated successfully!');
-                onSuccess?.();
-                onClose();
+                console.log('Update response:', data);
+                console.log('Updated product data:', data.data);
+                
+                if (data.success) {
+                    toast.success(data.message || 'Material updated successfully!');
+                    console.log('Calling onSuccess callback to refresh data');
+                    onSuccess?.();
+                    onClose();
+                } else {
+                    toast.error(data.message || 'Failed to update material');
+                }
                 return;
             }
 
@@ -336,6 +535,10 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 items: items.map(it => {
                     // Generate code if empty
                     const finalCode = it.productCode || generateProductCode(it);
+                    
+                    // Convert length from feet to mm for Aluminium Profile
+                    const isAluminiumProfile = it.type === 'AP';
+                    const lengthInMm = isAluminiumProfile && it.length ? feetToMm(it.length) : (it.length || '');
                     
                     return {
                         productCode: finalCode.trim().toUpperCase(),
@@ -353,11 +556,15 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                             type: it.type || '',
                             profile: it.profile || '',
                             colour: it.colour || '',
-                            length: it.length || '',
+                            length: lengthInMm,
                             width: it.width || '',
                             height: it.height || '',
                             side: it.side || '',
                             description: it.description || '',
+                            // Add profile pricing fields
+                            standardLength: it.standardLength || '',
+                            cutLength: it.cutLength || '',
+                            fullBarPrice: it.fullBarPrice || '',
                         }
                     };
                 })
@@ -575,7 +782,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 <Sparkles size={13} /> Product Details
                                             </span>
                                             <span className="text-[9px] font-normal text-slate-500">
-                        Auto-code: Type + Profile + Colour + Side + Length (no spaces)
+                        Auto-code: Type + Profile + Colour + Side + {it.type === 'AP' ? 'Cut/Standard Length' : 'Length'} (no spaces)
                                             </span>
                                         </div>
                                         
@@ -631,10 +838,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 />
                                             </div>
 
-                                            {/* Length - Only for non-Glass/Accessories */}
-                                            {it.type !== 'GL' && it.type !== 'AC' && (
+                                            {/* Length - Only for non-Glass/Accessories non-AP */}
+                                            {it.type !== 'GL' && it.type !== 'AC' && it.type !== 'AP' && (
                                                 <div>
-                                                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Length (mm)</label>
+                                                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">
+                                                        Length (mm)
+                                                    </label>
                                                     <input
                                                         type="text"
                                                         value={it.length || ''}
@@ -643,6 +852,75 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                         className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                     />
                                                 </div>
+                                            )}
+
+                                            {/* Aluminium Profile Standard Length and Cut Length */}
+                                            {it.type === 'AP' && (
+                                                <>
+                                                    {/* Standard Length */}
+                                                    <div>
+                                                        <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Standard Length *</label>
+                                                        <select
+                                                            value={it.standardLength || ''}
+                                                            onChange={e => updateItem(idx, 'standardLength', e.target.value)}
+                                                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                        >
+                                                            <option value="">Select Standard Length</option>
+                                                            {STANDARD_LENGTH_OPTIONS.map(sl => (
+                                                                <option key={sl.value} value={sl.value}>{sl.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Full Bar Price */}
+                                                    {it.standardLength && (
+                                                        <div>
+                                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Full Bar Price (LKR) *</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                value={it.fullBarPrice || ''}
+                                                                onChange={e => {
+                                                                    const value = e.target.value === '' ? '' : Number(e.target.value);
+                                                                    updateItem(idx, 'fullBarPrice', value);
+                                                                }}
+                                                                placeholder="e.g. 2000"
+                                                                className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Cut Length - Only for cuttable profiles */}
+                                                    {it.standardLength && STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable && (
+                                                        <div>
+                                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Available Cut Length *</label>
+                                                            <select
+                                                                value={it.cutLength || ''}
+                                                                onChange={e => updateItem(idx, 'cutLength', e.target.value)}
+                                                                className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                            >
+                                                                <option value="">Select Cut Length</option>
+                                                                {STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.cutLengths.map(cl => (
+                                                                    <option key={cl} value={cl}>{cl} ft</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Non-cuttable info message */}
+                                                    {it.standardLength && !STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable && (
+                                                        <div className="col-span-2 sm:col-span-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                                            <div className="flex items-start gap-2">
+                                                                <Info size={14} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                                                <div className="text-[10px] text-blue-800">
+                                                                    <p className="font-semibold mb-1">Standard Supplier Length</p>
+                                                                    <p className="text-blue-700">This profile is supplied as a standard length. No cutting charge is applied.</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
 
                                             {/* Width - Only for Glass/Accessories */}
@@ -700,20 +978,73 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
                                     </div>
 
+                                    {/* Price Calculation Display - Only for Aluminium Profiles */}
+                                    {it.type === 'AP' && it.standardLength && it.fullBarPrice !== undefined && it.fullBarPrice !== null && (
+                                        <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl space-y-2">
+                                            <div className="flex items-center justify-between text-[11px] font-extrabold uppercase text-emerald-800 border-b border-emerald-200/80 pb-1.5">
+                                                <span className="flex items-center gap-1.5">
+                                                    <DollarSign size={13} /> Price Calculation
+                                                </span>
+                                            </div>
+                                            
+                                            {(() => {
+                                                const priceCalc = calculateProfilePrice(it);
+                                                return (
+                                                    <div className="space-y-1.5">
+                                                        {priceCalc.breakdown && (
+                                                            <>
+                                                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                                                    <div className="bg-white/60 p-1.5 rounded border border-emerald-100">
+                                                                        <span className="text-emerald-600 font-semibold block">Full Bar Price</span>
+                                                                        <span className="text-emerald-900 font-bold">Rs. {priceCalc.breakdown.fullBarPrice.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
+                                                                    </div>
+                                                                    <div className="bg-white/60 p-1.5 rounded border border-emerald-100">
+                                                                        <span className="text-emerald-600 font-semibold block">Price per ft</span>
+                                                                        <span className="text-emerald-900 font-bold">Rs. {priceCalc.breakdown.pricePerFt.toFixed(2)}</span>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {priceCalc.breakdown.cuttingCharge > 0 && (
+                                                                    <div className="bg-white/60 p-1.5 rounded border border-emerald-100">
+                                                                        <span className="text-emerald-600 font-semibold block text-[10px]">Cutting Charge</span>
+                                                                        <span className="text-emerald-900 font-bold text-[10px]">{priceCalc.breakdown.cuttingCharge}%</span>
+                                                                    </div>
+                                                                )}
+                                                                
+                                                                {priceCalc.calculation && (
+                                                                    <div className="bg-emerald-100/50 p-1.5 rounded border border-emerald-200">
+                                                                        <span className="text-emerald-700 font-semibold block text-[9px] mb-0.5">Formula</span>
+                                                                        <span className="text-emerald-900 font-mono text-[10px]">{priceCalc.calculation}</span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                        
+                                                        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-2 rounded-lg border border-emerald-700">
+                                                            <span className="text-emerald-100 font-semibold block text-[10px] mb-0.5">Final Calculated Price</span>
+                                                            <span className="text-white font-black text-sm">Rs. {priceCalc.price.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+
                                     {/* 2. Standard Inventory & Pricing Fields */}
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-white p-2 border border-slate-200 rounded-xl">
                                         {/* Generated Unique Code */}
                                         <div className={isEditMode ? 'sm:col-span-4' : 'sm:col-span-4'}>
                                             <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
-                                                <span>{isEditMode ? 'ITEM CODE' : 'AUTO-GENERATED CODE *'}</span>
+                                                <span>{isEditMode ? 'ITEM CODE (Editable)' : 'AUTO-GENERATED CODE *'}</span>
                                             </div>
                                             <input
                                                 type="text"
                                                 value={it.productCode}
-                                                readOnly
-                                                placeholder="APSWISSTEK100MMATTLACKTOPFRAME6000"
-                                                className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase text-indigo-900 cursor-not-allowed"
-                                                title="Auto-generated from Type, Profile, Colour, Side, Length"
+                                                onChange={e => updateItem(idx, 'productCode', e.target.value)}
+                                                placeholder={it.type === 'AP' ? 'APSWISSTEK100MMWHITETOP1969' : 'APSWISSTEK100MMATTLACKTOPFRAME6000'}
+                                                className={`w-full border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase ${isEditMode ? 'bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20' : 'bg-indigo-50/40 border-indigo-200 text-indigo-900 cursor-not-allowed'}`}
+                                                readOnly={!isEditMode}
+                                                title={isEditMode ? 'Edit item code manually' : `Auto-generated from Type, Profile, Colour, Side, ${it.type === 'AP' ? 'Cut/Standard Length' : 'Length'}`}
                                             />
                                         </div>
 
@@ -750,7 +1081,9 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
 
                                         {/* Unit Cost */}
                                         <div className="sm:col-span-3">
-                                            <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">PRICE / UNIT COST (LKR)</label>
+                                            <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">
+                                                PRICE / UNIT COST (LKR) {it.type === 'AP' ? <span className="text-emerald-600 ml-1">(Auto)</span> : ''}
+                                            </label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -758,8 +1091,12 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 value={it.purchaseCost}
                                                 onChange={e => updateItem(idx, 'purchaseCost', Number(e.target.value))}
                                                 placeholder="0.00"
-                                                className="w-full bg-slate-50 focus:bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none"
+                                                readOnly={it.type === 'AP'}
+                                                className={`w-full ${it.type === 'AP' ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900 cursor-not-allowed' : 'bg-slate-50 focus:bg-white border border-slate-300'} rounded-lg px-2.5 py-1.5 text-xs font-extrabold focus:outline-none`}
                                             />
+                                            {it.type === 'AP' && (
+                                                <p className="text-[9px] text-emerald-600 mt-0.5">Auto-calculated from profile pricing</p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

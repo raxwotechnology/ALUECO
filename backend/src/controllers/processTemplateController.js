@@ -66,7 +66,7 @@ export const updateProcessTemplate = asyncHandler(async (req, res) => {
     const template = await ProcessTemplate.findByIdAndUpdate(
         req.params.id,
         { ...req.body, updatedBy: req.user._id },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
 
     if (!template) {

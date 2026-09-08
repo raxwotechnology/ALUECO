@@ -348,18 +348,18 @@ export default function AluRawMaterialsPage() {
             render: (r) => (
                 <div className="flex items-center gap-1.5">
                     <button
+                        onClick={() => handleEditItem(r)}
+                        className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
+                        title="Edit Material"
+                    >
+                        <Edit3 size={14} /> Edit
+                    </button>
+                    <button
                         onClick={() => openAdjustModal(r)}
                         className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
                         title="Add or Adjust Stock Quantity"
                     >
                         <Plus size={14} /> Add Qty
-                    </button>
-                    <button
-                        onClick={() => handleEditItem(r)}
-                        className="flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition"
-                        title="Edit Material"
-                    >
-                        <Edit3 size={14} /> Edit
                     </button>
                     <button
                         onClick={() => handleDeleteItem(r)}

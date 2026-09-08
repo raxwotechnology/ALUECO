@@ -36,8 +36,16 @@ export const protect = asyncHandler(async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
-        res.status(401);
-        throw new Error('Not authorized, token invalid or expired');
+        if (error.name === 'TokenExpiredError') {
+            res.status(401);
+            throw new Error('Session expired. Please login again.');
+        } else if (error.name === 'JsonWebTokenError') {
+            res.status(401);
+            throw new Error('Invalid token. Please login again.');
+        } else {
+            res.status(401);
+            throw new Error('Not authorized, token invalid or expired');
+        }
     }
 });
 

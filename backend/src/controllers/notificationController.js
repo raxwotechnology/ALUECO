@@ -23,7 +23,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
     const notification = await Notification.findOneAndUpdate(
         { _id: req.params.id, recipient: req.user._id },
         { isRead: true, readAt: Date.now() },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     if (notification) {

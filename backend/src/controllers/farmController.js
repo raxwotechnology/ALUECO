@@ -61,7 +61,7 @@ export const updateFarm = asyncHandler(async (req, res) => {
     const updated = await Farm.findByIdAndUpdate(
         req.params.id,
         { $set: req.body },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
 
     createAuditLog({

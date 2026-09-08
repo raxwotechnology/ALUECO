@@ -52,7 +52,7 @@ export const updatePnLRecord = async (req, res) => {
         const record = await DailyPnL.findByIdAndUpdate(
             req.params.id,
             { ...req.body, totalExpenses: totalExp, netProfit: netProfit },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!record) return res.status(404).json({ success: false, message: 'Record not found' });

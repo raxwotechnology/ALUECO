@@ -155,15 +155,15 @@ const seedAdminUser = async () => {
     }
 
     await User.create({
-        firstName: 'Admin',
-        lastName: 'User',
-        email: 'admin@example.com',
+        firstName: 'Chamara',
+        lastName: 'Luxo',
+        email: 'chamaraluxo@gmail.com',
         phone: '+94771234567',
-        password: 'Admin123!',
+        password: 'Luxo5858#',
         role: 'admin',
     });
 
-    console.log('✓ Seeded default admin user (admin@example.com)');
+    console.log('✓ Seeded default admin user (chamaraluxo@gmail.com)');
 };
 
 // In your main seedDefaults function, add:

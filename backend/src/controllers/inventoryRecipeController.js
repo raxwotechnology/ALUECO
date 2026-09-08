@@ -51,7 +51,7 @@ export const updateRecipe = asyncHandler(async (req, res) => {
             updatedBy: req.user._id,
         },
         {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         }
     )

@@ -1,232 +1,507 @@
+import Attendance from '../models/Attendance.js';
+import Employee from '../models/Employee.js';
+import { parseMonthlyAttendanceExcel, validateAttendanceData, calculateMonthlySummary } from '../utils/excelParser.js';
+import fs from 'fs-extra';
+import path from 'path';
+import * as XLSX from 'xlsx';
+
 /**
- * Parses biometric "Monthly Performance Report" Excel exports
- * (Luxo / fingerprint machine format) into daily attendance records.
+ * Attendance Import Service
+ * Handles the business logic for importing monthly attendance from Excel files
  */
+class AttendanceImportService {
+    /**
+     * Preview attendance data from Excel file before import
+     */
+    async previewAttendance(filePath, month, year) {
+        try {
+            // Parse Excel file
+            const parseResult = parseMonthlyAttendanceExcel(filePath, month, year);
+            
+            if (!parseResult.success) {
+                return {
+                    success: false,
+                    error: parseResult.error,
+                    data: []
+                };
+            }
 
-const STATUS_MAP = {
-    P: 'present',
-    POW: 'present',
-    A: 'absent',
-    WO: 'weekend',
-    HL: 'half_day',
-};
+            // Validate parsed data
+            const validationResult = validateAttendanceData(parseResult.data);
+            
+            // Match employees with database
+            const employeeMatchResults = await this.matchEmployees(parseResult.data);
+            
+            // Calculate summary
+            const summary = calculateMonthlySummary(parseResult.data);
 
-const SUB_ROW_LABELS = {
-    arrived: ['arrived tim', 'arrived time'],
-    dept: ['dept.time', 'dept time', 'departed time'],
-    working: ['working hrs', 'working hours'],
-    ot: ['o.times hrs', 'o.times hours', 'ot hrs', 'overtime'],
-    status: ['status'],
-};
-
-export function isMonthlyPerformanceReport(rows) {
-    const flat = rows.slice(0, 15).flat().filter(Boolean).join(' ').toLowerCase();
-    return flat.includes('monthly performance report') || flat.includes('empcode');
-}
-
-export function parseReportPeriod(rows) {
-    for (const row of rows) {
-        const text = (row || []).filter(Boolean).join(' ');
-        const fromMatch = text.match(/From\s*:\s*(\d{1,2})-(\d{1,2})-(\d{4})/i);
-        if (fromMatch) {
-            const [, day, month, year] = fromMatch;
             return {
-                year: parseInt(year, 10),
-                month: parseInt(month, 10),
-                startDay: parseInt(day, 10),
+                success: true,
+                data: parseResult.data,
+                validation: validationResult,
+                employeeMatches: employeeMatchResults,
+                summary: summary,
+                parseErrors: parseResult.errors,
+                parseWarnings: parseResult.warnings
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                data: []
             };
         }
     }
-    return null;
-}
 
-export function parseDurationToMinutes(value) {
-    if (value === null || value === undefined || value === '') return 0;
-    const str = String(value).trim();
-    if (!str || str === '00:00' || str === '0:0') return 0;
+    /**
+     * Match employee codes with database records
+     */
+    async matchEmployees(attendanceData) {
+        const uniqueEmployeeCodes = [...new Set(attendanceData.map(d => d.employeeCode))];
+        const matchedEmployees = [];
+        const unmatchedEmployees = [];
 
-    if (str.includes(':')) {
-        const [hoursPart, minutesPart] = str.split(':');
-        const hours = parseInt(hoursPart, 10) || 0;
-        const minutes = parseInt(minutesPart, 10) || 0;
-        return hours * 60 + minutes;
-    }
+        for (const empCode of uniqueEmployeeCodes) {
+            const employee = await Employee.findOne({ 
+                employeeCode: empCode,
+                deletedAt: null 
+            });
 
-    const num = Number(str);
-    return Number.isFinite(num) ? Math.round(num * 60) : 0;
-}
-
-export function parseTimeOnDate(timeValue, baseDate) {
-    if (timeValue === null || timeValue === undefined || timeValue === '') return null;
-
-    if (timeValue instanceof Date && !isNaN(timeValue.getTime())) {
-        const d = new Date(baseDate);
-        d.setHours(timeValue.getHours(), timeValue.getMinutes(), 0, 0);
-        return d;
-    }
-
-    const str = String(timeValue).trim();
-    if (!str || str === '00:00') return null;
-
-    const match = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (!match) return null;
-
-    const d = new Date(baseDate);
-    d.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0);
-    return d;
-}
-
-export function mapBiometricStatus(code) {
-    if (code === null || code === undefined || code === '') return null;
-    const raw = String(code).trim().toUpperCase();
-    if (!raw) return null;
-    if (STATUS_MAP[raw]) return STATUS_MAP[raw];
-    if (raw.startsWith('AL')) return 'leave';
-    return 'present';
-}
-
-function normalizeLabel(value) {
-    return String(value ?? '').trim().toLowerCase();
-}
-
-function findDayColumns(row) {
-    const dayColumns = {};
-    if (!row) return dayColumns;
-
-    for (let col = 0; col < row.length; col++) {
-        const cell = row[col];
-        if (cell === null || cell === undefined || cell === '') continue;
-        const text = String(cell).trim();
-        const dayNum = parseInt(text, 10);
-        if (dayNum >= 1 && dayNum <= 31 && /^\d{1,2}$/.test(text)) {
-            dayColumns[dayNum] = col;
-        }
-    }
-
-    return dayColumns;
-}
-
-function matchSubRow(label, keys) {
-    const normalized = normalizeLabel(label);
-    return keys.some((key) => normalized.startsWith(key));
-}
-
-function findSubRows(rows, startIndex) {
-    const found = {};
-    for (let i = startIndex; i < Math.min(startIndex + 8, rows.length); i++) {
-        const label = normalizeLabel(rows[i]?.[0]);
-        if (matchSubRow(label, SUB_ROW_LABELS.arrived)) found.arrived = rows[i];
-        else if (matchSubRow(label, SUB_ROW_LABELS.dept)) found.dept = rows[i];
-        else if (matchSubRow(label, SUB_ROW_LABELS.working)) found.working = rows[i];
-        else if (matchSubRow(label, SUB_ROW_LABELS.ot)) found.ot = rows[i];
-        else if (matchSubRow(label, SUB_ROW_LABELS.status)) found.status = rows[i];
-    }
-    return found;
-}
-
-function isEmpHeaderRow(row) {
-    return normalizeLabel(row?.[0]) === 'empcode';
-}
-
-function isEmployeeSummaryRow(row) {
-    if (!row?.[0] || isEmpHeaderRow(row)) return false;
-    const label = normalizeLabel(row[0]);
-    if (Object.values(SUB_ROW_LABELS).flat().some((key) => label.startsWith(key))) return false;
-    if (label.includes('report date') || label.includes('company name')) return false;
-    return Boolean(row[1]) && (label.length <= 12);
-}
-
-/**
- * Parse monthly biometric sheet into flat daily records.
- * @returns {{ period: object|null, records: Array, errors: Array }}
- */
-export function parseMonthlyPerformanceSheet(rows) {
-    const period = parseReportPeriod(rows);
-    const records = [];
-    const errors = [];
-
-    if (!period) {
-        errors.push({ message: 'Could not find report period (Report Date From) in file' });
-        return { period, records, errors };
-    }
-
-    for (let i = 0; i < rows.length; i++) {
-        if (!isEmpHeaderRow(rows[i])) continue;
-
-        const empRow = rows[i + 1];
-        if (!isEmployeeSummaryRow(empRow)) continue;
-
-        const employeeCode = String(empRow[0]).trim();
-        const employeeName = String(empRow[1] || '').trim();
-
-        let dayHeaderIndex = i + 2;
-        let dayColumns = {};
-        while (dayHeaderIndex < i + 6 && dayHeaderIndex < rows.length) {
-            dayColumns = findDayColumns(rows[dayHeaderIndex]);
-            if (Object.keys(dayColumns).length >= 5) break;
-            dayHeaderIndex++;
+            if (employee) {
+                matchedEmployees.push({
+                    code: empCode,
+                    name: employee.fullName,
+                    employeeId: employee._id,
+                    found: true
+                });
+            } else {
+                unmatchedEmployees.push({
+                    code: empCode,
+                    name: attendanceData.find(d => d.employeeCode === empCode)?.employeeName || 'Unknown',
+                    found: false
+                });
+            }
         }
 
-        if (Object.keys(dayColumns).length === 0) {
-            errors.push({ employeeCode, error: 'Day columns not found for employee block' });
-            continue;
-        }
+        return {
+            matched: matchedEmployees,
+            unmatched: unmatchedEmployees,
+            totalMatched: matchedEmployees.length,
+            totalUnmatched: unmatchedEmployees.length
+        };
+    }
 
-        const subRows = findSubRows(rows, dayHeaderIndex + 1);
-        if (!subRows.status) {
-            errors.push({ employeeCode, error: 'Status row not found for employee block' });
-            continue;
-        }
+    /**
+     * Import attendance data to database
+     */
+    async importAttendance(attendanceData, options = {}) {
+        const { 
+            skipValidation = false, 
+            updateExisting = false,
+            replaceMonth = false 
+        } = options;
 
-        for (const [dayStr, colIndex] of Object.entries(dayColumns)) {
-            const dayNum = parseInt(dayStr, 10);
-            const date = new Date(period.year, period.month - 1, dayNum);
-            date.setHours(0, 0, 0, 0);
-
-            const statusCode = subRows.status[colIndex];
-            const status = mapBiometricStatus(statusCode);
-            if (!status) continue;
-
-            const checkInTime = parseTimeOnDate(subRows.arrived?.[colIndex], date);
-            let checkOutTime = parseTimeOnDate(subRows.dept?.[colIndex], date);
-            if (checkInTime && checkOutTime && checkOutTime <= checkInTime) {
-                checkOutTime = new Date(checkOutTime);
-                checkOutTime.setDate(checkOutTime.getDate() + 1);
+        try {
+            // If replace month, delete existing records for the month
+            if (replaceMonth) {
+                const month = attendanceData[0]?.month;
+                const year = attendanceData[0]?.year;
+                
+                if (month && year) {
+                    await Attendance.deleteMany({ month, year });
+                }
             }
 
-            const totalWorkedMinutes = parseDurationToMinutes(subRows.working?.[colIndex]);
-            const overtimeMinutes = parseDurationToMinutes(subRows.ot?.[colIndex]);
+            // Match employees
+            const employeeMatchResults = await this.matchEmployees(attendanceData);
+            
+            // Filter out unmatched employees
+            const matchedCodes = new Set(employeeMatchResults.matched.map(m => m.code));
+            const validAttendanceData = attendanceData.filter(d => matchedCodes.has(d.employeeCode));
 
-            records.push({
-                employeeCode,
-                employeeName,
-                date,
-                status,
-                checkInTime,
-                checkOutTime,
-                totalWorkedMinutes,
-                overtimeMinutes,
+            // Create employee code to ID mapping
+            const employeeMap = {};
+            employeeMatchResults.matched.forEach(m => {
+                employeeMap[m.code] = m.employeeId;
             });
-        }
 
-        i = dayHeaderIndex + 6;
+            // Prepare attendance records for database
+            const attendanceRecords = validAttendanceData.map(data => ({
+                employeeId: employeeMap[data.employeeCode],
+                employeeCode: data.employeeCode,
+                employeeName: data.employeeName,
+                date: data.date,
+                status: data.status,
+                arrivalTime: data.arrivalTime,
+                departureTime: data.departureTime,
+                workingHours: data.workingHours,
+                overtimeHours: data.overtimeHours,
+                month: data.month,
+                year: data.year,
+                checkInMethod: 'excel_import'
+            }));
+
+            // Bulk insert with update or skip based on options
+            const importedRecords = [];
+            const skippedRecords = [];
+            const errorRecords = [];
+
+            for (const record of attendanceRecords) {
+                try {
+                    // Check for existing record
+                    const existing = await Attendance.findOne({
+                        employeeId: record.employeeId,
+                        date: record.date
+                    });
+
+                    if (existing) {
+                        if (updateExisting) {
+                            await Attendance.findByIdAndUpdate(existing._id, record);
+                            importedRecords.push(record);
+                        } else {
+                            skippedRecords.push(record);
+                        }
+                    } else {
+                        await Attendance.create(record);
+                        importedRecords.push(record);
+                    }
+                } catch (error) {
+                    errorRecords.push({
+                        record,
+                        error: error.message
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                imported: importedRecords.length,
+                skipped: skippedRecords.length,
+                errors: errorRecords.length,
+                errorDetails: errorRecords,
+                employeeMatchResults: employeeMatchResults
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 
-    return { period, records, errors };
+    /**
+     * Get monthly attendance summary
+     */
+    async getMonthlyAttendanceSummary(month, year) {
+        try {
+            const attendanceRecords = await Attendance.find({ month, year })
+                .populate('employeeId', 'employeeCode fullName')
+                .sort({ date: 1 });
+
+            // Group by employee
+            const employeeSummary = {};
+            
+            attendanceRecords.forEach(record => {
+                const empCode = record.employeeCode;
+                const empName = record.employeeName || record.employeeId?.fullName || 'Unknown';
+                
+                if (!employeeSummary[empCode]) {
+                    employeeSummary[empCode] = {
+                        employeeCode: empCode,
+                        employeeName: empName,
+                        employeeId: record.employeeId,
+                        present: 0,
+                        absent: 0,
+                        leave: 0,
+                        weeklyOff: 0,
+                        paidOff: 0,
+                        total: 0,
+                        records: []
+                    };
+                }
+
+                employeeSummary[empCode].total++;
+                employeeSummary[empCode].records.push(record);
+
+                switch (record.status) {
+                    case 'P':
+                        employeeSummary[empCode].present++;
+                        break;
+                    case 'A':
+                        employeeSummary[empCode].absent++;
+                        break;
+                    case 'AL-AL':
+                        employeeSummary[empCode].leave++;
+                        break;
+                    case 'WO':
+                        employeeSummary[empCode].weeklyOff++;
+                        break;
+                    case 'POW':
+                        employeeSummary[empCode].paidOff++;
+                        break;
+                }
+            });
+
+            // Calculate overall summary
+            const overallSummary = {
+                present: 0,
+                absent: 0,
+                leave: 0,
+                weeklyOff: 0,
+                paidOff: 0,
+                totalEmployees: Object.keys(employeeSummary).length,
+                totalRecords: attendanceRecords.length
+            };
+
+            Object.values(employeeSummary).forEach(emp => {
+                overallSummary.present += emp.present;
+                overallSummary.absent += emp.absent;
+                overallSummary.leave += emp.leave;
+                overallSummary.weeklyOff += emp.weeklyOff;
+                overallSummary.paidOff += emp.paidOff;
+            });
+
+            return {
+                success: true,
+                overallSummary,
+                employeeSummary: Object.values(employeeSummary),
+                records: attendanceRecords
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Check if attendance data already exists for a month
+     */
+    async checkExistingAttendance(month, year) {
+        try {
+            const existingCount = await Attendance.countDocuments({ month, year });
+            return {
+                exists: existingCount > 0,
+                count: existingCount
+            };
+        } catch (error) {
+            return {
+                exists: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Clean up uploaded file
+     */
+    async cleanupFile(filePath) {
+        try {
+            if (await fs.pathExists(filePath)) {
+                await fs.unlink(filePath);
+            }
+        } catch (error) {
+            console.error('Error cleaning up file:', error);
+        }
+    }
 }
 
 /**
- * Parse simple daily import rows (header-based JSON from sheet_to_json).
+ * Check if the Excel file is a monthly performance report format
+ * (Luxo / fingerprint machine format)
  */
-export function parseDailyAttendanceRows(jsonData) {
-    return jsonData.map((row) => ({
-        employeeCode: row['Employee Code'] || row['employee_code'] || row['EmployeeCode'] || row['EmpCode'],
-        status: row['Status'] || row['status'] || 'present',
-        checkInTime: row['Check In'] || row['check_in'] || row['CheckIn'],
-        checkOutTime: row['Check Out'] || row['check_out'] || row['CheckOut'],
-    })).filter((row) => row.employeeCode);
-}
+export const isMonthlyPerformanceReport = (rawRows) => {
+    if (!rawRows || rawRows.length === 0) return false;
+    
+    // Look for key indicators of monthly performance report format
+    const firstRow = rawRows[0];
+    const hasEmpCode = firstRow.some(cell => cell === 'EmpCode' || cell === 'Emp Code');
+    
+    // Look for day columns (01, 02, 03, etc.)
+    const hasDayColumns = rawRows.some(row => 
+        row.some(cell => cell === '01' || cell === 1 || cell === '02' || cell === 2)
+    );
+    
+    // Look for status row
+    const hasStatusRow = rawRows.some(row => 
+        row.some(cell => cell === 'Status')
+    );
+    
+    return hasEmpCode && hasDayColumns && hasStatusRow;
+};
 
-export function normalizeEmployeeCode(code) {
-    return String(code ?? '').trim().toUpperCase();
-}
+/**
+ * Parse monthly performance sheet (Luxo format)
+ */
+export const parseMonthlyPerformanceSheet = (rawRows) => {
+    const records = [];
+    const errors = [];
+    let period = null;
+    
+    // Find employee sections
+    let currentRowIndex = 0;
+    
+    while (currentRowIndex < rawRows.length) {
+        const row = rawRows[currentRowIndex];
+        
+        // Look for EmpCode column
+        const empCodeIndex = row.findIndex(cell => cell === 'EmpCode' || cell === 'Emp Code');
+        
+        if (empCodeIndex === -1) {
+            currentRowIndex++;
+            continue;
+        }
+        
+        // Found employee section
+        const empCode = rawRows[currentRowIndex + 2]?.[empCodeIndex];
+        const employeeName = rawRows[currentRowIndex + 2]?.[empCodeIndex + 1];
+        
+        if (!empCode || !employeeName) {
+            currentRowIndex += 10;
+            continue;
+        }
+        
+        // Find day and status rows
+        let dayRow = null;
+        let arrivalRow = null;
+        let departureRow = null;
+        let workingRow = null;
+        let overtimeRow = null;
+        let statusRow = null;
+        
+        for (let i = currentRowIndex + 3; i < Math.min(currentRowIndex + 15, rawRows.length); i++) {
+            const checkRow = rawRows[i];
+            if (!checkRow) continue;
+            
+            const firstCell = checkRow[empCodeIndex + 3];
+            
+            if (firstCell === '01' || firstCell === 1) {
+                dayRow = checkRow;
+            } else if (firstCell === 'Arrived Time' || firstCell === 'Arrived Time ') {
+                arrivalRow = checkRow;
+            } else if (firstCell === 'Dept.Time' || firstCell === 'Dept. Time') {
+                departureRow = checkRow;
+            } else if (firstCell === 'Working Hrs.' || firstCell === 'Working Hrs') {
+                workingRow = checkRow;
+            } else if (firstCell === 'O.Times Hrs.' || firstCell === 'O.Times Hrs') {
+                overtimeRow = checkRow;
+            } else if (firstCell === 'Status') {
+                statusRow = checkRow;
+            }
+        }
+        
+        if (!dayRow || !statusRow) {
+            currentRowIndex += 15;
+            continue;
+        }
+        
+        // Parse daily attendance records
+        const dayOffset = empCodeIndex + 3;
+        
+        for (let day = 1; day <= 31; day++) {
+            const dayColumnIndex = dayOffset + (day - 1);
+            
+            if (dayColumnIndex >= dayRow.length) continue;
+            
+            const status = statusRow[dayColumnIndex];
+            const arrival = arrivalRow?.[dayColumnIndex] || null;
+            const departure = departureRow?.[dayColumnIndex] || null;
+            const workingHours = workingRow?.[dayColumnIndex] || "00:00";
+            const overtimeHours = overtimeRow?.[dayColumnIndex] || "00:00";
+            
+            if (status && status.trim() !== '') {
+                // Determine month/year from context or use current
+                const now = new Date();
+                if (!period) {
+                    period = { month: now.getMonth() + 1, year: now.getFullYear() };
+                }
+                
+                const date = new Date(period.year, period.month - 1, day);
+                
+                // Parse working hours to minutes
+                const [workHrs, workMins] = workingHours.split(':').map(Number);
+                const totalWorkedMinutes = (workHrs || 0) * 60 + (workMins || 0);
+                
+                // Parse overtime to minutes
+                const [otHrs, otMins] = overtimeHours.split(':').map(Number);
+                const overtimeMinutes = (otHrs || 0) * 60 + (otMins || 0);
+                
+                records.push({
+                    employeeCode: empCode,
+                    employeeName: employeeName,
+                    date: date,
+                    status: status,
+                    checkInTime: arrival,
+                    checkOutTime: departure,
+                    totalWorkedMinutes: totalWorkedMinutes,
+                    overtimeMinutes: overtimeMinutes
+                });
+            }
+        }
+        
+        currentRowIndex += 15;
+    }
+    
+    return { period, records, errors };
+};
+
+/**
+ * Parse daily attendance rows from simple flat format
+ */
+export const parseDailyAttendanceRows = (jsonData) => {
+    return jsonData.map(row => ({
+        employeeCode: row['Employee Code'] || row['EmpCode'] || row['employeeCode'],
+        employeeName: row['Name'] || row['Employee Name'] || row['employeeName'],
+        status: row['Status'] || row['status'] || 'present',
+        checkInTime: row['Check In'] || row['CheckIn'] || row['checkInTime'],
+        checkOutTime: row['Check Out'] || row['CheckOut'] || row['checkOutTime'],
+        notes: row['Notes'] || row['notes']
+    })).filter(row => row.employeeCode);
+};
+
+/**
+ * Normalize employee code (remove spaces, convert to string)
+ */
+export const normalizeEmployeeCode = (code) => {
+    if (!code) return null;
+    return String(code).trim().toUpperCase();
+};
+
+/**
+ * Parse time string and apply to a specific date
+ */
+export const parseTimeOnDate = (timeStr, date) => {
+    if (!timeStr || !date) return null;
+    
+    // Handle Excel time serial numbers
+    if (typeof timeStr === 'number') {
+        const excelDate = new Date(Math.round((timeStr - 25569) * 86400 * 1000));
+        return excelDate;
+    }
+    
+    // Handle time strings like "08:30", "08:30 AM", etc.
+    const timeMatch = String(timeStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (timeMatch) {
+        const [, hours, minutes, meridiem] = timeMatch;
+        let hour = parseInt(hours, 10);
+        const minute = parseInt(minutes, 10);
+        
+        if (meridiem?.toUpperCase() === 'PM' && hour !== 12) {
+            hour += 12;
+        } else if (meridiem?.toUpperCase() === 'AM' && hour === 12) {
+            hour = 0;
+        }
+        
+        const result = new Date(date);
+        result.setHours(hour, minute, 0, 0);
+        return result;
+    }
+    
+    return null;
+};
+
+export default new AttendanceImportService();

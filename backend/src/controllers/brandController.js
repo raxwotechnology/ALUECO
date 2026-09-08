@@ -28,7 +28,7 @@ export const getBrandById = asyncHandler(async (req, res) => {
 
 export const updateBrand = asyncHandler(async (req, res) => {
     const brand = await Brand.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
     });
     if (!brand) {

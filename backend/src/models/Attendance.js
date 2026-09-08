@@ -12,6 +12,12 @@ const attendanceSchema = new mongoose.Schema({
     checkOutTime: Date,
     totalWorkedMinutes: { type: Number, default: 0 },
 
+    // Excel import specific fields
+    arrivalTime: { type: String, default: null }, // Format: "08:57"
+    departureTime: { type: String, default: null }, // Format: "21:33"
+    workingHours: { type: String, default: "00:00" }, // Format: "12:36"
+    overtimeHours: { type: String, default: "00:00" }, // Format: "03:36"
+
     lateMinutes: { type: Number, default: 0 },
     earlyLeaveMinutes: { type: Number, default: 0 },
     overtimeMinutes: { type: Number, default: 0 },
@@ -19,6 +25,7 @@ const attendanceSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'present',
+        enum: ['present', 'absent', 'late', 'early_leave', 'half_day', 'P', 'A', 'AL-AL', 'POW', 'WO'],
     },
 
     leaveId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeaveRequest' },
@@ -26,6 +33,10 @@ const attendanceSchema = new mongoose.Schema({
 
     checkInMethod: { type: String, default: 'manual' },
     location: { latitude: Number, longitude: Number, address: String },
+
+    // Monthly import fields
+    month: { type: Number, required: false }, // 1-12
+    year: { type: Number, required: false }, // e.g., 2026
 
     notes: String,
 
@@ -52,6 +63,8 @@ attendanceSchema.pre('save', function() {
 // Unique: one attendance record per employee per date
 attendanceSchema.index({ employeeId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1, status: 1 });
+attendanceSchema.index({ month: 1, year: 1, employeeId: 1 });
+attendanceSchema.index({ employeeCode: 1, date: 1 });
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
 export default Attendance;
