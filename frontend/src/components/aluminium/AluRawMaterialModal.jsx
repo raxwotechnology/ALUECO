@@ -30,8 +30,8 @@ const TYPE_OPTIONS = [
 const STANDARD_LENGTH_OPTIONS = [
     { value: '12', label: '12 ft', isCuttable: false, cutLengths: [] },
     { value: '18', label: '18 ft', isCuttable: false, cutLengths: [] },
-    { value: '20', label: '20 ft', isCuttable: true, cutLengths: ['10'] },
-    { value: '21', label: '21 ft', isCuttable: true, cutLengths: ['7', '8', '14', '16'] },
+    { value: '20', label: '20 ft', isCuttable: true, cutLengths: ['10', '20'] },
+    { value: '21', label: '21 ft', isCuttable: true, cutLengths: ['7', '8', '14', '16', '21'] },
 ];
 
 const CUTTING_CHARGE_PERCENTAGE = 5;
@@ -270,6 +270,20 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         const cutLength = parseFloat(item.cutLength);
         if (isNaN(cutLength) || cutLength <= 0) {
             return { price: item.purchaseCost || 0, calculation: '', breakdown: null };
+        }
+
+        // Check if cut length equals standard length - no cutting charge in this case
+        if (cutLength === standardLength) {
+            return {
+                price: fullBarPrice,
+                calculation: 'Standard Price (Full Bar)',
+                breakdown: {
+                    fullBarPrice,
+                    pricePerFt: fullBarPrice / standardLength,
+                    cuttingCharge: 0,
+                    formula: 'Full Bar Price (No Cutting)'
+                }
+            };
         }
 
         const pricePerFt = fullBarPrice / standardLength;
