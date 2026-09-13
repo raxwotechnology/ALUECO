@@ -10,7 +10,8 @@ export default function ProductAutocompleteSelect({
     onChange,
     productType = 'raw_material', // 'raw_material' or 'finished_good'
     required = false,
-    disabled = false
+    disabled = false,
+    allowAutoCreate = true // Enable auto-creation by default for backward compatibility
 }) {
     const [inputValue, setInputValue] = useState('');
     const [isOpen, setIsOpen] = useState(false);
@@ -131,9 +132,14 @@ export default function ProductAutocompleteSelect({
             if (exactMatch) {
                 setInputValue(exactMatch.name);
                 onChange(exactMatch._id, exactMatch);
-            } else {
-                // If it is a new name, create it
+            } else if (allowAutoCreate) {
+                // If it is a new name and auto-create is enabled, create it
                 handleAutoCreate(inputValue);
+            } else {
+                // If auto-create is disabled, clear the value
+                toast.error('Please select a product from the dropdown list');
+                setInputValue('');
+                onChange('');
             }
         }, 250);
     };

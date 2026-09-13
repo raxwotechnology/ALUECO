@@ -1,22 +1,455 @@
 [
   {
-    "_id": "6a9e4cd9c73dc09eb8d0388b",
-    "productCode": "APHP-60MB67UR2400",
-    "name": "80mm Inner Bottom Frame",
+    "_id": "6a90fcde4c7682c62c978836",
+    "name": "Aluminium Sliding Window (4x3 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Sliding Window 4x3",
+    "description": "Ready-made aluminium sliding window, 4ft x 3ft size",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 15000,
+    "mrp": 18000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 5,
+      "reorderLevel": 10,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:34.601Z",
+    "updatedAt": "2026-08-28T03:13:34.601Z",
+    "productCode": "P-FIN-PRD-26240-01",
+    "__v": 0,
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978837",
+    "name": "Aluminium Casement Door (3x7 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Casement Door 3x7",
+    "description": "Ready-made aluminium casement door, 3ft x 7ft size",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 25000,
+    "mrp": 30000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1256,
+      "averageCost": 1256,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 3,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.235Z",
+    "updatedAt": "2026-09-01T09:10:29.321Z",
+    "productCode": "P-FIN-PRD-26240-02",
+    "__v": 0,
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978838",
+    "name": "Window Handle Set (Stainless Steel)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Window Handle",
+    "description": "Stainless steel window handle set with locking mechanism",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 450,
+    "mrp": 550,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 20,
+      "reorderLevel": 50,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.407Z",
+    "updatedAt": "2026-08-28T03:13:35.407Z",
+    "productCode": "P-ACC-PRD-26240-03",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c978839",
+    "name": "Door Lock Set (Heavy Duty)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Door Lock",
+    "description": "Heavy duty door lock set with 3 keys",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 1200,
+    "mrp": 1500,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 15,
+      "reorderLevel": 30,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.620Z",
+    "updatedAt": "2026-08-28T03:13:35.620Z",
+    "productCode": "P-ACC-PRD-26240-04",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c97883a",
+    "name": "Rubber Gasket Roll (Black)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Rubber Gasket",
+    "description": "Black rubber gasket roll for windows and doors",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "MTR",
+    "basePrice": 85,
+    "mrp": 100,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 85,
+      "averageCost": 79.87,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 50,
+      "reorderLevel": 100,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.760Z",
+    "updatedAt": "2026-08-28T12:53:10.771Z",
+    "productCode": "P-ACC-PRD-26240-05",
+    "__v": 0,
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fcdf4c7682c62c97883b",
+    "name": "Glass Shelf Bracket (Aluminium)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Glass Bracket",
+    "description": "Aluminium bracket for glass shelves",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 350,
+    "mrp": 450,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 25,
+      "reorderLevel": 50,
+      "maximumLevel": 160
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 2,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:35.958Z",
+    "updatedAt": "2026-08-28T12:54:06.133Z",
+    "productCode": "P-ACC-PRD-26240-06",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fce04c7682c62c97883c",
+    "name": "Fixed Glass Window (3x2 ft)",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": true,
+    "canBePurchased": false,
+    "canBeSold": true,
+    "shortName": "Fixed Window 3x2",
+    "description": "Fixed glass window with aluminium frame, 3ft x 2ft",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c8",
+      "name": "Finished Windows & Doors"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "PCS",
+    "basePrice": 8000,
+    "mrp": 10000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 18000,
+      "averageCost": 18000,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 5,
+      "reorderLevel": 10,
+      "maximumLevel": 2000
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:36.331Z",
+    "updatedAt": "2026-08-28T12:53:57.189Z",
+    "productCode": "P-FIN-PRD-26240-07",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Finished Windows & Doors",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a90fce04c7682c62c97883d",
+    "name": "Sliding Door Roller Set",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0
+    },
+    "productType": "finished_good",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": true,
+    "shortName": "Door Rollers",
+    "description": "Heavy duty sliding door roller set (2 pieces)",
+    "categoryId": {
+      "_id": "6a8fdc63ed3975e4b27c45c7",
+      "name": "Accessories & Hardware"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "SET",
+    "basePrice": 1800,
+    "mrp": 2200,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 10,
+      "reorderLevel": 20,
+      "maximumLevel": 5000
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-28T03:13:36.467Z",
+    "updatedAt": "2026-08-28T12:53:48.843Z",
+    "productCode": "P-ACC-PRD-26240-08",
+    "__v": 0,
+    "packaging": {
+      "unitsPerCarton": 0,
+      "cartonsPerPallet": 0
+    },
+    "updatedBy": "6a8fdc63ed3975e4b27c45c0",
+    "categoryName": "Accessories & Hardware",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a958789be4f63b143075000",
+    "productCode": "GSK-16-MB-NA-1200X2100",
+    "name": "100mm 2-Track Outer Bottom Frame",
     "businessType": "alueco",
-    "aluCategory": "profiles",
+    "aluCategory": "gaskets",
     "aluSpecs": {
       "series": "Swisstek 100mm Commercial Sliding",
-      "thickness": "",
-      "finish": "Powder Coated White (RAL 9016)",
+      "thickness": "1.6mm",
+      "finish": "White",
       "lengthMm": 0,
-      "brand": "Swisstek Aluminium",
-      "type": "AP",
-      "profile": "HP-60",
-      "colour": "MB67U",
-      "length": "2400",
-      "side": "R",
-      "description": ""
+      "brand": "Swisstek Aluminium"
     },
     "productType": "raw_material",
     "canBeManufactured": false,
@@ -24,17 +457,17 @@
     "canBeSold": false,
     "tags": [],
     "type": "raw_material",
-    "unitOfMeasure": "Lengths",
-    "basePrice": 3750,
+    "unitOfMeasure": "Rolls",
+    "basePrice": 1600,
     "currency": "LKR",
     "tax": {
       "taxable": true,
       "taxRate": 18
     },
     "costs": {
-      "lastPurchaseCost": 3750,
-      "averageCost": 3750,
-      "standardCost": 3750
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
     },
     "stockLevels": {
       "minimumLevel": 2,
@@ -48,48 +481,49 @@
     },
     "status": "active",
     "notes": "",
-    "createdBy": "6a9bb589602e9cd27847718f",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-09-07T05:34:17.125Z",
-    "updatedAt": "2026-09-07T05:49:26.333Z",
+    "createdAt": "2026-08-31T13:54:17.135Z",
+    "updatedAt": "2026-08-31T15:02:00.081Z",
     "__v": 0,
     "categoryName": "—",
     "brandName": "—"
   },
   {
-    "_id": "6a9e535fc73dc09eb8d038cf",
-    "name": "Books",
-    "businessType": "normal",
-    "aluCategory": "other",
+    "_id": "6a9587acbe4f63b143075004",
+    "productCode": "GSK-80-WH-NA-12X2100",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "gaskets",
     "aluSpecs": {
-      "lengthMm": 0
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "8mm",
+      "finish": "White",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
     },
     "productType": "raw_material",
     "canBeManufactured": false,
     "canBePurchased": true,
     "canBeSold": false,
-    "categoryId": {
-      "_id": "6a9e4d6dc73dc09eb8d0388f",
-      "name": "Aluminium Profiles"
-    },
     "tags": [],
-    "type": "trading",
-    "unitOfMeasure": "Kg",
-    "basePrice": 0,
+    "type": "raw_material",
+    "unitOfMeasure": "Rolls",
+    "basePrice": 1600,
     "currency": "LKR",
     "tax": {
       "taxable": true,
       "taxRate": 18
     },
     "costs": {
-      "lastPurchaseCost": 0,
-      "averageCost": 0,
-      "standardCost": 0
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
     },
     "stockLevels": {
-      "minimumLevel": 0,
-      "reorderLevel": 0,
+      "minimumLevel": 2,
+      "reorderLevel": 5,
       "maximumLevel": 0
     },
     "salesConfig": {
@@ -98,31 +532,2891 @@
       "allowBackorder": false
     },
     "status": "active",
-    "createdBy": "6a9bb589602e9cd27847718f",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-09-07T06:02:07.334Z",
-    "updatedAt": "2026-09-07T06:02:07.334Z",
-    "productCode": "P-ALU-PRD-26250-01",
+    "createdAt": "2026-08-31T13:54:52.336Z",
+    "updatedAt": "2026-08-31T13:54:52.368Z",
     "__v": 0,
-    "categoryName": "Aluminium Profiles",
+    "categoryName": "—",
     "brandName": "—"
   },
   {
-    "_id": "6a9e535fc73dc09eb8d038d1",
-    "name": "Books",
+    "_id": "6a95881cbe4f63b143075008",
+    "productCode": "HRD-80-DB-NA-12X2100",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "hardware",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "8mm",
+      "finish": "White",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Nos",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-31T13:56:44.873Z",
+    "updatedAt": "2026-08-31T13:56:44.922Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a95893dbe4f63b1430752a3",
+    "productCode": "PRF-12-MB-TOP--1X799",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "1.2mm",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-31T14:01:33.063Z",
+    "updatedAt": "2026-08-31T14:01:33.114Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a95b475f5f95a412690f690",
+    "productCode": "GLS-16-MF-400X400",
+    "name": "100mm Sliding Window Sash Profile",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "1.6mm",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Sq.Ft",
+    "basePrice": 1700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1700,
+      "averageCost": 1700,
+      "standardCost": 1700
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-31T17:05:57.939Z",
+    "updatedAt": "2026-08-31T17:05:58.360Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a95b4e0f5f95a412690f7b9",
+    "productCode": "ACC-50-DB-W125",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "accessories",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "5mm",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Nos",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-31T17:07:44.093Z",
+    "updatedAt": "2026-08-31T17:07:44.131Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a95b535f5f95a412690faeb",
+    "productCode": "ACC-120-MF",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "accessories",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "12mm",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Nos",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-08-31T17:09:09.395Z",
+    "updatedAt": "2026-08-31T17:09:09.430Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96925d1b3cef927ce68782",
+    "productCode": "GSSW7001P705TLS6500500",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T08:52:45.507Z",
+    "updatedAt": "2026-09-01T08:52:45.619Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a9693da1b3cef927ce68786",
+    "productCode": "HWSD345P789ILS12354500",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T08:59:06.550Z",
+    "updatedAt": "2026-09-01T08:59:06.609Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a9694bd1b3cef927ce6878a",
+    "productCode": "APQWCDTOP78905467",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T09:02:53.897Z",
+    "updatedAt": "2026-09-01T09:02:53.935Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96b49a01e8d4fc88506fb4",
+    "productCode": "ACD345PD456FL6000",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:18:50.976Z",
+    "updatedAt": "2026-09-01T11:18:51.051Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96b4f801e8d4fc8850726a",
+    "productCode": "GLFGRTY6F5TG3456",
+    "name": "Glass",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:20:24.030Z",
+    "updatedAt": "2026-09-01T11:20:24.063Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96b89c01e8d4fc88507303",
+    "productCode": "GL45TGDE4R",
+    "name": "asd",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:35:57.002Z",
+    "updatedAt": "2026-09-01T11:35:57.129Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96b92201e8d4fc8850736b",
+    "productCode": "GLCZ",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:38:10.346Z",
+    "updatedAt": "2026-09-01T11:38:10.413Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96bab301e8d4fc88507435",
+    "productCode": "GLC",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:44:51.482Z",
+    "updatedAt": "2026-09-01T11:44:51.748Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96bbc001e8d4fc885074ff",
+    "productCode": "GLS",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:49:21.005Z",
+    "updatedAt": "2026-09-01T11:49:21.099Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96bdf501e8d4fc885075ff",
+    "productCode": "ACD",
+    "name": "100mm Sliding Window Sash Profile",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1700,
+      "averageCost": 1700,
+      "standardCost": 1700
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T11:58:45.338Z",
+    "updatedAt": "2026-09-01T11:58:45.370Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96bec101e8d4fc8850769b",
+    "productCode": "AP3EFG3KFGLF",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T12:02:09.110Z",
+    "updatedAt": "2026-09-01T12:02:09.166Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96c83f606b5a84b12038c3",
+    "productCode": "APSW234PLT234LS23404520",
+    "name": "ASD",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1500,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1500,
+      "averageCost": 1500,
+      "standardCost": 1500
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T12:42:39.496Z",
+    "updatedAt": "2026-09-01T12:42:39.587Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96caf4606b5a84b1203e04",
+    "productCode": "APER456YH678L",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T12:54:12.038Z",
+    "updatedAt": "2026-09-01T12:54:12.089Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96cc86606b5a84b1203e6c",
+    "productCode": "APSWERFTG56YHK67",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:00:54.788Z",
+    "updatedAt": "2026-09-01T13:00:54.854Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96ccc8606b5a84b1203ed4",
+    "productCode": "ACE3GH9",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:02:00.855Z",
+    "updatedAt": "2026-09-01T13:02:00.899Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96cefb606b5a84b1203f3c",
+    "productCode": "AP",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:11:23.079Z",
+    "updatedAt": "2026-09-01T13:11:23.130Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96d15e606b5a84b1203fa6",
+    "productCode": "HWKL",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:21:34.413Z",
+    "updatedAt": "2026-09-01T13:21:34.468Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96d315606b5a84b1204070",
+    "productCode": "GLLOVE",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:28:53.291Z",
+    "updatedAt": "2026-09-01T13:28:53.388Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96d622606b5a84b1204178",
+    "productCode": "GLHKL",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:41:54.561Z",
+    "updatedAt": "2026-09-01T13:41:54.602Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96d730606b5a84b12041e6",
+    "productCode": "GLAMMA",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T13:46:24.275Z",
+    "updatedAt": "2026-09-01T13:46:24.306Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e285c61adbb421aba699",
+    "productCode": "APSDPR405SL9",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Kg",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:34:45.790Z",
+    "updatedAt": "2026-09-01T14:34:45.926Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e2b9c61adbb421aba69d",
+    "productCode": "GSSDPR405SL9",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Kg",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:35:37.341Z",
+    "updatedAt": "2026-09-01T14:35:37.406Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e2d0c61adbb421aba6a1",
+    "productCode": "HWSDPR405SL9",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Kg",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:36:00.821Z",
+    "updatedAt": "2026-09-01T14:36:00.864Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e32ac61adbb421aba745",
+    "productCode": "GS",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:37:30.285Z",
+    "updatedAt": "2026-09-01T14:37:30.317Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e32ac61adbb421aba748",
+    "productCode": "HW",
+    "name": "100mm Sliding Window Sash Profile",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1700,
+      "averageCost": 1700,
+      "standardCost": 1700
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:37:30.323Z",
+    "updatedAt": "2026-09-01T14:37:30.350Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e4e5c61adbb421aba74d",
+    "productCode": "GSSD234MD5TL2000",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:44:53.209Z",
+    "updatedAt": "2026-09-01T14:44:53.380Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e4e5c61adbb421aba750",
+    "productCode": "HWFG2WMMF4RDF",
+    "name": "100mm Sliding Window Sash Profile",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1700,
+      "averageCost": 1700,
+      "standardCost": 1700
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:44:53.385Z",
+    "updatedAt": "2026-09-01T14:44:53.413Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e509c61adbb421aba78c",
+    "productCode": "HWFG",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:45:29.971Z",
+    "updatedAt": "2026-09-01T14:45:30.021Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e5aac61adbb421aba790",
+    "productCode": "HWFGMH",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:48:10.330Z",
+    "updatedAt": "2026-09-01T14:48:10.402Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e5e89a07d7fbec575341",
+    "productCode": "GSFGMH6789",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:49:12.786Z",
+    "updatedAt": "2026-09-01T14:49:12.824Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e6249a07d7fbec575345",
+    "productCode": "GLFGMH6789",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:50:12.259Z",
+    "updatedAt": "2026-09-01T14:50:12.299Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e6e69a07d7fbec57534a",
+    "productCode": "GLFGVMH67890",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:53:26.842Z",
+    "updatedAt": "2026-09-01T14:53:26.898Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e7099a07d7fbec57534e",
+    "productCode": "HWFGVMH67890",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "hardware",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:54:01.250Z",
+    "updatedAt": "2026-09-01T14:54:01.279Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e7169a07d7fbec575352",
+    "productCode": "GSFGVMH67890",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "gaskets",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T14:54:14.215Z",
+    "updatedAt": "2026-09-01T14:54:14.251Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96e9829a07d7fbec575692",
+    "productCode": "APLKD45WE506YL7777",
+    "name": "Aluminium",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium"
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T15:04:34.767Z",
+    "updatedAt": "2026-09-01T15:04:34.798Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96eb99548ec4b3ceafb8f1",
+    "productCode": "AP11",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "11",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T15:13:29.142Z",
+    "updatedAt": "2026-09-01T15:13:29.180Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96f8d74570dd6cb455991a",
+    "productCode": "GL11",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "GL",
+      "profile": "",
+      "colour": "",
+      "length": "11",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T16:09:59.218Z",
+    "updatedAt": "2026-09-01T16:09:59.312Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a96fc9498bba3d238b35104",
+    "productCode": "GL99",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "GL",
+      "profile": "",
+      "colour": "",
+      "length": "99",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-01T16:25:56.609Z",
+    "updatedAt": "2026-09-01T16:25:56.700Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a97aa3298bba3d238b35516",
+    "productCode": "AC963",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "accessories",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AC",
+      "profile": "963",
+      "colour": "",
+      "length": "",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-02T04:46:42.340Z",
+    "updatedAt": "2026-09-02T04:46:42.452Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a97aa3298bba3d238b35519",
+    "productCode": "GL963",
+    "name": "100mm Sliding Window Sash Profile",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "GL",
+      "profile": "963",
+      "colour": "",
+      "length": "",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1700,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1700,
+      "averageCost": 1700,
+      "standardCost": 1700
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-02T04:46:42.464Z",
+    "updatedAt": "2026-09-02T04:46:42.499Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a9838b898bba3d238b355ef",
+    "productCode": "GL1000",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "glass",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "GL",
+      "profile": "",
+      "colour": "",
+      "length": "",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-02T14:54:48.972Z",
+    "updatedAt": "2026-09-02T14:54:49.071Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a9838c798bba3d238b355f3",
+    "productCode": "AP1000",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "1000",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-02T14:55:03.149Z",
+    "updatedAt": "2026-09-02T14:55:03.360Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6a98391c98bba3d238b35661",
+    "productCode": "AP888",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "888",
+      "side": "",
+      "description": ""
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 1600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 1600,
+      "averageCost": 1600,
+      "standardCost": 1600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6a8fdc63ed3975e4b27c45c0",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-02T14:56:28.364Z",
+    "updatedAt": "2026-09-02T14:56:28.399Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa00f0baec2aac54ccc02bc",
+    "productCode": "AP4512",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "45",
+      "colour": "5T",
+      "length": "",
+      "width": "",
+      "height": "",
+      "side": "34",
+      "description": "",
+      "standardLength": "12",
+      "cutLength": "",
+      "fullBarPrice": 9600
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 9600,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 9600,
+      "averageCost": 9600,
+      "standardCost": 9600
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-08T13:35:07.942Z",
+    "updatedAt": "2026-09-08T13:38:48.941Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa01005aec2aac54ccc02c2",
+    "productCode": "HWERT456",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "hardware",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "HW",
+      "profile": "",
+      "colour": "",
+      "length": "450",
+      "width": "",
+      "height": "",
+      "side": "ERT",
+      "description": "",
+      "standardLength": "",
+      "cutLength": "",
+      "fullBarPrice": 0
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Kg",
+    "basePrice": 56000,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 56000,
+      "averageCost": 56000,
+      "standardCost": 56000
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-08T13:39:17.152Z",
+    "updatedAt": "2026-09-08T13:42:30.339Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa0eef258d10da424c03e12",
+    "productCode": "AP20",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "",
+      "width": "",
+      "height": "",
+      "side": "",
+      "description": "",
+      "standardLength": "20",
+      "cutLength": "20",
+      "fullBarPrice": 2000
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 2100,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 2100,
+      "averageCost": 2100,
+      "standardCost": 2100
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-09T05:30:26.261Z",
+    "updatedAt": "2026-09-09T05:30:26.425Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa0ef0358d10da424c03e16",
+    "productCode": "APBOTTON20",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "",
+      "width": "",
+      "height": "",
+      "side": "botton",
+      "description": "",
+      "standardLength": "20",
+      "cutLength": "20",
+      "fullBarPrice": 2000
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 2100,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 2100,
+      "averageCost": 2100,
+      "standardCost": 2100
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-09T05:30:43.516Z",
+    "updatedAt": "2026-09-09T05:30:43.592Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa0ef2558d10da424c03e1a",
+    "productCode": "APAS20",
+    "name": "100mm 2-Track Outer Bottom Frame",
+    "businessType": "alueco",
+    "aluCategory": "profiles",
+    "aluSpecs": {
+      "series": "Swisstek 100mm Commercial Sliding",
+      "thickness": "",
+      "finish": "Powder Coated White (RAL 9016)",
+      "lengthMm": 0,
+      "brand": "Swisstek Aluminium",
+      "type": "AP",
+      "profile": "",
+      "colour": "",
+      "length": "",
+      "width": "",
+      "height": "",
+      "side": "as",
+      "description": "",
+      "standardLength": "20",
+      "cutLength": "20",
+      "fullBarPrice": 3200
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "tags": [],
+    "type": "raw_material",
+    "unitOfMeasure": "Lengths",
+    "basePrice": 3200,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 3200,
+      "averageCost": 3200,
+      "standardCost": 3200
+    },
+    "stockLevels": {
+      "minimumLevel": 2,
+      "reorderLevel": 5,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "notes": "",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-09T05:31:17.827Z",
+    "updatedAt": "2026-09-09T05:31:17.911Z",
+    "__v": 0,
+    "categoryName": "—",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa634a39e549f4b3a7a1ba3",
+    "name": "GL",
     "businessType": "normal",
     "aluCategory": "other",
     "aluSpecs": {
-      "lengthMm": 0
+      "lengthMm": 0,
+      "fullBarPrice": 0
     },
     "productType": "raw_material",
     "canBeManufactured": false,
     "canBePurchased": true,
     "canBeSold": false,
     "categoryId": {
-      "_id": "6a9e4d6dc73dc09eb8d0388f",
-      "name": "Aluminium Profiles"
+      "_id": "6a9016a7139985de2f5fb10e",
+      "name": "Sliding Profiles"
     },
     "tags": [],
     "type": "trading",
@@ -149,14 +3443,66 @@
       "allowBackorder": false
     },
     "status": "active",
-    "createdBy": "6a9bb589602e9cd27847718f",
+    "createdBy": "6aa00c9703361b5548e1209d",
     "deletedAt": null,
     "tierPricing": [],
-    "createdAt": "2026-09-07T06:02:07.698Z",
-    "updatedAt": "2026-09-07T06:02:07.698Z",
-    "productCode": "P-ALU-PRD-26250-02",
+    "createdAt": "2026-09-13T05:29:07.675Z",
+    "updatedAt": "2026-09-13T05:29:07.675Z",
+    "productCode": "P-ALU-PRD-26256-09",
     "__v": 0,
-    "categoryName": "Aluminium Profiles",
+    "categoryName": "Sliding Profiles",
+    "brandName": "—"
+  },
+  {
+    "_id": "6aa634b49e549f4b3a7a1ba5",
+    "name": "GL",
+    "businessType": "normal",
+    "aluCategory": "other",
+    "aluSpecs": {
+      "lengthMm": 0,
+      "fullBarPrice": 0
+    },
+    "productType": "raw_material",
+    "canBeManufactured": false,
+    "canBePurchased": true,
+    "canBeSold": false,
+    "categoryId": {
+      "_id": "6a9016a7139985de2f5fb10e",
+      "name": "Sliding Profiles"
+    },
+    "tags": [],
+    "type": "trading",
+    "unitOfMeasure": "Kg",
+    "basePrice": 0,
+    "currency": "LKR",
+    "tax": {
+      "taxable": true,
+      "taxRate": 18
+    },
+    "costs": {
+      "lastPurchaseCost": 0,
+      "averageCost": 0,
+      "standardCost": 0
+    },
+    "stockLevels": {
+      "minimumLevel": 0,
+      "reorderLevel": 0,
+      "maximumLevel": 0
+    },
+    "salesConfig": {
+      "sellable": true,
+      "minimumOrderQuantity": 1,
+      "allowBackorder": false
+    },
+    "status": "active",
+    "createdBy": "6aa00c9703361b5548e1209d",
+    "deletedAt": null,
+    "tierPricing": [],
+    "createdAt": "2026-09-13T05:29:24.415Z",
+    "updatedAt": "2026-09-13T05:29:24.415Z",
+    "productCode": "P-ALU-PRD-26256-10",
+    "__v": 0,
+    "categoryName": "Sliding Profiles",
     "brandName": "—"
   }
 ]
