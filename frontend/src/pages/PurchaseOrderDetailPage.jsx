@@ -2,6 +2,8 @@ import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Send, Ban, Receipt, Printer, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -14,6 +16,7 @@ import SendPoModal from '../features/purchaseOrders/SendPoModal';
 import PrintablePurchaseOrder from '../components/print/PrintablePurchaseOrder';
 import { usePurchaseOrder, useChangePoStatus, useApproveGrnQA } from '../features/purchaseOrders/usePurchaseOrders';
 import { useAuthStore } from '../store/authStore';
+import { useSettings } from '../features/settings/useSettings';
 
 const statusVariant = {
     draft: 'default', pending_approval: 'warning', approved: 'info',
@@ -36,7 +39,17 @@ export default function PurchaseOrderDetailPage() {
     const { data, isLoading } = usePurchaseOrder(id);
     const changeStatus = useChangePoStatus();
     const approveQA = useApproveGrnQA();
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data;
     const po = data?.data;
+
+    const companyInfo = {
+        name: settings?.companyName || 'ALUECO ALUMINIUM SYSTEMS',
+        address: settings?.companyAddress || '123 Industrial Zone, Colombo, Sri Lanka',
+        taxNumber: settings?.taxId || 'VAT-123456789',
+        phone: settings?.companyPhone || '+94 11 234 5678',
+        email: settings?.companyEmail || 'info@alueco.lk',
+    };
 
     const handleQuickApproveGrn = async (grn) => {
         if (!window.confirm(`Are you sure you want to QUICK APPROVE GRN ${grn.grnNumber}? This will accept 100% of received materials and generate batch numbers automatically.`)) {
@@ -93,6 +106,59 @@ export default function PurchaseOrderDetailPage() {
         window.print();
     };
 
+    const handleDownloadPDF = async () => {
+        try {
+            if (!printRef.current) {
+                toast.error('Printable content not ready');
+                return;
+            }
+
+            toast.loading('Generating PDF...', { id: 'pdf-toast' });
+
+            // Make the printable element temporarily visible
+            const originalStyle = printRef.current.parentElement.style.cssText;
+            printRef.current.parentElement.style.position = 'fixed';
+            printRef.current.parentElement.style.left = '0';
+            printRef.current.parentElement.style.top = '0';
+            printRef.current.parentElement.style.zIndex = '9999';
+            printRef.current.parentElement.style.backgroundColor = 'white';
+
+            // Wait for the element to be rendered
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Generate PDF
+            const canvas = await html2canvas(printRef.current, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                width: 800,
+                windowWidth: 800
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+            const imgX = (pdfWidth - imgWidth * ratio) / 2;
+            const imgY = 0;
+
+            pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+            pdf.save(`PO-${po.poNumber}.pdf`);
+
+            // Restore original styling
+            printRef.current.parentElement.style.cssText = originalStyle;
+
+            toast.success('PDF downloaded successfully', { id: 'pdf-toast' });
+        } catch (error) {
+            console.error('PDF generation error:', error);
+            toast.error('Failed to generate PDF', { id: 'pdf-toast' });
+        }
+    };
+
     return (
         <div>
             <PageHeader
@@ -109,7 +175,7 @@ export default function PurchaseOrderDetailPage() {
                         <Button variant="outline" onClick={handlePrint}>
                             <Printer size={16} className="mr-1.5" /> Print Letterhead
                         </Button>
-                        <Button variant="outline" onClick={handlePrint}>
+                        <Button variant="outline" onClick={handleDownloadPDF}>
                             <Download size={16} className="mr-1.5" /> Download PDF
                         </Button>
                         <Button variant="primary" onClick={() => setIsSendPoOpen(true)}>
@@ -298,8 +364,8 @@ export default function PurchaseOrderDetailPage() {
 
             <SendPoModal isOpen={isSendPoOpen} onClose={() => setIsSendPoOpen(false)} po={po} />
 
-            <div className="hidden print:block">
-                <PrintablePurchaseOrder ref={printRef} po={po} />
+            <div className="fixed -left-[9999px] top-0 print:block">
+                <PrintablePurchaseOrder ref={printRef} po={po} companyInfo={companyInfo} />
             </div>
 
             <ConfirmDialog
