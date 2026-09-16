@@ -10,7 +10,15 @@ body {
 
 /* Print styles */
 #customer-quotation-view-doc,
-#customer-quotation-view-doc * {
+#customer-quotation-view-doc *,
+.print-container,
+.print-container *,
+#printable-po,
+#printable-po *,
+.pos-receipt-print-area,
+.pos-receipt-print-area *,
+[data-printable],
+[data-printable] * {
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
   color-adjust: exact !important;
@@ -21,53 +29,50 @@ body {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
-    height: 297mm !important;
-    overflow: hidden !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
   }
 
-  body * {
-    visibility: hidden !important;
+  /* Hide app shell, navigation, header, sidebar & action buttons when printing */
+  .no-print,
+  .print\:hidden,
+  header,
+  nav,
+  aside,
+  button,
+  .sidebar,
+  .app-header {
+    display: none !important;
   }
 
-  #customer-quotation-view-doc,
-  #customer-quotation-view-doc * {
-    visibility: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
+  .print\:block {
+    display: block !important;
+  }
+
+  #printable-po,
+  .print-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
 
   #customer-quotation-view-doc {
-    position: absolute !important;
-    left: 50% !important;
-    top: 2mm !important;
-    transform: translateX(-50%) !important;
     width: 205mm !important;
     max-width: 205mm !important;
-    height: 285mm !important;
-    max-height: 285mm !important;
     margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  /* Hide app shell & action buttons when printing */
-  .no-print,
-  header,
-  nav,
-  aside,
-  button {
-    display: none !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 0mm;
+    margin: 8mm;
   }
 }
 
