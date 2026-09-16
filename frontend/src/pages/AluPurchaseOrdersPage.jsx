@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import {
     ShoppingCart, Plus, Search, Filter, RefreshCw, CheckCircle2, Clock,
     AlertTriangle, Layers, ArrowUpRight, PackageCheck, Eye, Trash2, Edit2,
-    ChevronDown, ChevronUp, FileSpreadsheet, Tag, Building2, User, Save
+    ChevronDown, ChevronUp, FileSpreadsheet, Tag, Building2, User, Save, Download
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -17,6 +17,8 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Textarea from '../components/ui/Textarea';
 import AluGrnModal from '../components/aluminium/AluGrnModal';
+import { useSettings } from '../features/settings/useSettings';
+import { generateAluPurchaseOrderPDF } from '../utils/purchaseOrderPdf';
 
 const MATERIAL_TYPES = [
     { value: 'profile', label: 'Aluminium Profile (Bar)' },
@@ -128,6 +130,19 @@ export default function AluPurchaseOrdersPage() {
     const [suppliers, setSuppliers] = useState([]);
     const [masterMaterials, setMasterMaterials] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data || {};
+
+    const handleDownloadAluPdf = (po) => {
+        try {
+            generateAluPurchaseOrderPDF(po, settings);
+            toast.success(`Downloaded Requisition PO #${po.poNumber}`);
+        } catch (err) {
+            console.error('Failed to export Alu PO PDF:', err);
+            toast.error('Failed to export PDF');
+        }
+    };
 
     useEffect(() => {
         const fetchMasterMaterials = async () => {
@@ -575,6 +590,16 @@ export default function AluPurchaseOrdersPage() {
                                                 <span className="text-xs text-gray-500 block">Est. Shortage Value</span>
                                                 <span className="font-bold text-gray-900 text-sm">Rs. {(po.totalEstimatedCost || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
                                             </div>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDownloadAluPdf(po)}
+                                                title="Download Requisition PDF"
+                                            >
+                                                <Download size={14} className="mr-1" />
+                                                PDF
+                                            </Button>
 
                                             {(po.status === 'pending' || po.status === 'partially_received') && (
                                                 <Button

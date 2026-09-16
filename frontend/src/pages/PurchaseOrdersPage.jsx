@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, ShoppingBag, Copy, Printer, Trash2, Ban } from 'lucide-react';
+import { Plus, Search, Eye, ShoppingBag, Copy, Printer, Trash2, Ban, Download } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 
@@ -13,7 +13,9 @@ import Badge from '../components/ui/Badge';
 import Pagination from '../components/ui/Pagination';
 import EmptyState from '../components/ui/EmptyState';
 import { usePurchaseOrders } from '../features/purchaseOrders/usePurchaseOrders';
+import { useSettings } from '../features/settings/useSettings';
 import { useAuthStore } from '../store/authStore';
+import { generatePurchaseOrderPDF } from '../utils/purchaseOrderPdf';
 
 const statusVariant = {
     draft: 'default',
@@ -29,6 +31,8 @@ const statusVariant = {
 export default function PurchaseOrdersPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data || {};
     const canCreate = ['admin', 'manager', 'accountant'].includes(user?.role);
 
     const [filters, setFilters] = useState({ search: '', status: '', page: 1, limit: 10 });
@@ -40,6 +44,16 @@ export default function PurchaseOrdersPage() {
 
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
     const fmtDate = (d) => new Date(d).toLocaleDateString('en-LK');
+
+    const handleDownloadSinglePdf = (po) => {
+        try {
+            generatePurchaseOrderPDF(po, settings);
+            toast.success(`Downloaded PO #${po.poNumber}`);
+        } catch (err) {
+            console.error('Failed to download PDF:', err);
+            toast.error('Failed to download PDF');
+        }
+    };
 
     const columns = [
         { key: 'poNumber', label: 'PO #', width: '120px', render: (r) => <span className="font-mono text-xs">{r.poNumber}</span> },
@@ -69,12 +83,18 @@ export default function PurchaseOrdersPage() {
         },
         { key: 'status', label: 'Status', render: (r) => <Badge variant={statusVariant[r.status]}>{r.status.replace('_', ' ')}</Badge> },
         {
-            key: 'actions', label: 'Actions', width: '130px',
+            key: 'actions', label: 'Actions', width: '140px',
             render: (r) => (
                 <div className="flex gap-1">
                     <button onClick={(e) => { e.stopPropagation(); navigate(`/purchase-orders/${r._id}`); }}
-                        className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-slate-100 rounded" title="View / Print">
+                        className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-slate-100 rounded" title="View / Details">
                         <Eye size={15} />
+                    </button>
+                    <button onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadSinglePdf(r);
+                    }} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Download PDF">
+                        <Download size={15} />
                     </button>
                     <button onClick={async (e) => {
                         e.stopPropagation();

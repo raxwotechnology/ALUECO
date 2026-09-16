@@ -13,7 +13,9 @@ import SendGrnSmsModal from '../features/purchaseOrders/SendGrnSmsModal';
 import SendPoModal from '../features/purchaseOrders/SendPoModal';
 import PrintablePurchaseOrder from '../components/print/PrintablePurchaseOrder';
 import { usePurchaseOrder, useChangePoStatus, useApproveGrnQA } from '../features/purchaseOrders/usePurchaseOrders';
+import { useSettings } from '../features/settings/useSettings';
 import { useAuthStore } from '../store/authStore';
+import { generatePurchaseOrderPDF } from '../utils/purchaseOrderPdf';
 
 const statusVariant = {
     draft: 'default', pending_approval: 'warning', approved: 'info',
@@ -34,6 +36,9 @@ export default function PurchaseOrderDetailPage() {
     const [selectedGrnToSendSms, setSelectedGrnToSendSms] = useState(null);
 
     const { data, isLoading } = usePurchaseOrder(id);
+    const { data: settingsData } = useSettings();
+    const settings = settingsData?.data || {};
+
     const changeStatus = useChangePoStatus();
     const approveQA = useApproveGrnQA();
     const po = data?.data;
@@ -93,36 +98,49 @@ export default function PurchaseOrderDetailPage() {
         window.print();
     };
 
+    const handleDownloadPDF = () => {
+        if (!po) return;
+        const toastId = toast.loading('Generating Purchase Order PDF...');
+        try {
+            generatePurchaseOrderPDF(po, settings);
+            toast.success('Purchase Order PDF Downloaded!', { id: toastId });
+        } catch (err) {
+            console.error('Failed to export PO PDF:', err);
+            toast.error('Failed to download PDF', { id: toastId });
+        }
+    };
+
     return (
         <div>
-            <PageHeader
-                title={<span className="flex items-center gap-3">
-                    PO {po.poNumber}
-                    <Badge variant={statusVariant[po.status]}>{po.status.replace('_', ' ')}</Badge>
-                </span>}
-                description={`Created ${fmtDate(po.createdAt)}`}
-                actions={
-                    <div className="flex gap-2 flex-wrap">
-                        <Button variant="outline" onClick={() => navigate('/purchase-orders')}>
-                            <ArrowLeft size={16} className="mr-1.5" /> Back
-                        </Button>
-                        <Button variant="outline" onClick={handlePrint}>
-                            <Printer size={16} className="mr-1.5" /> Print Letterhead
-                        </Button>
-                        <Button variant="outline" onClick={handlePrint}>
-                            <Download size={16} className="mr-1.5" /> Download PDF
-                        </Button>
-                        <Button variant="primary" onClick={() => setIsSendPoOpen(true)}>
-                            <Send size={16} className="mr-1.5" /> Send PO
-                        </Button>
-                        {actions.map((a) => (
-                            <Button key={a.label} variant={a.variant} onClick={a.onClick || (() => setAction(a))}>
-                                <a.icon size={16} className="mr-1.5" /> {a.label}
+            <div className="print:hidden">
+                <PageHeader
+                    title={<span className="flex items-center gap-3">
+                        PO {po.poNumber}
+                        <Badge variant={statusVariant[po.status]}>{po.status.replace('_', ' ')}</Badge>
+                    </span>}
+                    description={`Created ${fmtDate(po.createdAt)}`}
+                    actions={
+                        <div className="flex gap-2 flex-wrap">
+                            <Button variant="outline" onClick={() => navigate('/purchase-orders')}>
+                                <ArrowLeft size={16} className="mr-1.5" /> Back
                             </Button>
-                        ))}
-                    </div>
-                }
-            />
+                            <Button variant="outline" onClick={handlePrint}>
+                                <Printer size={16} className="mr-1.5" /> Print Letterhead
+                            </Button>
+                            <Button variant="outline" onClick={handleDownloadPDF}>
+                                <Download size={16} className="mr-1.5" /> Download PDF
+                            </Button>
+                            <Button variant="primary" onClick={() => setIsSendPoOpen(true)}>
+                                <Send size={16} className="mr-1.5" /> Send PO
+                            </Button>
+                            {actions.map((a) => (
+                                <Button key={a.label} variant={a.variant} onClick={a.onClick || (() => setAction(a))}>
+                                    <a.icon size={16} className="mr-1.5" /> {a.label}
+                                </Button>
+                            ))}
+                        </div>
+                    }
+                />
 
             <div className="grid grid-cols-3 gap-6">
                 <div className="col-span-2 space-y-6">
@@ -298,10 +316,6 @@ export default function PurchaseOrderDetailPage() {
 
             <SendPoModal isOpen={isSendPoOpen} onClose={() => setIsSendPoOpen(false)} po={po} />
 
-            <div className="hidden print:block">
-                <PrintablePurchaseOrder ref={printRef} po={po} />
-            </div>
-
             <ConfirmDialog
                 isOpen={!!action}
                 onClose={() => { setAction(null); setReason(''); }}
@@ -320,6 +334,12 @@ export default function PurchaseOrderDetailPage() {
                 variant={action?.variant === 'danger' ? 'danger' : 'primary'}
                 loading={changeStatus.isPending}
             />
+            </div>
+
+            {/* Printable Document (Visible only when printing) */}
+            <div className="hidden print:block" id="printable-po">
+                <PrintablePurchaseOrder ref={printRef} po={po} companyInfo={settings} />
+            </div>
         </div>
     );
 }
