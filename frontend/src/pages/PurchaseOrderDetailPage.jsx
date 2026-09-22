@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Send, Ban, Receipt, Printer, Download } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Send, Ban, Receipt, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -92,10 +92,6 @@ export default function PurchaseOrderDetailPage() {
         setAction(null); setReason('');
     };
 
-    const handlePrint = () => {
-        window.print();
-    };
-
     const handleDownloadPDF = () => {
         if (!po) return;
         const toastId = toast.loading('Generating Purchase Order PDF...');
@@ -121,9 +117,6 @@ export default function PurchaseOrderDetailPage() {
                         <div className="flex gap-2 flex-wrap">
                             <Button variant="outline" onClick={() => navigate('/purchase-orders')}>
                                 <ArrowLeft size={16} className="mr-1.5" /> Back
-                            </Button>
-                            <Button variant="outline" onClick={handlePrint}>
-                                <Printer size={16} className="mr-1.5" /> Print Letterhead
                             </Button>
                             <Button variant="outline" onClick={handleDownloadPDF}>
                                 <Download size={16} className="mr-1.5" /> Download PDF
@@ -333,12 +326,6 @@ export default function PurchaseOrderDetailPage() {
                 variant={action?.variant === 'danger' ? 'danger' : 'primary'}
                 loading={changeStatus.isPending}
             />
-            </div>
-
-            {/* Printable Document (Visible only when printing) */}
-            <div className="hidden print:block" id="printable-po">
-                <PrintablePurchaseOrder ref={printRef} po={po} companyInfo={settings} />
-            </div>
         </div>
     );
 }

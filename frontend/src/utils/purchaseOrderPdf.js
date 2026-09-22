@@ -24,7 +24,7 @@ export const generatePurchaseOrderPDF = (po, settings = {}) => {
     const companyAddress = settings?.companyAddress || '123 Industrial Zone, Colombo, Sri Lanka';
     const companyPhone = settings?.companyPhone || '+94 11 234 5678';
     const companyEmail = settings?.companyEmail || 'info@alueco.lk';
-    const companyTax = settings?.taxNumber || settings?.companyTaxNumber || 'VAT-123456789';
+    const companyTax = settings?.taxId || settings?.taxNumber || settings?.companyTaxNumber || 'VAT-123456789';
 
     // ── 1. HEADER BANNER (Corporate Indigo) ─────────────────────────
     doc.setFillColor(30, 41, 59); // Slate 800
@@ -333,6 +333,7 @@ export const generateAluPurchaseOrderPDF = (aluPo, settings = {}) => {
     const companyAddress = settings?.companyAddress || '123 Industrial Zone, Colombo, Sri Lanka';
     const companyPhone = settings?.companyPhone || '+94 11 234 5678';
     const companyEmail = settings?.companyEmail || 'info@alueco.lk';
+    const companyTax = settings?.taxId || settings?.taxNumber || settings?.companyTaxNumber || 'VAT-123456789';
 
     // ── Header Banner ──
     doc.setFillColor(30, 41, 59); // Slate 800
@@ -352,7 +353,7 @@ export const generateAluPurchaseOrderPDF = (aluPo, settings = {}) => {
     doc.setTextColor(203, 213, 225);
     doc.text('Aluminium Systems — Material Shortage Requisition Order', margin, 20);
     doc.text(companyAddress, margin, 25);
-    doc.text(`Tel: ${companyPhone}  |  Email: ${companyEmail}`, margin, 30);
+    doc.text(`Tel: ${companyPhone}  |  Email: ${companyEmail}  |  Tax Ref: ${companyTax}`, margin, 30);
 
     // Right: PO Number & Date
     doc.setTextColor(255, 255, 255);

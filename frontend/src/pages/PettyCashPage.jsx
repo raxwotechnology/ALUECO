@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { format } from 'date-fns';
 import {
     Plus, Wallet, ArrowUpCircle, ArrowDownCircle,
-    Clock, CheckCircle2, XCircle, TrendingDown, RefreshCw
+    Clock, CheckCircle2, XCircle, TrendingDown, RefreshCw, Eye, Edit
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,6 +39,8 @@ export default function PettyCashPage() {
     const [formType, setFormType]   = useState('expense');
     const [formData, setFormData]   = useState(emptyExpense());
     const [saving, setSaving]       = useState(false);
+    const [editingId, setEditingId] = useState(null);
+    const [viewingId, setViewingId] = useState(null);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -58,15 +60,30 @@ export default function PettyCashPage() {
     const openForm = (type) => {
         setFormType(type);
         setFormData({ ...emptyExpense(), transactionType: type === 'replenish' ? 'receipt' : 'expense' });
+        setEditingId(null);
+        setViewingId(null);
         setIsFormOpen(true);
+    };
+
+    const closeForm = () => {
+        setIsFormOpen(false);
+        setEditingId(null);
+        setViewingId(null);
+        setFormData(emptyExpense());
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
-            await api.post('/finance/petty-cash', formData);
-            toast.success(formType === 'replenish' ? '✅ Cash pool replenished' : '✅ Expense recorded');
+            if (formType === 'edit') {
+                await api.put(`/finance/petty-cash/${editingId}`, formData);
+                toast.success('✅ Entry updated');
+                setEditingId(null);
+            } else {
+                await api.post('/finance/petty-cash', formData);
+                toast.success(formType === 'replenish' ? '✅ Cash pool replenished' : '✅ Expense recorded');
+            }
             setIsFormOpen(false);
             fetchAll();
         } catch (err) { toast.error(err.response?.data?.message || 'Failed to save'); }
@@ -79,6 +96,26 @@ export default function PettyCashPage() {
             toast.success(`Entry ${status}`);
             fetchAll();
         } catch { toast.error('Failed to update status'); }
+    };
+
+    const handleView = async (id) => {
+        try {
+            const res = await api.get(`/finance/petty-cash/${id}`);
+            setFormData(res.data.data);
+            setViewingId(id);
+            setIsFormOpen(true);
+            setFormType('view');
+        } catch { toast.error('Failed to load entry'); }
+    };
+
+    const handleEdit = async (id) => {
+        try {
+            const res = await api.get(`/finance/petty-cash/${id}`);
+            setFormData(res.data.data);
+            setEditingId(id);
+            setIsFormOpen(true);
+            setFormType('edit');
+        } catch { toast.error('Failed to load entry'); }
     };
 
     const maxCatVal = balanceData ? Math.max(...CATEGORIES.map(c => balanceData.categories?.[c.key] || 0), 1) : 1;
@@ -201,7 +238,17 @@ export default function PettyCashPage() {
                                                 </button>
                                             </div>
                                         )}
-                                        <div 
+                                        <button onClick={() => handleView(entry._id)}
+                                            className="p-1 hover:bg-blue-50 text-blue-600 rounded transition"
+                                            title="View">
+                                            <Eye size={14} />
+                                        </button>
+                                        <button onClick={() => handleEdit(entry._id)}
+                                            className="p-1 hover:bg-purple-50 text-purple-600 rounded transition"
+                                            title="Edit">
+                                            <Edit size={14} />
+                                        </button>
+                                        <div
                                             onClick={(e) => {
                                                 if (entry.status === 'pending') {
                                                     e.stopPropagation();
@@ -237,33 +284,39 @@ export default function PettyCashPage() {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between p-6 border-b">
                             <h3 className="text-lg font-bold text-gray-900">
-                                {formType === 'replenish' ? '💰 Top Up Petty Cash Pool' : '📋 Record Expense'}
+                                {formType === 'view' ? '👁️ View Transaction' :
+                                 formType === 'edit' ? '✏️ Edit Transaction' :
+                                 formType === 'replenish' ? '💰 Top Up Petty Cash Pool' : '📋 Record Expense'}
                             </h3>
-                            <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                            <button onClick={closeForm} className="p-2 hover:bg-gray-100 rounded-lg">
                                 <XCircle size={20} className="text-gray-400" />
                             </button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <form onSubmit={formType === 'view' ? (e) => e.preventDefault() : handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Date</label>
                                     <input type="date" value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                        disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Ref No.</label>
                                     <input value={formData.refNo} onChange={e => setFormData(p => ({ ...p, refNo: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                        disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
                                 <div className="col-span-1 sm:col-span-2">
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Description *</label>
                                     <input value={formData.item} onChange={e => setFormData(p => ({ ...p, item: e.target.value }))}
-                                        required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                        required disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Supplier</label>
                                     <input value={formData.supplier} onChange={e => setFormData(p => ({ ...p, supplier: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                        disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Total Amount (Rs.) *</label>
@@ -301,7 +354,8 @@ export default function PettyCashPage() {
                                             return updated;
                                         });
                                     }}
-                                        required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                        required disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
                             </div>
 
@@ -309,6 +363,7 @@ export default function PettyCashPage() {
                                 <div className="col-span-1 sm:col-span-2">
                                     <label className="text-xs font-bold text-gray-600 block mb-1">Category *</label>
                                     <select value={formData.category} onChange={e => {
+                                        if (formType === 'view') return;
                                         const catVal = e.target.value;
                                         setFormData(p => {
                                             const updated = {
@@ -342,7 +397,8 @@ export default function PettyCashPage() {
                                             return updated;
                                         });
                                     }}
-                                        required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                                        required disabled={formType === 'view'}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed">
                                         <option value="">Select Category</option>
                                         {CATEGORIES.map(cat => (
                                             <option key={cat.key} value={cat.label}>{cat.label}</option>
@@ -352,12 +408,16 @@ export default function PettyCashPage() {
                             )}
 
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={() => setIsFormOpen(false)}
-                                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50">Cancel</button>
-                                <button type="submit" disabled={saving}
-                                    className="px-6 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 disabled:opacity-50">
-                                    {saving ? 'Saving...' : formType === 'replenish' ? 'Top Up Pool' : 'Record Expense'}
+                                <button type="button" onClick={closeForm}
+                                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50">
+                                    {formType === 'view' ? 'Close' : 'Cancel'}
                                 </button>
+                                {formType !== 'view' && (
+                                    <button type="submit" disabled={saving}
+                                        className="px-6 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 disabled:opacity-50">
+                                        {saving ? 'Saving...' : formType === 'edit' ? 'Update' : formType === 'replenish' ? 'Top Up Pool' : 'Record Expense'}
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </div>
