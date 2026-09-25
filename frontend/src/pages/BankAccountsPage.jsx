@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, Receipt, TrendingUp, DollarSign, RefreshCw, X, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Plus, Eye, Receipt, TrendingUp, DollarSign, RefreshCw, X, ArrowUpRight, ArrowDownLeft, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 
@@ -13,6 +13,7 @@ import Table from '../components/ui/Table';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import DynamicForm from '../components/ui/DynamicForm';
+import { downloadCSV } from '../utils/exportUtils';
 
 export default function BankAccountsPage() {
     const navigate = useNavigate();
@@ -124,6 +125,23 @@ export default function BankAccountsPage() {
 
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-LK') : '—';
+
+    const handleDownloadLedger = () => {
+        if (!selectedAccount || ledger.length === 0) {
+            toast.error('No ledger data available to download');
+            return;
+        }
+        const data = ledger.map((r) => ({
+            Date: fmtDate(r.date),
+            ReferenceNumber: r.paymentNumber,
+            PartyDescription: r.partyName,
+            Type: r.type,
+            Amount: r.amount,
+            RunningBalance: r.runningBalance,
+        }));
+        const accountName = `${selectedAccount.bankName}_${selectedAccount.accountNumber}`;
+        downloadCSV(data, `BankLedger_${accountName}_${new Date().toISOString().split('T')[0]}.csv`);
+    };
 
     // Metrics
     const totalCashPool = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
@@ -266,14 +284,24 @@ export default function BankAccountsPage() {
                     <div className="flex justify-between items-center">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider select-none">Ledger Statement</h3>
                         {selectedAccount && (
-                            <button 
-                                onClick={() => fetchLedger(selectedAccount._id)} 
-                                className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition flex items-center gap-1.5 text-xs text-gray-500 bg-white font-medium"
-                                title="Refresh statement"
-                            >
-                                <RefreshCw size={14} className={loadingLedger ? 'animate-spin' : ''} />
-                                Refresh
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleDownloadLedger}
+                                    className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition flex items-center gap-1.5 text-xs text-gray-500 bg-white font-medium"
+                                    title="Download ledger statement"
+                                >
+                                    <Download size={14} />
+                                    Download
+                                </button>
+                                <button
+                                    onClick={() => fetchLedger(selectedAccount._id)}
+                                    className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition flex items-center gap-1.5 text-xs text-gray-500 bg-white font-medium"
+                                    title="Refresh statement"
+                                >
+                                    <RefreshCw size={14} className={loadingLedger ? 'animate-spin' : ''} />
+                                    Refresh
+                                </button>
+                            </div>
                         )}
                     </div>
 

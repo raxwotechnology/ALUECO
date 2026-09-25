@@ -3,9 +3,10 @@ import api from '../api/axios';
 import { format } from 'date-fns';
 import {
     Plus, Wallet, ArrowUpCircle, ArrowDownCircle,
-    Clock, CheckCircle2, XCircle, TrendingDown, RefreshCw, Eye, Edit
+    Clock, CheckCircle2, XCircle, TrendingDown, RefreshCw, Eye, Edit, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { downloadCSV } from '../utils/exportUtils';
 
 const CATEGORIES = [
     { key: 'rawMaterials', label: 'Row materials', color: 'bg-green-500' },
@@ -120,6 +121,24 @@ export default function PettyCashPage() {
 
     const maxCatVal = balanceData ? Math.max(...CATEGORIES.map(c => balanceData.categories?.[c.key] || 0), 1) : 1;
 
+    const handleDownload = () => {
+        if (entries.length === 0) {
+            toast.error('No transaction data available to download');
+            return;
+        }
+        const data = entries.map((entry) => ({
+            Date: entry.date ? format(new Date(entry.date), 'MMM dd, yyyy') : '',
+            ReferenceNumber: entry.refNo || 'N/A',
+            Description: entry.item || entry.description || '—',
+            Supplier: entry.supplier || 'N/A',
+            Category: entry.category || 'N/A',
+            Amount: entry.amount,
+            Type: entry.transactionType === 'receipt' ? 'Receipt (Pool Top-up)' : 'Expense',
+            Status: entry.status,
+        }));
+        downloadCSV(data, `PettyCash_${new Date().toISOString().split('T')[0]}.csv`);
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -131,6 +150,9 @@ export default function PettyCashPage() {
                 <div className="flex gap-3">
                     <button onClick={fetchAll} className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
                         <RefreshCw size={16} className="text-gray-500" />
+                    </button>
+                    <button onClick={handleDownload} className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-50 transition">
+                        <Download size={16} className="text-gray-500" /> Download Report
                     </button>
                     <button onClick={() => openForm('replenish')}
                         className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-50 transition">

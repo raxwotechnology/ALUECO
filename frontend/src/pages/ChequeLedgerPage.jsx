@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Receipt, TrendingUp, TrendingDown, Clock, Search } from 'lucide-react';
+import { Eye, Receipt, TrendingUp, TrendingDown, Clock, Search, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import io from 'socket.io-client';
@@ -15,6 +15,7 @@ import Badge from '../components/ui/Badge';
 import Pagination from '../components/ui/Pagination';
 import EmptyState from '../components/ui/EmptyState';
 import { usePayments } from '../features/payments/usePayments';
+import { downloadCSV } from '../utils/exportUtils';
 
 export default function ChequeLedgerPage() {
     const navigate = useNavigate();
@@ -63,6 +64,20 @@ export default function ChequeLedgerPage() {
 
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-LK') : '—';
+
+    const handleDownload = () => {
+        const data = filteredPayments.map((p) => ({
+            ChequeNumber: p.chequeNumber || 'N/A',
+            ChequeDate: fmtDate(p.chequeDate),
+            Type: p.direction === 'received' ? 'INCOMING (IN)' : 'OUTGOING (OUT)',
+            PartyName: p.partyName,
+            PartyCode: p.customerId?.customerCode || p.supplierId?.supplierCode || 'Advance',
+            BankName: p.bankName || '—',
+            Amount: p.amount,
+            Status: p.chequeStatus || 'pending',
+        }));
+        downloadCSV(data, `ChequeLedger_${new Date().toISOString().split('T')[0]}.csv`);
+    };
 
     // Calculate quick stats based on returned cheques (or all cheques in this search page)
     const totalReceived = payments
@@ -167,14 +182,19 @@ export default function ChequeLedgerPage() {
 
     return (
         <div className="space-y-6">
-            <PageHeader 
-                title="Cheque Ledger" 
+            <PageHeader
+                title="Cheque Ledger"
                 description="Manage and track incoming customer cheques and outgoing supplier cheques"
                 actions={
-                    <Button variant="primary" onClick={() => navigate('/payments/new')}>
-                        Record Cheque Payment
-                    </Button>
-                } 
+                    <div className="flex gap-2">
+                        <Button variant="secondary" onClick={handleDownload}>
+                            <Download size={16} className="mr-1.5" /> Download Report
+                        </Button>
+                        <Button variant="primary" onClick={() => navigate('/payments/new')}>
+                            Record Cheque Payment
+                        </Button>
+                    </div>
+                }
             />
 
             {/* Quick Metrics Cards */}
