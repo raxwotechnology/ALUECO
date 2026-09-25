@@ -11,8 +11,8 @@ import Badge from '../components/ui/Badge';
 import Pagination from '../components/ui/Pagination';
 import EmptyState from '../components/ui/EmptyState';
 import { usePayments } from '../features/payments/usePayments';
+import { paymentsApi } from '../features/payments/paymentsApi';
 import { downloadCSV } from '../utils/exportUtils';
-import api from '../api/axios';
 import toast from 'react-hot-toast';
 
 export default function PaymentsPage() {
@@ -46,10 +46,14 @@ export default function PaymentsPage() {
             return;
         }
         try {
-            await api.delete(`/payments/${payment._id}`);
+            console.log('Deleting payment:', payment._id);
+            await paymentsApi.delete(payment._id);
+            console.log('Delete successful');
             toast.success('Payment deleted successfully');
             refetch();
         } catch (error) {
+            console.error('Delete error:', error);
+            console.error('Error response:', error.response);
             toast.error(error.response?.data?.message || 'Failed to delete payment');
         }
     };

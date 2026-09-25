@@ -18,8 +18,8 @@ export const getBackendUrl = () => {
         }
     }
 
-    return isLocalhost 
-        ? 'http://localhost:5001' 
+    return isLocalhost
+        ? 'http://localhost:5001'
         : 'https://alueco-4dyz.onrender.com';
 };
 

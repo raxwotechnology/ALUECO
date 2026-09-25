@@ -475,3 +475,140 @@ export const getPaymentById = asyncHandler(async (req, res) => {
     if (!payment) { res.status(404); throw new Error('Payment not found'); }
     res.json({ success: true, data: payment });
 });
+
+/**
+ * DELETE /api/payments/:id
+ * Delete a payment and reverse all related allocations and balance changes
+ */
+export const deletePayment = asyncHandler(async (req, res) => {
+    console.log('[deletePayment] Attempting to delete payment with ID:', req.params.id);
+    const payment = await Payment.findById(req.params.id).setOptions({ includeDeleted: true });
+    console.log('[deletePayment] Found payment:', payment ? payment.paymentNumber : 'null');
+    if (!payment) {
+        res.status(404);
+        throw new Error('Payment not found');
+    }
+
+    try {
+        // Reverse bank account balance if applicable
+        if (payment.bankAccountId) {
+            const isChequePending = payment.method === 'cheque' && payment.chequeStatus !== 'cleared';
+            
+            // Only reverse balance if the payment had already affected the bank account
+            if (!isChequePending) {
+                const bankAccount = await BankAccount.findById(payment.bankAccountId);
+                if (!bankAccount) throw new Error('Associated company bank account not found');
+
+                const payAmount = Number(payment.amount || 0);
+                if (payment.direction === 'received') {
+                    bankAccount.balance = +(bankAccount.balance - payAmount).toFixed(2);
+                } else if (payment.direction === 'paid') {
+                    bankAccount.balance = +(bankAccount.balance + payAmount).toFixed(2);
+                }
+                await bankAccount.save();
+
+                // Broadcast bank balance update
+                const updatedAccount = await BankAccount.findById(payment.bankAccountId);
+                if (updatedAccount) {
+                    broadcast('bank_balance_update', {
+                        bankAccountId: payment.bankAccountId,
+                        balance: updatedAccount.balance,
+                    });
+                }
+            }
+        }
+
+        // Reverse allocations to invoices/bills/sales_orders
+        if (payment.allocations && payment.allocations.length > 0) {
+            for (const alloc of payment.allocations) {
+                if (alloc.documentType === 'invoice') {
+                    const inv = await Invoice.findById(alloc.documentId);
+                    if (inv) {
+                        inv.amountPaid = Math.max(0, +(inv.amountPaid - alloc.amount).toFixed(2));
+                        inv.balanceDue = +(inv.grandTotal - inv.amountPaid).toFixed(2);
+                        
+                        // Update payment status based on remaining amount
+                        if (inv.amountPaid >= inv.grandTotal) {
+                            inv.paymentStatus = 'paid';
+                        } else if (inv.amountPaid > 0) {
+                            inv.paymentStatus = 'partially_paid';
+                        } else {
+                            inv.paymentStatus = 'unpaid';
+                        }
+                        
+                        await inv.save();
+                    }
+                } else if (alloc.documentType === 'bill') {
+                    const bill = await Bill.findById(alloc.documentId);
+                    if (bill) {
+                        bill.amountPaid = Math.max(0, +(bill.amountPaid - alloc.amount).toFixed(2));
+                        bill.balanceDue = +(bill.grandTotal - bill.amountPaid).toFixed(2);
+                        await bill.save();
+                    }
+                } else if (alloc.documentType === 'sales_order') {
+                    const SalesOrder = (await import('../models/SalesOrder.js')).default;
+                    const so = await SalesOrder.findById(alloc.documentId);
+                    if (so) {
+                        so.totalPaid = Math.max(0, +(so.totalPaid - alloc.amount).toFixed(2));
+                        
+                        // Revert payment schedule statuses if needed
+                        let remainingToReverse = alloc.amount;
+                        for (let i = so.paymentSchedule.length - 1; i >= 0; i--) {
+                            const stage = so.paymentSchedule[i];
+                            if (stage.status === 'paid' && remainingToReverse > 0) {
+                                if (remainingToReverse >= stage.amount) {
+                                    stage.status = 'pending';
+                                    stage.paidAt = undefined;
+                                    remainingToReverse -= stage.amount;
+                                } else {
+                                    remainingToReverse = 0;
+                                }
+                            }
+                        }
+                        
+                        if (so.totalPaid < so.advanceAmount && so.advanceReceived) {
+                            so.advanceReceived = false;
+                            so.productionStatus = 'pending_advance';
+                        }
+                        
+                        await so.save();
+                    }
+                }
+            }
+
+            // Update customer balance if received payment
+            if (payment.direction === 'received' && payment.customerId) {
+                await updateCustomerBalance(payment.customerId);
+            }
+        }
+
+        // Create audit log entry
+        await AuditLog.create({
+            action: 'DELETE',
+            module: 'payments',
+            documentId: payment._id,
+            documentCode: payment.paymentNumber,
+            description: `Payment ${payment.paymentNumber} deleted`,
+            previousData: payment.toObject(),
+            performedBy: req.user._id,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
+        });
+
+        // Soft delete the payment
+        payment.deletedAt = new Date();
+        await payment.save();
+
+        // Broadcast financial update
+        try {
+            broadcast('financial_update', {
+                message: 'Financial accounts updated via payment deletion',
+            });
+        } catch (_) {}
+
+        res.json({ success: true, message: 'Payment deleted successfully' });
+    } catch (err) {
+        res.status(400);
+        throw new Error(err.message || 'Failed to delete payment');
+    }
+});
