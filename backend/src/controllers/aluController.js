@@ -106,7 +106,7 @@ export const createApplication = asyncHandler(async (req, res) => {
 });
 
 export const updateApplication = asyncHandler(async (req, res) => {
-    const application = await AluApplication.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const application = await AluApplication.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!application) {
         res.status(404);
         throw new Error('Application template not found');

@@ -47,6 +47,7 @@ export default function AluDatabasePage() {
     const [activeProfileIdx, setActiveProfileIdx] = useState(null);
     const [activeGlassIdx, setActiveGlassIdx] = useState(null);
     const [activeAccessoryIdx, setActiveAccessoryIdx] = useState(null);
+    const [activeGasketIdx, setActiveGasketIdx] = useState(null);
     const [showAppTypeSuggestions, setShowAppTypeSuggestions] = useState(false);
 
     // Form State for Application BOM
@@ -56,7 +57,8 @@ export default function AluDatabasePage() {
         description: '',
         profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
         glassBOM: [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
-        accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }]
+        accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
+        gasketBOM: [{ gasketCode: '', actualCode: '', name: '', formula: '2 * (W + H) / 1000', unit: 'm' }]
     });
 
     const fetchData = async () => {
@@ -274,6 +276,58 @@ export default function AluDatabasePage() {
         return list;
     }, [rawMaterials, accessories, stockQtyMap]);
 
+    // Unified Gaskets list (EPDM, weatherstrips, rubber seals) with stock in meters
+    const unifiedGaskets = React.useMemo(() => {
+        const list = [];
+        const seen = new Set();
+        const rawProds = rawMaterials.products || [];
+        for (const p of rawProds) {
+            const catName = (p.categoryName || p.categoryId?.name || p.category || '').toLowerCase();
+            const pName = (p.name || '').toLowerCase();
+            const isGasket = p.aluCategory === 'gaskets' ||
+                             catName.includes('gasket') ||
+                             catName.includes('rubber') ||
+                             catName.includes('seal') ||
+                             catName.includes('weather') ||
+                             pName.includes('gasket') ||
+                             pName.includes('rubber') ||
+                             pName.includes('seal') ||
+                             pName.includes('wool') ||
+                             pName.includes('weather');
+
+            if (isGasket) {
+                const code = (p.productCode || p.sku || '').toUpperCase();
+                if (code && !seen.has(code)) {
+                    seen.add(code);
+                    const stockQty = stockQtyMap[p._id?.toString()] ?? stockQtyMap[code] ?? 0;
+                    list.push({
+                        code,
+                        actualCode: code,
+                        name: p.name || `Gasket ${code}`,
+                        brand: p.aluSpecs?.brand || '',
+                        unit: p.unitOfMeasure || 'm',
+                        stockQty
+                    });
+                }
+            }
+        }
+
+        // From unifiedAccessories if it has gasket/seal in name or unit 'm'
+        for (const a of unifiedAccessories) {
+            const aName = (a.name || '').toLowerCase();
+            const aCode = (a.code || '').toLowerCase();
+            if (aName.includes('gasket') || aName.includes('rubber') || aName.includes('seal') || aCode.includes('gasket') || aCode.includes('gs') || (a.unit || '').toLowerCase() === 'm') {
+                const code = (a.code || '').toUpperCase();
+                if (code && !seen.has(code)) {
+                    seen.add(code);
+                    list.push({ ...a, unit: a.unit || 'm' });
+                }
+            }
+        }
+
+        return list.length > 0 ? list : unifiedAccessories;
+    }, [rawMaterials, stockQtyMap, unifiedAccessories]);
+
     const openAddEditModal = (item = null) => {
         setCurrentEdit(item);
         if (item) {
@@ -283,7 +337,16 @@ export default function AluDatabasePage() {
                 description: item.description || '',
                 profileBOM: item.profileBOM?.length ? item.profileBOM : [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
                 glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
-                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }]
+                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
+                gasketBOM: item.gasketBOM?.length 
+                    ? item.gasketBOM.map(g => ({
+                        gasketCode: g.gasketCode || '',
+                        actualCode: g.actualCode || g.gasketCode || '',
+                        name: g.name || '',
+                        formula: g.formula || '2 * (W + H) / 1000',
+                        unit: g.unit || 'm'
+                    }))
+                    : [{ gasketCode: '', actualCode: '', name: '', formula: '2 * (W + H) / 1000', unit: 'm' }]
             });
         } else {
             setAppForm({
@@ -292,7 +355,8 @@ export default function AluDatabasePage() {
                 description: '',
                 profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }],
                 glassBOM: [{ glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }],
-                accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }]
+                accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }],
+                gasketBOM: [{ gasketCode: 'GS-EPDM-01', actualCode: '', name: 'EPDM Rubber Gasket', formula: '2 * (W + H) / 1000', unit: 'm' }]
             });
         }
         setIsOpen(true);
@@ -306,11 +370,27 @@ export default function AluDatabasePage() {
         }
 
         try {
+            // Clean up gasket rows: keep valid entries that have code or formula
+            const validGaskets = (appForm.gasketBOM || [])
+                .filter(g => (g.gasketCode && g.gasketCode.trim()) || (g.formula && g.formula.trim()))
+                .map(g => ({
+                    gasketCode: (g.gasketCode || '').trim().toUpperCase(),
+                    actualCode: (g.actualCode || g.gasketCode || '').trim().toUpperCase(),
+                    name: (g.name || '').trim(),
+                    formula: (g.formula || '2 * (W + H) / 1000').trim(),
+                    unit: g.unit || 'm'
+                }));
+
+            const payload = {
+                ...appForm,
+                gasketBOM: validGaskets
+            };
+
             if (currentEdit) {
-                await api.put(`/alu/applications/${currentEdit._id}`, appForm);
+                await api.put(`/alu/applications/${currentEdit._id}`, payload);
                 toast.success('BOM Template updated successfully');
             } else {
-                await api.post('/alu/applications', appForm);
+                await api.post('/alu/applications', payload);
                 toast.success('BOM Template created successfully');
             }
             setIsOpen(false);
@@ -423,6 +503,13 @@ export default function AluDatabasePage() {
                                         </span>
                                         <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-medium">
                                             ⚙️ {app.accessoryBOM?.length || 0} Accessories
+                                        </span>
+                                        <span className={`px-2.5 py-1 rounded-md font-medium ${
+                                            (app.gasketBOM?.filter(g => g.gasketCode || g.name || g.formula)?.length > 0)
+                                                ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                                                : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            🪢 {app.gasketBOM?.filter(g => g.gasketCode || g.name || g.formula)?.length || 0} Gaskets
                                         </span>
                                     </div>
                                 </div>
@@ -1118,6 +1205,220 @@ export default function AluDatabasePage() {
                                             )}
                                         </div>
                                     )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* 4. Gaskets & Weatherstrip Formulas */}
+                    <div className="space-y-3 border-t border-slate-100 pt-3">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">4. Gasket & Weatherstrip Length Formulas (Meters)</label>
+                                <span className="text-[11px] text-slate-500">Calculate gasket meterage based on W (Width) &amp; H (Height) in mm. e.g. 2 * (W + H) / 1000</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAppForm({ ...appForm, gasketBOM: [...(appForm.gasketBOM || []), { gasketCode: '', actualCode: '', name: '', formula: '2 * (W + H) / 1000', unit: 'm' }] })}
+                                className="text-xs text-amber-700 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                            >
+                                + Add Gasket Formula
+                            </button>
+                        </div>
+
+                        {(appForm.gasketBOM || []).map((gb, idx) => {
+                            const matchedGasket = unifiedGaskets.find(g => g.code.toUpperCase() === (gb.gasketCode || '').trim().toUpperCase());
+                            const q = (gb.gasketCode || '').trim().toLowerCase();
+                            const filteredGaskets = unifiedGaskets.filter(g => {
+                                if (!q) return true;
+                                return (g.code || '').toLowerCase().includes(q) ||
+                                       (g.actualCode || '').toLowerCase().includes(q) ||
+                                       (g.name || '').toLowerCase().includes(q);
+                            });
+
+                            return (
+                                <div key={idx} className="p-3 bg-amber-50/30 border border-amber-200/60 rounded-xl space-y-2 transition-all hover:border-amber-300">
+                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 relative">
+                                        {/* Gasket Code with Autocomplete */}
+                                        <div className="sm:col-span-4 relative">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Gasket Code / Product</label>
+                                            <input
+                                                type="text"
+                                                maxLength={25}
+                                                placeholder="e.g. GS-EPDM-01"
+                                                value={gb.gasketCode}
+                                                onFocus={() => {
+                                                    setActiveGasketIdx(idx);
+                                                    setActiveProfileIdx(null);
+                                                    setActiveGlassIdx(null);
+                                                    setActiveAccessoryIdx(null);
+                                                }}
+                                                onClick={() => {
+                                                    setActiveGasketIdx(idx);
+                                                    setActiveProfileIdx(null);
+                                                    setActiveGlassIdx(null);
+                                                    setActiveAccessoryIdx(null);
+                                                }}
+                                                onChange={e => {
+                                                    const val = e.target.value.toUpperCase();
+                                                    const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                        i === idx ? { ...item, gasketCode: val, actualCode: val } : item
+                                                    );
+                                                    setAppForm({ ...appForm, gasketBOM: next });
+                                                    setActiveGasketIdx(idx);
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:border-amber-600 bg-white"
+                                            />
+
+                                            {/* Autocomplete Dropdown */}
+                                            {activeGasketIdx === idx && (
+                                                <div 
+                                                    className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100"
+                                                    onMouseDown={e => e.preventDefault()}
+                                                >
+                                                    <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                                                        <span>Gaskets & Rubber Seals ({filteredGaskets.length})</span>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => setActiveGasketIdx(null)}
+                                                            className="text-slate-400 hover:text-slate-600"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                    {filteredGaskets.length > 0 ? (
+                                                        filteredGaskets.map((g, gIdx) => (
+                                                            <div
+                                                                key={gIdx}
+                                                                onClick={() => {
+                                                                    const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                                        i === idx ? { ...item, gasketCode: g.code, actualCode: g.actualCode || g.code, name: g.name } : item
+                                                                    );
+                                                                    setAppForm({ ...appForm, gasketBOM: next });
+                                                                    setActiveGasketIdx(null);
+                                                                }}
+                                                                className="p-2 text-xs hover:bg-amber-50 cursor-pointer flex items-center justify-between transition-colors"
+                                                            >
+                                                                <div>
+                                                                    <span className="font-mono font-bold text-amber-700">{g.code}</span>
+                                                                    <span className="text-slate-600 ml-2">{g.name}</span>
+                                                                </div>
+                                                                {g.stockQty > 0 ? (
+                                                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                                                                        ● {g.stockQty} {g.unit || 'm'} in stock
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                                                                        0 in stock
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-[11px] text-slate-500 bg-slate-50 flex items-center gap-1.5">
+                                                             <Sparkles size={13} className="text-amber-600 flex-shrink-0" />
+                                                            <span>Custom gasket code "{gb.gasketCode}" accepted.</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Description / Name */}
+                                        <div className="sm:col-span-3">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Description</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. EPDM Weather Seal"
+                                                value={gb.name || ''}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                        i === idx ? { ...item, name: val } : item
+                                                    );
+                                                    setAppForm({ ...appForm, gasketBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-600 bg-white"
+                                            />
+                                        </div>
+
+                                        {/* Formula (Meters based on W & H) */}
+                                        <div className="sm:col-span-4">
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5 flex justify-between">
+                                                <span>Formula in Meters (W &amp; H)</span>
+                                                <span className="text-indigo-600 font-normal">in meters (m)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. 2 * (W + H) / 1000"
+                                                value={gb.formula || ''}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                        i === idx ? { ...item, formula: val } : item
+                                                    );
+                                                    setAppForm({ ...appForm, gasketBOM: next });
+                                                }}
+                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600 bg-white"
+                                            />
+                                        </div>
+
+                                        {/* Remove Button */}
+                                        <div className="sm:col-span-1 flex items-end justify-center pb-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAppForm({ ...appForm, gasketBOM: (appForm.gasketBOM || []).filter((_, i) => i !== idx) });
+                                                    setActiveGasketIdx(null);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                                title="Remove gasket formula"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Formula Presets for Gasket Length */}
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+                                        <span className="text-slate-400 font-semibold">Presets:</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                    i === idx ? { ...item, formula: '2 * (W + H) / 1000' } : item
+                                                );
+                                                setAppForm({ ...appForm, gasketBOM: next });
+                                            }}
+                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
+                                        >
+                                            Perimeter: 2*(W+H)/1000
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                    i === idx ? { ...item, formula: '2 * (W / P + H) * P / 1000' } : item
+                                                );
+                                                setAppForm({ ...appForm, gasketBOM: next });
+                                            }}
+                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
+                                        >
+                                            Panels: 2*(W/P+H)*P/1000
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = (appForm.gasketBOM || []).map((item, i) =>
+                                                    i === idx ? { ...item, formula: '(2 * W + 4 * H) / 1000' } : item
+                                                );
+                                                setAppForm({ ...appForm, gasketBOM: next });
+                                            }}
+                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
+                                        >
+                                            Double Track: (2*W+4*H)/1000
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })}

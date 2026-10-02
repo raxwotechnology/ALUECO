@@ -403,7 +403,8 @@ export default function CustomerQuotationView({
                                             <div className="mt-1 pt-1 border-t border-slate-100 text-[9px] text-slate-600 space-y-0.5 font-normal">
                                                 <p>• <strong>Profile:</strong> {item.profileSpec || item.profile || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)'}</p>
                                                 <p>• <strong>Glass:</strong> {item.glassSpec || item.glass || '5mm Single Tempered Clear Glass'}</p>
-                                                <p>• <strong>Hardware:</strong> {item.hardwareSpec || item.hardware || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals'}</p>
+                                                <p>• <strong>Hardware:</strong> {item.hardwareSpec || item.hardware || 'Kinlong / 3H Heavy Duty Touch Locks & Rollers'}</p>
+                                                <p>• <strong>Gaskets:</strong> {item.gasketSpec || 'EPDM Heavy Duty Weather Seal Gaskets'} {Number(item.totalGasketMeters) > 0 ? `(${Number(item.totalGasketMeters).toFixed(1)} m)` : ''}</p>
                                                 <p>• <strong>Scope &amp; Labour:</strong> {item.scopeSpec || item.scope || 'Fabrication, Delivery & Installation Inclusive'} {item.totalAreaSqFt ? `(${item.totalAreaSqFt} Sq.Ft)` : ''}</p>
                                             </div>
                                         </td>

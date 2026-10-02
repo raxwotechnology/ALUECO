@@ -25,7 +25,7 @@ const AluQuotationFormPage = () => {
     const [showBOMModal, setShowBOMModal] = useState(false);
     const [bomSearchQuery, setBomSearchQuery] = useState('');
     const [bomCategoryFilter, setBomCategoryFilter] = useState('ALL');
-    const [modalLabourCost, setModalLabourCost] = useState(0);
+    const [modalLabourRatePerSqFt, setModalLabourRatePerSqFt] = useState(150);
     const [modalProfitMargin, setModalProfitMargin] = useState(20);
     
     // Accordion toggles for each opening item
@@ -77,14 +77,17 @@ const AluQuotationFormPage = () => {
         quantity = 1, 
         currentRates = null, 
         profitMargin = null, 
-        labourCost = 0
+        labourCost = undefined,
+        labourRatePerSqFt = 150
     ) => {
         const activeRates = currentRates || dbRates;
         const margin = profitMargin !== null ? Number(profitMargin) : (Number(formData.profitMarginPercent) || 20);
-        const labour = Number(labourCost) || 0;
         const q = Math.max(1, Number(quantity) || 1);
         const w = Number(width) || 2400;
         const h = Number(height) || 2100;
+        const ratePerSqFt = (labourRatePerSqFt !== undefined && labourRatePerSqFt !== null && labourRatePerSqFt !== '') 
+            ? Math.max(0, Number(labourRatePerSqFt) || 0) 
+            : 150;
 
         const bom = calculateBOM({
             appType: template.type,
@@ -96,12 +99,16 @@ const AluQuotationFormPage = () => {
             rates: activeRates,
             calculationMode: 'template',
             profitMarginPercent: margin,
-            totalLabourCost: labour
+            labourRatePerSqFt: ratePerSqFt,
+            totalLabourCost: labourCost
         });
 
         const areaSqFt = bom?.summary?.totalAreaSqFt || parseFloat(((w * h * q) / 92903.04).toFixed(2));
+        const unitAreaSqFt = bom?.summary?.unitAreaSqFt || parseFloat(((w * h) / 92903.04).toFixed(2));
         const finalSellingPrice = bom?.summary?.finalSellingPrice || 0;
         const unitPrice = Math.round(finalSellingPrice / q);
+        const unitLabour = bom?.summary?.unitLabourCost ?? Math.round(unitAreaSqFt * ratePerSqFt);
+        const totalLabour = bom?.summary?.totalLabourCost ?? (unitLabour * q);
 
         const configTitle = `${template.type} - ${template.configuration}${template.brand ? ` (${template.brand})` : ''}`;
 
@@ -121,12 +128,16 @@ const AluQuotationFormPage = () => {
             glassItems: bom?.glassItems || [],
             accessories: bom?.accessories || [],
             totalAreaSqFt: areaSqFt,
+            unitAreaSqFt,
             unitPrice,
             totalPrice: finalSellingPrice,
-            labourCost: labour,
+            labourRatePerSqFt: ratePerSqFt,
+            labourCost: unitLabour,
             costingSummary: {
                 ...(bom?.summary || {}),
-                totalLabourCost: labour * q,
+                totalLabourCost: totalLabour,
+                unitLabourCost: unitLabour,
+                labourRatePerSqFt: ratePerSqFt,
                 profitMarginPercent: margin,
                 finalSellingPrice
             },
@@ -140,19 +151,19 @@ const AluQuotationFormPage = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [pRes, gRes, aRes, tRes, prodRes] = await Promise.all([
+                const [pRes, gRes, aRes, tRes, rawRes] = await Promise.all([
                     api.get('/alu/profiles').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/glass').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/accessories').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/applications').catch(() => ({ data: { data: [] } })),
-                    api.get('/products?businessType=alueco&aluCategory=accessories').catch(() => ({ data: { data: [] } }))
+                    api.get('/alu/raw-materials').catch(() => ({ data: { data: { products: [] } } }))
                 ]);
 
                 const profiles = pRes.data?.data || [];
                 const glass = gRes.data?.data || [];
                 const accessories = aRes.data?.data || [];
                 const loadedTemplates = (tRes.data?.data || tRes.data || []).filter(t => t.isActive !== false);
-                const aluProducts = prodRes.data?.data || [];
+                const rawMaterialsData = rawRes.data?.data?.products || (Array.isArray(rawRes.data?.data) ? rawRes.data.data : []);
                 setTemplates(loadedTemplates);
 
                 // Build Rates Map
@@ -164,20 +175,66 @@ const AluQuotationFormPage = () => {
                         pricePerM = ratesPerM.reduce((sum, rate) => sum + rate, 0) / ratesPerM.length;
                     }
                     profMap[p.profileCode] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
+                    if (p.profileCode) profMap[p.profileCode.toUpperCase()] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
                 });
 
                 const glassMap = {};
                 glass.forEach(g => {
-                    glassMap[g.typeName] = { name: g.typeName, ratePerSqFt: g.ratePerSqFt || 0, ratePerSqM: g.ratePerSqM || 0 };
+                    const rate = Number(g.ratePerSqFt) || 0;
+                    const item = {
+                        name: g.typeName,
+                        code: g.typeName,
+                        ratePerSqFt: rate,
+                        ratePerSqM: g.ratePerSqM || Math.round(rate * 10.7639),
+                        thickness: g.thickness || ''
+                    };
+                    glassMap[g.typeName] = item;
+                    glassMap[g.typeName.toUpperCase()] = item;
+                    glassMap[g.typeName.toLowerCase()] = item;
+                });
+
+                // Material Inventory Products (PRIMARY source for inventory glass rates)
+                rawMaterialsData.forEach(p => {
+                    const isGlass = p.aluCategory === 'glass' || 
+                                    p.aluSpecs?.type === 'GL' || 
+                                    (p.productCode && p.productCode.toUpperCase().startsWith('GL')) ||
+                                    (p.name && p.name.toLowerCase().includes('glass'));
+                    if (isGlass) {
+                        const sqftRate = Number(p.basePrice || p.costs?.lastPurchaseCost || p.costs?.standardCost || p.costs?.averageCost) || 0;
+                        const glassItem = {
+                            name: p.name || p.productCode,
+                            code: p.productCode || p.name,
+                            ratePerSqFt: sqftRate,
+                            ratePerSqM: Math.round(sqftRate * 10.7639),
+                            thickness: p.aluSpecs?.thickness || '',
+                            id: p._id?.toString()
+                        };
+
+                        if (p.productCode) {
+                            glassMap[p.productCode] = glassItem;
+                            glassMap[p.productCode.toUpperCase()] = glassItem;
+                            glassMap[p.productCode.toLowerCase()] = glassItem;
+                            glassMap[p.productCode.replace(/[-_\s]/g, '').toUpperCase()] = glassItem;
+                        }
+                        if (p.name) {
+                            glassMap[p.name] = glassItem;
+                            glassMap[p.name.toUpperCase()] = glassItem;
+                            glassMap[p.name.toLowerCase()] = glassItem;
+                        }
+                        if (p._id) {
+                            glassMap[p._id.toString()] = glassItem;
+                        }
+                    }
                 });
 
                 const accMap = {};
                 accessories.forEach(a => {
                     accMap[a.code] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
+                    if (a.code) accMap[a.code.toUpperCase()] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
                 });
 
-                aluProducts.forEach(p => {
-                    if (p.aluCategory === 'accessories' || p.aluCategory === 'gaskets') {
+                rawMaterialsData.forEach(p => {
+                    if (p.aluCategory === 'accessories' || p.aluCategory === 'hardware' || p.aluCategory === 'gaskets') {
                         let code = p.productCode?.toUpperCase();
                         if (!code || code.startsWith('P-')) code = p.aluSpecs?.profile?.toUpperCase();
                         if (!code) code = p.name?.toUpperCase();
@@ -257,10 +314,13 @@ const AluQuotationFormPage = () => {
                         profileSpec: item.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
                         glassSpec: item.glassSpec || '5mm Single Tempered Clear Glass',
                         hardwareSpec: item.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+                        gasketSpec: item.gasketSpec || 'EPDM Weather Seal Gaskets Inclusive',
                         scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
                         profileCuts: item.profileCuts || [],
                         glassItems: item.glassItems || [],
                         accessories: item.accessories || [],
+                        gasketItems: item.gasketItems || [],
+                        totalGasketMeters: item.totalGasketMeters || 0,
                         totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * item.quantity) / 92903.04).toFixed(2)),
                         labourRatePerSqFt: item.labourRatePerSqFt || 150,
                         labourMethod: item.labourMethod || 'sqft',
@@ -319,7 +379,28 @@ const AluQuotationFormPage = () => {
         const h = field === 'height' ? numVal : item.height;
         const q = Math.max(1, field === 'quantity' ? numVal : item.quantity);
         const margin = field === 'profitMarginPercent' ? numVal : (item.profitMarginPercent ?? formData.profitMarginPercent ?? 20);
-        const labour = field === 'labourCost' ? numVal : (item.labourCost || 0);
+
+        const unitAreaSqFt = parseFloat(((w * h) / 92903.04).toFixed(2));
+        const totalAreaSqFt = parseFloat((unitAreaSqFt * q).toFixed(2));
+
+        let ratePerSqFt = item.labourRatePerSqFt !== undefined && item.labourRatePerSqFt !== null ? Number(item.labourRatePerSqFt) : 150;
+        let unitLabour = item.labourCost || 0;
+
+        if (field === 'labourRatePerSqFt') {
+            ratePerSqFt = numVal;
+            unitLabour = Math.round(unitAreaSqFt * ratePerSqFt);
+        } else if (field === 'labourCost') {
+            unitLabour = numVal;
+            ratePerSqFt = unitAreaSqFt > 0 ? parseFloat((unitLabour / unitAreaSqFt).toFixed(2)) : ratePerSqFt;
+        } else if (field === 'width' || field === 'height' || field === 'quantity') {
+            unitLabour = Math.round(unitAreaSqFt * ratePerSqFt);
+        }
+
+        const totalLabour = unitLabour * q;
+        item.labourRatePerSqFt = ratePerSqFt;
+        item.labourCost = unitLabour;
+        item.unitAreaSqFt = unitAreaSqFt;
+        item.totalAreaSqFt = totalAreaSqFt;
 
         if (matchedTemplate && dbRates) {
             const bom = calculateBOM({
@@ -332,23 +413,28 @@ const AluQuotationFormPage = () => {
                 rates: dbRates,
                 calculationMode: 'template',
                 profitMarginPercent: margin,
-                totalLabourCost: labour
+                labourRatePerSqFt: ratePerSqFt,
+                totalLabourCost: unitLabour
             });
 
-            const areaSqFt = bom?.summary?.totalAreaSqFt || parseFloat(((w * h * q) / 92903.04).toFixed(2));
             const finalSellingPrice = bom?.summary?.finalSellingPrice || 0;
 
             item.profileCuts = bom?.profileCuts || item.profileCuts;
             item.glassItems = bom?.glassItems || item.glassItems;
             item.accessories = bom?.accessories || item.accessories;
-            item.totalAreaSqFt = areaSqFt;
+            item.gasketItems = bom?.gasketItems || item.gasketItems;
+            item.totalGasketMeters = bom?.summary?.totalGasketMeters !== undefined ? bom?.summary?.totalGasketMeters : item.totalGasketMeters;
+            item.totalAreaSqFt = totalAreaSqFt;
             item.unitPrice = Math.round(finalSellingPrice / q);
             item.totalPrice = finalSellingPrice;
             item.profitMarginPercent = margin;
-            item.labourCost = labour;
+            item.labourRatePerSqFt = ratePerSqFt;
+            item.labourCost = unitLabour;
             item.costingSummary = {
                 ...(bom?.summary || {}),
-                totalLabourCost: labour * q,
+                totalLabourCost: totalLabour,
+                unitLabourCost: unitLabour,
+                labourRatePerSqFt: ratePerSqFt,
                 profitMarginPercent: margin,
                 finalSellingPrice
             };
@@ -359,18 +445,20 @@ const AluQuotationFormPage = () => {
                  (item.costingSummary?.totalGlassCost || 0) + 
                  (item.costingSummary?.totalAccessoriesCost || 0));
 
-            const totalLabourForOpening = labour * q;
-            const baseWithLabour = rawCost + totalLabourForOpening;
+            const baseWithLabour = rawCost + totalLabour;
             const profitAmount = baseWithLabour * (margin / 100);
             const newFinalSelling = Math.round(baseWithLabour + profitAmount);
 
             item.profitMarginPercent = margin;
-            item.labourCost = labour;
+            item.labourRatePerSqFt = ratePerSqFt;
+            item.labourCost = unitLabour;
             item.totalPrice = newFinalSelling;
             item.unitPrice = Math.round(newFinalSelling / q);
-            item.totalAreaSqFt = parseFloat(((w * h * q) / 92903.04).toFixed(2));
+            item.totalAreaSqFt = totalAreaSqFt;
             if (item.costingSummary) {
-                item.costingSummary.totalLabourCost = totalLabourForOpening;
+                item.costingSummary.totalLabourCost = totalLabour;
+                item.costingSummary.unitLabourCost = unitLabour;
+                item.costingSummary.labourRatePerSqFt = ratePerSqFt;
                 item.costingSummary.profitMarginPercent = margin;
                 item.costingSummary.profitMarginAmount = Math.round(profitAmount);
                 item.costingSummary.finalSellingPrice = newFinalSelling;
@@ -397,7 +485,8 @@ const AluQuotationFormPage = () => {
             1, 
             dbRates, 
             modalProfitMargin, 
-            modalLabourCost
+            undefined,
+            modalLabourRatePerSqFt
         );
         setFormData(prev => ({
             ...prev,
@@ -464,11 +553,22 @@ const AluQuotationFormPage = () => {
         });
 
         // Materials & Labour totals across all openings
-        const totalAluminium = formData.items.reduce((s, it) => s + (it.costingSummary?.totalAluminiumCost || 0), 0);
-        const totalGlass = formData.items.reduce((s, it) => s + (it.costingSummary?.totalGlassCost || 0), 0);
-        const totalHardware = formData.items.reduce((s, it) => s + (it.costingSummary?.totalAccessoriesCost || 0), 0);
-        const totalRaw = formData.items.reduce((s, it) => s + (it.costingSummary?.totalRawCost || 0), 0);
-        const totalLabour = formData.items.reduce((s, it) => s + (it.costingSummary?.totalLabourCost || (it.labourCost * it.quantity) || 0), 0);
+        const totalAluminium = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalAluminiumCost || 0), 0));
+        const totalGlass = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalGlassCost || 0), 0));
+        const totalHardware = Math.round(formData.items.reduce((s, it) => {
+            const accItems = (it.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm');
+            if (accItems.length > 0) return s + accItems.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+            const gasketPart = it.costingSummary?.totalGasketCost || 0;
+            return s + Math.max(0, (it.costingSummary?.totalAccessoriesCost || 0) - gasketPart);
+        }, 0));
+        const totalGaskets = Math.round(formData.items.reduce((s, it) => {
+            return s + (it.costingSummary?.totalGasketCost || (it.gasketItems ? it.gasketItems.reduce((sum, g) => sum + (Number(g.cost) || 0), 0) : 0));
+        }, 0));
+        const totalGasketMeters = parseFloat(formData.items.reduce((s, it) => s + (Number(it.totalGasketMeters) || 0), 0).toFixed(2));
+        const totalRaw = totalAluminium + totalGlass + totalHardware + totalGaskets;
+        const totalLabour = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalLabourCost || ((it.labourCost || 0) * (it.quantity || 1))), 0));
+        const totalProfitMargin = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.profitMarginAmount || 0), 0));
+        const totalAreaSqFt = parseFloat(formData.items.reduce((s, it) => s + (Number(it.totalAreaSqFt) || 0), 0).toFixed(2));
 
         return {
             rawSubtotal,
@@ -482,8 +582,12 @@ const AluQuotationFormPage = () => {
             totalAluminium,
             totalGlass,
             totalHardware,
+            totalGaskets,
+            totalGasketMeters,
             totalRaw,
-            totalLabour
+            totalLabour,
+            totalProfitMargin,
+            totalAreaSqFt
         };
     }, [formData.items, formData.transportCost, formData.otherCost, formData.includeVat, formData.distributeTransportCost]);
 
@@ -733,6 +837,11 @@ const AluQuotationFormPage = () => {
                                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
                                             Area: {item.totalAreaSqFt} sq.ft
                                         </span>
+                                        {Number(item.totalGasketMeters) > 0 && (
+                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                                🪢 Gaskets: {Number(item.totalGasketMeters).toFixed(1)} m
+                                            </span>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -806,19 +915,30 @@ const AluQuotationFormPage = () => {
                                         />
                                     </div>
 
-                                    {/* Labour Cost per Unit Input */}
+                                    {/* Labour Rate / Sqft & Calculated Cost Input */}
                                     <div>
-                                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                                            <Wrench size={12} className="text-amber-600" /> Labour / Unit (LKR)
-                                        </label>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[11px] font-bold text-slate-700 uppercase flex items-center gap-1">
+                                                <Wrench size={12} className="text-amber-600" /> Labour Rate / Sqft (LKR)
+                                            </label>
+                                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono">
+                                                {((item.width * item.height) / 92903.04).toFixed(1)} sqft
+                                            </span>
+                                        </div>
                                         <input
                                             type="number"
-                                            value={item.labourCost || 0}
-                                            onChange={e => handleOpeningParamChange(idx, 'labourCost', e.target.value)}
+                                            value={item.labourRatePerSqFt ?? 150}
+                                            onChange={e => handleOpeningParamChange(idx, 'labourRatePerSqFt', e.target.value)}
                                             min="0"
-                                            placeholder="0"
-                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
+                                            placeholder="150"
+                                            className="w-full bg-amber-50/20 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-amber-700 focus:outline-none focus:border-emerald-600"
                                         />
+                                        <div className="mt-1 text-[10px] text-slate-500 font-medium flex justify-between items-center">
+                                            <span>Labour: <strong className="text-amber-800 font-mono">LKR {(item.labourCost || 0).toLocaleString()}</strong> / unit</span>
+                                            {item.quantity > 1 && (
+                                                <span className="text-slate-400 font-mono">Tot: LKR {((item.labourCost || 0) * item.quantity).toLocaleString()}</span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Profit Margin % Input */}
@@ -860,7 +980,7 @@ const AluQuotationFormPage = () => {
                                             </span>
                                             {(item.labourCost || 0) > 0 && (
                                                 <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
-                                                    Labour: LKR {((item.labourCost || 0) * (item.quantity || 1)).toLocaleString()}
+                                                    Labour: LKR {((item.labourCost || 0) * (item.quantity || 1)).toLocaleString()} ({((item.width * item.height * (item.quantity || 1)) / 92903.04).toFixed(1)} sqft × LKR {item.labourRatePerSqFt ?? 150})
                                                 </span>
                                             )}
                                         </div>
@@ -905,12 +1025,12 @@ const AluQuotationFormPage = () => {
                                             Live BOM Cost &amp; Cutting Breakdown for Opening #{idx + 1}
                                         </h5>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            {/* Profile Cuts */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            {/* 1. Profile Cuts */}
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
-                                                    <span>Aluminium Profiles</span>
-                                                    <span>LKR {item.costingSummary?.totalAluminiumCost?.toLocaleString() || 0}</span>
+                                                    <span>📦 1. Aluminium Profiles</span>
+                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalAluminiumCost || 0).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                                                     {(item.profileCuts || []).map((pc, i) => (
@@ -922,11 +1042,11 @@ const AluQuotationFormPage = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Glass Items */}
+                                            {/* 2. Glass Items */}
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
-                                                    <span>Glass Panels</span>
-                                                    <span>LKR {item.costingSummary?.totalGlassCost?.toLocaleString() || 0}</span>
+                                                    <span>🪟 2. Glass Panels</span>
+                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalGlassCost || 0).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                                                     {(item.glassItems || []).map((g, i) => (
@@ -938,28 +1058,83 @@ const AluQuotationFormPage = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Accessories & Labour Breakdown */}
+                                            {/* 3. Hardware & Accessories */}
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
-                                                    <span>Hardware, Labour &amp; Margin</span>
-                                                    <span>LKR {((item.costingSummary?.totalAccessoriesCost || 0) + ((item.labourCost || 0) * (item.quantity || 1)))?.toLocaleString()}</span>
+                                                    <span>⚙️ 3. Hardware &amp; Accessories</span>
+                                                    <span className="font-mono">LKR {Math.round(
+                                                        (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length > 0
+                                                            ? (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').reduce((sum, a) => sum + (Number(a.cost) || 0), 0)
+                                                            : Math.max(0, (item.costingSummary?.totalAccessoriesCost || 0) - (item.costingSummary?.totalGasketCost || 0))
+                                                    ).toLocaleString()}</span>
                                                 </div>
-                                                <div className="space-y-1 text-[10px] text-slate-600">
-                                                    <div className="flex justify-between py-0.5 border-b border-slate-100">
-                                                        <span>Hardware &amp; Seals</span>
-                                                        <span className="font-mono">LKR {item.costingSummary?.totalAccessoriesCost?.toLocaleString() || 0}</span>
-                                                    </div>
-                                                    <div className="flex justify-between py-0.5 border-b border-slate-100 font-bold text-amber-800">
-                                                        <span>Labour Cost ({item.quantity} Units)</span>
-                                                        <span className="font-mono">LKR {((item.labourCost || 0) * (item.quantity || 1)).toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="flex justify-between py-0.5 border-b border-slate-100 text-emerald-800 font-bold">
-                                                        <span>Profit Margin ({item.profitMarginPercent ?? 20}%)</span>
-                                                        <span className="font-mono">+ LKR {item.costingSummary?.profitMarginAmount?.toLocaleString() || 0}</span>
-                                                    </div>
+                                                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                                    {(item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length === 0 ? (
+                                                        <div className="text-[10px] text-slate-400 italic py-1">No hardware items</div>
+                                                    ) : (
+                                                        (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').map((a, i) => (
+                                                            <div key={i} className="flex justify-between text-[10px] text-slate-600 border-b border-slate-100 py-0.5">
+                                                                <span className="truncate max-w-[130px] font-semibold">{a.name || a.code}</span>
+                                                                <span className="font-mono font-bold">{a.qty} {a.unit || 'pcs'}</span>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* 4. Gaskets */}
+                                            <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 space-y-1.5">
+                                                <div className="flex justify-between font-bold text-amber-950 border-b border-amber-200 pb-1 text-[11px]">
+                                                    <span>🪢 4. Gaskets</span>
+                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalGasketCost || (item.gasketItems ? item.gasketItems.reduce((sum, g) => sum + (Number(g.cost) || 0), 0) : 0)).toLocaleString()}</span>
+                                                </div>
+                                                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                                    {(item.gasketItems && item.gasketItems.length > 0 ? item.gasketItems : (item.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).length === 0 ? (
+                                                        <div className="text-[10px] text-slate-400 italic py-1">No gaskets specified</div>
+                                                    ) : (
+                                                        (item.gasketItems && item.gasketItems.length > 0 ? item.gasketItems : (item.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).map((gk, i) => (
+                                                            <div key={i} className="flex justify-between text-[10px] text-amber-900 border-b border-amber-100 py-0.5">
+                                                                <span className="truncate max-w-[120px] font-semibold">{gk.name || gk.code}</span>
+                                                                <span className="font-mono font-bold">{gk.qty} m</span>
+                                                            </div>
+                                                        ))
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Commercial Costing Flow Strip */}
+                                        {(() => {
+                                            const itemRaw = Math.round(
+                                                item.costingSummary?.totalRawCost ||
+                                                ((item.costingSummary?.totalAluminiumCost || 0) + (item.costingSummary?.totalGlassCost || 0) + (item.costingSummary?.totalAccessoriesCost || 0))
+                                            );
+                                            const itemLabour = Math.round(item.costingSummary?.totalLabourCost || ((item.labourCost || 0) * (item.quantity || 1)));
+                                            const itemBase = itemRaw + itemLabour;
+                                            const itemProfit = Math.round(item.costingSummary?.profitMarginAmount || (itemBase * ((item.profitMarginPercent ?? 20) / 100)));
+                                            const itemFinal = Math.round(item.costingSummary?.finalSellingPrice || item.totalPrice || (itemBase + itemProfit));
+
+                                            return (
+                                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                                                    <div className="p-2 bg-white rounded-lg border border-slate-200/70">
+                                                        <span className="block text-[10px] text-slate-500 font-bold uppercase">1. Raw Materials</span>
+                                                        <span className="font-mono font-bold text-slate-900">LKR {itemRaw.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="p-2 bg-white rounded-lg border border-slate-200/70">
+                                                        <span className="block text-[10px] text-slate-500 font-bold uppercase">2. Total Labour</span>
+                                                        <span className="font-mono font-bold text-slate-900">LKR {itemLabour.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="p-2 bg-white rounded-lg border border-slate-200/70">
+                                                        <span className="block text-[10px] text-slate-500 font-bold uppercase">3. Margin ({item.profitMarginPercent ?? 20}%)</span>
+                                                        <span className="font-mono font-bold text-emerald-700">+ LKR {itemProfit.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="p-2 bg-emerald-700 text-white rounded-lg shadow-2xs">
+                                                        <span className="block text-[10px] text-emerald-100 font-bold uppercase">Opening Selling Price</span>
+                                                        <span className="font-mono font-black text-sm">LKR {itemFinal.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
@@ -994,6 +1169,16 @@ const AluQuotationFormPage = () => {
                                             />
                                         </div>
                                         <div>
+                                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Gasket Specification</label>
+                                            <input
+                                                type="text"
+                                                value={item.gasketSpec || ''}
+                                                onChange={e => handleItemTextChange(idx, 'gasketSpec', e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs"
+                                                placeholder="e.g. EPDM Weather Seal Gasket"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
                                             <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Scope of Work Specification</label>
                                             <input
                                                 type="text"
@@ -1020,6 +1205,151 @@ const AluQuotationFormPage = () => {
                     <p className="text-xs text-slate-500 mt-0.5">
                         Real-time mathematical breakdown of subtotal, transport, taxes, and final quotation value.
                     </p>
+                </div>
+
+                {/* Project-Wide Live BOM Costing Summary (Identical to 2D Configurator) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs">
+                    {/* 1. Project Raw Materials Breakdown */}
+                    <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-4">
+                        <div>
+                            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 mb-3">
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                        <span>📦</span> 1. Project Raw Material Breakdown
+                                    </h4>
+                                    <span className="text-[11px] text-slate-500">Cumulative BOM material costs for all {formData.items.length} openings</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                    4 Categories
+                                </span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                {/* 1.1 Aluminium Profiles */}
+                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex justify-between items-center text-slate-800 font-bold">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="text-slate-400 font-mono text-[11px]">1.1</span>
+                                        <span>Aluminium Profiles</span>
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                        LKR {calculations.totalAluminium.toLocaleString()}
+                                    </span>
+                                </div>
+
+                                {/* 1.2 Glass Sheets */}
+                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex justify-between items-center text-slate-800 font-bold">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="text-slate-400 font-mono text-[11px]">1.2</span>
+                                        <span>Glass Sheets &amp; Panels</span>
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                        LKR {calculations.totalGlass.toLocaleString()}
+                                    </span>
+                                </div>
+
+                                {/* 1.3 Hardware & Accessories */}
+                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex justify-between items-center text-slate-800 font-bold">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="text-slate-400 font-mono text-[11px]">1.3</span>
+                                        <span>Hardware &amp; Accessories</span>
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                        LKR {calculations.totalHardware.toLocaleString()}
+                                    </span>
+                                </div>
+
+                                {/* 1.4 Gaskets */}
+                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex justify-between items-center text-slate-800 font-bold">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="text-slate-400 font-mono text-[11px]">1.4</span>
+                                        <span>Gaskets</span>
+                                        {calculations.totalGasketMeters > 0 && (
+                                            <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                                                {calculations.totalGasketMeters.toFixed(2)} m
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                        LKR {calculations.totalGaskets.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Total Raw Materials Cost Footer */}
+                        <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl flex justify-between items-center text-indigo-950">
+                            <div className="flex flex-col">
+                                <span className="font-extrabold text-xs uppercase tracking-wider text-indigo-900">Total Raw Materials Cost (A)</span>
+                                <span className="text-[10px] text-indigo-600">Profiles + Glass + Accessories + Gaskets</span>
+                            </div>
+                            <span className="font-black font-mono text-base text-indigo-900">
+                                LKR {calculations.totalRaw.toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* 2. Project Commercial Price Calculation */}
+                    <div className="bg-emerald-50/40 p-5 rounded-2xl border border-emerald-200 shadow-2xs flex flex-col justify-between space-y-4">
+                        <div>
+                            <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5 mb-3">
+                                <div>
+                                    <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                                        <span>💼</span> 2. Commercial Cost &amp; Margin Flow
+                                    </h4>
+                                    <span className="text-[11px] text-emerald-700">Project-wide production and profit structure</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                    Costing Flow
+                                </span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                {/* Step 1: Raw Materials */}
+                                <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                    <span className="font-semibold">1. Total Raw Materials (A)</span>
+                                    <span className="font-mono font-bold text-slate-900">LKR {calculations.totalRaw.toLocaleString()}</span>
+                                </div>
+
+                                {/* Step 2: Labour Cost */}
+                                <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold">2. Total Labour Cost (B)</span>
+                                        <span className="text-[10px] text-emerald-700 font-medium">
+                                            {calculations.totalAreaSqFt} sqft total project area
+                                        </span>
+                                    </div>
+                                    <span className="font-mono font-bold text-slate-900">LKR {calculations.totalLabour.toLocaleString()}</span>
+                                </div>
+
+                                {/* Step 3: Base Production Cost */}
+                                <div className="p-3 bg-emerald-100/60 rounded-xl border border-emerald-200 flex justify-between items-center text-emerald-950">
+                                    <span className="font-bold text-[11px]">Base Production Cost (A + B)</span>
+                                    <span className="font-mono font-extrabold text-sm text-emerald-900">
+                                        LKR {(calculations.totalRaw + calculations.totalLabour).toLocaleString()}
+                                    </span>
+                                </div>
+
+                                {/* Step 4: Profit Margin */}
+                                <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                    <span className="font-semibold">3. Total Profit Margin</span>
+                                    <span className="font-mono font-bold text-emerald-700">
+                                        + LKR {calculations.totalProfitMargin.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Openings Selling Price Subtotal */}
+                        <div className="p-3.5 bg-emerald-700 text-white rounded-xl shadow-xs flex justify-between items-center">
+                            <div>
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-200">Openings Subtotal</span>
+                                <span className="text-[10px] text-emerald-100 font-medium">Sum of all configured openings</span>
+                            </div>
+                            <span className="text-base font-black font-mono">
+                                LKR {Math.round(calculations.subtotal).toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1299,13 +1629,13 @@ const AluQuotationFormPage = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
                                 <div className="flex items-center gap-2">
                                     <label className="text-[11px] font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
-                                        <Wrench size={12} className="text-amber-600" /> Labour Cost / Unit (LKR):
+                                        <Wrench size={12} className="text-amber-600" /> Labour Rate / Sqft (LKR):
                                     </label>
                                     <input
                                         type="number"
-                                        value={modalLabourCost}
-                                        onChange={e => setModalLabourCost(Math.max(0, Number(e.target.value) || 0))}
-                                        placeholder="0"
+                                        value={modalLabourRatePerSqFt}
+                                        onChange={e => setModalLabourRatePerSqFt(Math.max(0, Number(e.target.value) || 0))}
+                                        placeholder="150"
                                         className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
                                     />
                                 </div>
@@ -1372,6 +1702,11 @@ const AluQuotationFormPage = () => {
                                                         <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                                                             ⚙️ {accCount} Accessories
                                                         </span>
+                                                        {template.gasketBOM?.length > 0 && (
+                                                            <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
+                                                                🪢 {template.gasketBOM.length} Gaskets
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">

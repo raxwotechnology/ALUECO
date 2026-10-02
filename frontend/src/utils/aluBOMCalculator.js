@@ -50,14 +50,17 @@ export const calculateBOM = ({
     topSection = { enabled: true, height: 600, type: 'fixed' },
     quantity = 1,
     rates = null,
+    selectedGlassCode = '',
     customAddons = [],
     calculationMode = 'template', // 'template' | 'custom'
     customProfiles = [],
     customGlass = [],
     customAccessories = [],
+    customGaskets = [],
     aluminiumDiscountPercent = 0,
     profitMarginPercent = 20,
-    totalLabourCost = 0
+    totalLabourCost = undefined,
+    labourRatePerSqFt = undefined
 }) => {
     // Sanitize inputs (allow 0 width/height)
     const W = Number(width) > 0 ? Number(width) : 0;
@@ -96,9 +99,46 @@ export const calculateBOM = ({
     };
 
     const getGlass = (key) => {
-        const found = glassRates[key] || defaultGlassRates[key];
-        if (found && Number(found.ratePerSqFt) > 0) return found;
-        return { name: found?.name || key, ratePerSqFt: 450, ratePerSqM: 4850 };
+        if (!key) {
+            const first = Object.values(glassRates).find(g => Number(g?.ratePerSqFt) > 0);
+            if (first) return first;
+            return defaultGlassRates['CLEAR_5MM'];
+        }
+
+        // 1. Direct match
+        if (glassRates[key] && Number(glassRates[key].ratePerSqFt) > 0) {
+            return glassRates[key];
+        }
+
+        // 2. Case-insensitive & normalized match (ignoring whitespace, dashes, underscores)
+        const normKey = String(key).trim().toLowerCase();
+        const cleanKey = normKey.replace(/[-_\s]/g, '');
+
+        for (const [k, val] of Object.entries(glassRates)) {
+            const normK = String(k).trim().toLowerCase();
+            const cleanK = normK.replace(/[-_\s]/g, '');
+            if ((normK === normKey || cleanK === cleanKey) && Number(val?.ratePerSqFt) > 0) {
+                return val;
+            }
+        }
+
+        // 3. Substring match
+        for (const [k, val] of Object.entries(glassRates)) {
+            const normK = String(k).trim().toLowerCase();
+            if ((normK.includes(normKey) || normKey.includes(normK)) && Number(val?.ratePerSqFt) > 0) {
+                return val;
+            }
+        }
+
+        // 4. Default glass rates check
+        const def = defaultGlassRates[key] || defaultGlassRates[normKey.toUpperCase()] || defaultGlassRates[cleanKey.toUpperCase()];
+        if (def && Number(def.ratePerSqFt) > 0) return def;
+
+        // 5. If key is generic (like CLEAR_5MM), fallback to any inventory glass with a valid rate
+        const anyInvGlass = Object.values(glassRates).find(g => Number(g?.ratePerSqFt) > 0);
+        if (anyInvGlass) return { ...anyInvGlass, name: anyInvGlass.name || key };
+
+        return { name: key, ratePerSqFt: 450, ratePerSqM: 4850 };
     };
 
     const getAcc = (key) => {
@@ -108,16 +148,22 @@ export const calculateBOM = ({
     };
 
     // Helper to evaluate string formulas like "W - 50", "2 * P", "(W + 32) / 2", "[W - (70 x 4)] / 2"
-    const evalFormula = (expr, scope) => {
+    const evalFormula = (expr, scope, allowDecimal = false) => {
         if (typeof expr === 'number') return expr;
         if (!expr || typeof expr !== 'string') return 0;
         try {
-            let sanitized = expr
+            let sanitized = expr.trim()
                 // Replace brackets [] with parentheses
                 .replace(/\[/g, '(')
                 .replace(/\]/g, ')')
-                // Replace 'x' with '*' for multiplication
-                .replace(/\bx\b/g, '*')
+                // Replace 'x' or 'X' with '*' for multiplication
+                .replace(/(\d+|\b[whpqWHPQ]\b|\))\s*[xX]\s*(\d+|\b[whpqWHPQ]\b|\()/g, '$1 * $2')
+                .replace(/\bx\b/gi, '*')
+                // Handle implicit multiplication like "2W", "4P", "2(W+H)", "(W)(H)"
+                .replace(/(\d+)\s*([whpqWHPQ])/gi, '$1 * $2')
+                .replace(/(\d+)\s*\(/g, '$1 * (')
+                .replace(/\)\s*\(/g, ') * (')
+                .replace(/\)\s*(\d+|[whpqWHPQ])/gi, ') * $1')
                 // Replace variable names with their values
                 .replace(/\bW\b/g, scope.W)
                 .replace(/\bH\b/g, scope.H)
@@ -127,7 +173,8 @@ export const calculateBOM = ({
                 .replace(/\bQ\b/g, scope.Q);
             const fn = new Function(`return (${sanitized})`);
             const res = fn();
-            return isNaN(res) ? 0 : Math.max(0, Math.round(res));
+            if (isNaN(res) || !isFinite(res)) return 0;
+            return allowDecimal ? Math.max(0, parseFloat(Number(res).toFixed(2))) : Math.max(0, Math.round(res));
         } catch {
             return 0;
         }
@@ -167,11 +214,13 @@ export const calculateBOM = ({
                 const unitQty = evalFormula(g.quantityFormula, { ...scope, Q: 1 }) || 1;
                 const totalQty = unitQty * Q;
                 const areaSqFt = (gw * gh * totalQty) / 92903.04;
-                const glassObj = getGlass(g.glassCode || g.glassType);
-                const ratePerSqFt = glassObj.ratePerSqFt || 0;
+                const lookupCode = selectedGlassCode || g.glassCode || g.glassType;
+                const glassObj = getGlass(lookupCode);
+                const ratePerSqFt = Number(glassObj.ratePerSqFt) || 0;
                 return {
                     section: `${selectedTemplate.type || 'Template'} Glass Pane`,
-                    type: g.glassCode || g.glassType || glassObj.name,
+                    type: glassObj.code ? `${glassObj.code} - ${glassObj.name}` : (g.glassCode || glassObj.name),
+                    glassCode: glassObj.code || g.glassCode || '',
                     width: gw || 0,
                     height: gh || 0,
                     qty: totalQty,
@@ -182,23 +231,51 @@ export const calculateBOM = ({
             });
 
             const accessories = (selectedTemplate.accessoryBOM || []).map(a => {
-                const unitQty = evalFormula(a.quantityFormula, { ...scope, Q: 1 }) || 1;
-                const totalQty = unitQty * Q;
+                const isMeter = (a.unit || '').toLowerCase() === 'm' || (a.accessoryCode || '').toLowerCase().includes('gasket');
+                const unitQty = evalFormula(a.quantityFormula, { ...scope, Q: 1 }, isMeter) || 1;
+                const totalQty = isMeter ? parseFloat((unitQty * Q).toFixed(2)) : (unitQty * Q);
                 const accObj = getAcc(a.accessoryCode);
                 const unitRate = accObj.unitRate || 0;
                 return {
                     code: a.accessoryCode,
+                    actualCode: a.actualCode || a.accessoryCode,
                     name: accObj.name || a.accessoryCode,
                     qty: totalQty,
-                    unit: accObj.unit || 'pcs',
+                    unit: a.unit || accObj.unit || (isMeter ? 'm' : 'pcs'),
                     unitRate,
-                    cost: Math.round(totalQty * unitRate)
+                    cost: Math.round(totalQty * unitRate),
+                    isGasket: isMeter
                 };
             });
 
+            // Gaskets calculated from selectedTemplate.gasketBOM
+            const gasketItems = (selectedTemplate.gasketBOM || []).map(g => {
+                if (!g.gasketCode && !g.formula) return null;
+                let unitMeters = evalFormula(g.formula || '0', { ...scope, Q: 1 }, true) || 0;
+                // If user wrote formula in mm without division (e.g. 2*(W+H)), convert to meters
+                if (unitMeters > 50 && (scope.W > 50 || scope.H > 50)) {
+                    unitMeters = parseFloat((unitMeters / 1000).toFixed(2));
+                }
+                const totalMeters = parseFloat((unitMeters * Q).toFixed(2));
+                const accObj = getAcc(g.gasketCode);
+                const unitRate = accObj.unitRate || 150;
+                return {
+                    code: g.gasketCode || 'GASKET-EPDM',
+                    actualCode: g.actualCode || g.gasketCode,
+                    name: g.name || accObj.name || 'EPDM Weather Seal Gasket',
+                    qty: totalMeters,
+                    unit: g.unit || 'm',
+                    unitRate,
+                    cost: Math.round(totalMeters * unitRate),
+                    isGasket: true
+                };
+            }).filter(Boolean);
+
+            const combinedAccessories = [...accessories, ...gasketItems];
+
             const totalAluminiumCost = Math.round(profileCuts.reduce((sum, p) => sum + p.cost, 0));
             const totalGlassCost = Math.round(glassItems.reduce((sum, g) => sum + g.cost, 0));
-            const totalAccessoriesCost = Math.round(accessories.reduce((sum, a) => sum + a.cost, 0));
+            const totalAccessoriesCost = Math.round(combinedAccessories.reduce((sum, a) => sum + a.cost, 0));
 
             // Calculate aluminium discount amount
             const totalAluminiumCostBeforeDiscount = Math.round(profileCuts.reduce((sum, p) => {
@@ -208,8 +285,26 @@ export const calculateBOM = ({
             const aluminiumDiscountAmount = totalAluminiumCostBeforeDiscount - totalAluminiumCost;
 
             const isZeroDim = (W === 0 || H_total === 0);
+            const unitAreaSqFt = isZeroDim ? 0 : parseFloat(((W * H_total) / 92903.04).toFixed(2));
+            const totalAreaSqFt = isZeroDim ? 0 : parseFloat((unitAreaSqFt * Q).toFixed(2));
+
+            // Labour Cost = Sqft Qty x Sqft Rate
+            let effectiveLabourRate = 150;
+            let unitLabourCost = 0;
+            if (labourRatePerSqFt !== undefined && labourRatePerSqFt !== null && labourRatePerSqFt !== '') {
+                effectiveLabourRate = Math.max(0, Number(labourRatePerSqFt) || 0);
+                unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+            } else if (totalLabourCost !== undefined && totalLabourCost !== null && Number(totalLabourCost) > 0) {
+                unitLabourCost = Math.round(Number(totalLabourCost));
+                effectiveLabourRate = unitAreaSqFt > 0 ? parseFloat((unitLabourCost / unitAreaSqFt).toFixed(2)) : 0;
+            } else {
+                effectiveLabourRate = 150;
+                unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+            }
+            const calculatedTotalLabour = isZeroDim ? 0 : (unitLabourCost * Q);
+
             const totalRawCost = isZeroDim ? 0 : (totalAluminiumCost + totalGlassCost + totalAccessoriesCost);
-            const baseWithLabour = totalRawCost + (totalLabourCost * Q);
+            const baseWithLabour = totalRawCost + calculatedTotalLabour;
             const profitMarginAmount = baseWithLabour * (profitMarginPercent / 100);
             const finalSellingPrice = isZeroDim ? 0 : (baseWithLabour + profitMarginAmount);
 
@@ -241,17 +336,24 @@ export const calculateBOM = ({
                 },
                 profileCuts,
                 glassItems,
-                accessories,
+                accessories: combinedAccessories,
+                gasketItems,
                 cuttingOptimization,
                 summary: {
+                    totalAreaSqFt,
+                    unitAreaSqFt,
+                    labourRatePerSqFt: effectiveLabourRate,
+                    unitLabourCost,
                     totalAluminiumCost,
                     totalAluminiumCostBeforeDiscount,
                     aluminiumDiscountAmount,
                     aluminiumDiscountPercent,
                     totalGlassCost,
                     totalAccessoriesCost,
+                    totalGasketMeters: parseFloat(gasketItems.reduce((s, g) => s + (Number(g.qty) || 0), 0).toFixed(2)),
+                    totalGasketCost: Math.round(gasketItems.reduce((s, g) => s + (Number(g.cost) || 0), 0)),
                     totalRawCost,
-                    totalLabourCost: totalLabourCost * Q,
+                    totalLabourCost: calculatedTotalLabour,
                     profitMarginPercent,
                     profitMarginAmount,
                     finalSellingPrice
@@ -300,12 +402,32 @@ export const calculateBOM = ({
             qty: (Number(a.qty) || 1) * Q,
             unit: a.unit || 'pcs',
             unitRate: Number(a.unitRate) || 0,
-            cost: (Number(a.qty) || 1) * (Number(a.unitRate) || 0) * Q
+            cost: (Number(a.qty) || 1) * (Number(a.unitRate) || 0) * Q,
+            isGasket: false
         }));
 
+        const gasketItems = (customGaskets || []).map((g, idx) => {
+            const meters = Number(g.meters || g.qty) || 0;
+            const unitRate = Number(g.unitRate) || 150;
+            const totalMeters = parseFloat((meters * Q).toFixed(2));
+            return {
+                code: g.code || `CUST-GSK-${idx + 1}`,
+                actualCode: g.code || `CUST-GSK-${idx + 1}`,
+                name: g.name || 'Custom EPDM Weather Seal Gasket',
+                qty: totalMeters,
+                unit: 'm',
+                unitRate,
+                cost: Math.round(totalMeters * unitRate),
+                isGasket: true
+            };
+        });
+
+        const combinedAccessories = [...accessories, ...gasketItems];
         const totalAluminiumCost = Math.round(profileCuts.reduce((sum, p) => sum + p.cost, 0));
         const totalGlassCost = Math.round(glassItems.reduce((sum, g) => sum + g.cost, 0));
-        const totalAccessoriesCost = Math.round(accessories.reduce((sum, a) => sum + a.cost, 0));
+        const totalAccessoriesCost = Math.round(combinedAccessories.reduce((sum, a) => sum + a.cost, 0));
+        const totalGasketMeters = parseFloat(gasketItems.reduce((s, g) => s + (Number(g.qty) || 0), 0).toFixed(2));
+        const totalGasketCost = Math.round(gasketItems.reduce((s, g) => s + (Number(g.cost) || 0), 0));
 
         // Calculate aluminium discount amount
         const totalAluminiumCostBeforeDiscount = Math.round(profileCuts.reduce((sum, p) => {
@@ -314,8 +436,27 @@ export const calculateBOM = ({
         }, 0));
         const aluminiumDiscountAmount = totalAluminiumCostBeforeDiscount - totalAluminiumCost;
 
+        const isZeroDim = (W === 0 || H_total === 0);
+        const unitAreaSqFt = isZeroDim ? 0 : parseFloat(((W * H_total) / 92903.04).toFixed(2));
+        const totalAreaSqFt = isZeroDim ? 0 : parseFloat((unitAreaSqFt * Q).toFixed(2));
+
+        // Labour Cost = Sqft Qty x Sqft Rate
+        let effectiveLabourRate = 150;
+        let unitLabourCost = 0;
+        if (labourRatePerSqFt !== undefined && labourRatePerSqFt !== null && labourRatePerSqFt !== '') {
+            effectiveLabourRate = Math.max(0, Number(labourRatePerSqFt) || 0);
+            unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+        } else if (totalLabourCost !== undefined && totalLabourCost !== null && Number(totalLabourCost) > 0) {
+            unitLabourCost = Math.round(Number(totalLabourCost));
+            effectiveLabourRate = unitAreaSqFt > 0 ? parseFloat((unitLabourCost / unitAreaSqFt).toFixed(2)) : 0;
+        } else {
+            effectiveLabourRate = 150;
+            unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+        }
+        const calculatedTotalLabour = isZeroDim ? 0 : (unitLabourCost * Q);
+
         const totalRawCost = totalAluminiumCost + totalGlassCost + totalAccessoriesCost;
-        const baseWithLabour = totalRawCost + (totalLabourCost * Q);
+        const baseWithLabour = totalRawCost + calculatedTotalLabour;
         const profitMarginAmount = baseWithLabour * (profitMarginPercent / 100);
         const finalSellingPrice = baseWithLabour + profitMarginAmount;
 
@@ -336,16 +477,23 @@ export const calculateBOM = ({
             },
             profileCuts,
             glassItems,
-            accessories,
+            accessories: combinedAccessories,
+            gasketItems,
             summary: {
+                totalAreaSqFt,
+                unitAreaSqFt,
+                labourRatePerSqFt: effectiveLabourRate,
+                unitLabourCost,
                 totalAluminiumCost,
                 totalAluminiumCostBeforeDiscount,
                 aluminiumDiscountAmount,
                 aluminiumDiscountPercent,
                 totalGlassCost,
                 totalAccessoriesCost,
+                totalGasketMeters,
+                totalGasketCost,
                 totalRawCost,
-                totalLabourCost: totalLabourCost * Q,
+                totalLabourCost: calculatedTotalLabour,
                 profitMarginPercent,
                 profitMarginAmount,
                 finalSellingPrice
@@ -520,17 +668,19 @@ export const calculateBOM = ({
                 const topGlassW = W - 50;
                 const topGlassH = H_top - 50;
                 const areaSqFt = (topGlassW * topGlassH) / 92903.04;
-                const glassRate = getGlass('CLEAR_5MM');
-                const cost = areaSqFt * (glassRate.ratePerSqFt || 0) * Q;
+                const glassRate = getGlass(selectedGlassCode || 'CLEAR_5MM');
+                const ratePerSqFt = Number(glassRate.ratePerSqFt) || 0;
+                const cost = areaSqFt * ratePerSqFt * Q;
 
                 glassItems.push({
                     section: 'Top Fanlight Section',
-                    type: glassRate.name,
+                    type: glassRate.code ? `${glassRate.code} - ${glassRate.name}` : glassRate.name,
+                    glassCode: glassRate.code || 'CLEAR_5MM',
                     width: topGlassW || 0,
                     height: topGlassH || 0,
                     qty: 1 * Q,
                     areaSqFt: parseFloat((areaSqFt || 0).toFixed(2)),
-                    unitRate: glassRate.ratePerSqFt || 0,
+                    unitRate: ratePerSqFt,
                     cost: Math.round(cost)
                 });
             }
@@ -541,17 +691,19 @@ export const calculateBOM = ({
                 const bottomGlassW = (isFixed && P === 1) ? (W - 40) : Math.max(0, panelWidth - deduct);
                 const bottomGlassH = (isFixed && P === 1) ? (H_bottom - 40) : Math.max(0, panelHeight - deduct);
                 const bottomSingleAreaSqFt = (bottomGlassW * bottomGlassH) / 92903.04;
-                const bottomGlassRate = getGlass('CLEAR_5MM');
-                const bottomTotalCost = bottomSingleAreaSqFt * (bottomGlassRate.ratePerSqFt || 0) * P * Q;
+                const bottomGlassRate = getGlass(selectedGlassCode || 'CLEAR_5MM');
+                const ratePerSqFt = Number(bottomGlassRate.ratePerSqFt) || 0;
+                const bottomTotalCost = bottomSingleAreaSqFt * ratePerSqFt * P * Q;
 
                 glassItems.push({
                     section: isFixed ? 'Fixed Glass Partition' : (isCasement ? 'Casement Glass Panes' : 'Sliding Glass Panels'),
-                    type: bottomGlassRate.name,
+                    type: bottomGlassRate.code ? `${bottomGlassRate.code} - ${bottomGlassRate.name}` : bottomGlassRate.name,
+                    glassCode: bottomGlassRate.code || 'CLEAR_5MM',
                     width: bottomGlassW || 0,
                     height: bottomGlassH || 0,
                     qty: P * Q,
                     areaSqFt: parseFloat((bottomSingleAreaSqFt * P * Q || 0).toFixed(2)),
-                    unitRate: bottomGlassRate.ratePerSqFt || 0,
+                    unitRate: ratePerSqFt,
                     cost: Math.round(bottomTotalCost)
                 });
             }
@@ -715,8 +867,26 @@ export const calculateBOM = ({
         // 5. TOTAL ESTIMATION SUMMARY
         // ----------------------------------------------------
         const isZeroDim = (W === 0 || H_total === 0);
+        const unitAreaSqFt = isZeroDim ? 0 : parseFloat(((W * H_total) / 92903.04).toFixed(2));
+        const totalAreaSqFt = isZeroDim ? 0 : parseFloat((unitAreaSqFt * Q).toFixed(2));
+
+        // Labour Cost = Sqft Qty x Sqft Rate
+        let effectiveLabourRate = 150;
+        let unitLabourCost = 0;
+        if (labourRatePerSqFt !== undefined && labourRatePerSqFt !== null && labourRatePerSqFt !== '') {
+            effectiveLabourRate = Math.max(0, Number(labourRatePerSqFt) || 0);
+            unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+        } else if (totalLabourCost !== undefined && totalLabourCost !== null && Number(totalLabourCost) > 0) {
+            unitLabourCost = Math.round(Number(totalLabourCost));
+            effectiveLabourRate = unitAreaSqFt > 0 ? parseFloat((unitLabourCost / unitAreaSqFt).toFixed(2)) : 0;
+        } else {
+            effectiveLabourRate = 150;
+            unitLabourCost = Math.round(unitAreaSqFt * effectiveLabourRate);
+        }
+        const calculatedTotalLabour = isZeroDim ? 0 : (unitLabourCost * Q);
+
         const totalRawCost = isZeroDim ? 0 : (totalAluminiumCost + totalGlassCost + totalAccessoriesCost);
-        const baseWithLabour = totalRawCost + (totalLabourCost * Q);
+        const baseWithLabour = totalRawCost + calculatedTotalLabour;
         const profitMarginAmount = baseWithLabour * (profitMarginPercent / 100);
         const finalSellingPrice = isZeroDim ? 0 : (baseWithLabour + profitMarginAmount);
 
@@ -738,15 +908,22 @@ export const calculateBOM = ({
             profileCuts,
             glassItems,
             accessories,
+            gasketItems: accessories.filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm'),
             summary: {
+                totalAreaSqFt,
+                unitAreaSqFt,
+                labourRatePerSqFt: effectiveLabourRate,
+                unitLabourCost,
                 totalAluminiumCost,
                 totalAluminiumCostBeforeDiscount,
                 aluminiumDiscountAmount,
                 aluminiumDiscountPercent,
                 totalGlassCost,
                 totalAccessoriesCost,
+                totalGasketMeters: parseFloat(accessories.filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm').reduce((s, a) => s + (Number(a.qty) || 0), 0).toFixed(2)),
+                totalGasketCost: Math.round(accessories.filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm').reduce((s, a) => s + (Number(a.cost) || 0), 0)),
                 totalRawCost,
-                totalLabourCost: totalLabourCost * Q,
+                totalLabourCost: calculatedTotalLabour,
                 profitMarginPercent,
                 profitMarginAmount,
                 finalSellingPrice

@@ -736,18 +736,30 @@ const AluQuotationDetailPage = () => {
                                 <tbody className="divide-y divide-slate-100 text-slate-600">
                                     {Object.entries(
                                         quotation.items.reduce((acc, item) => {
-                                            item.accessories.forEach(a => {
-                                                if (!acc[a.code]) acc[a.code] = { name: a.name, qty: 0, cost: 0, rate: a.unitRate };
-                                                acc[a.code].qty += a.qty;
-                                                acc[a.code].cost += a.cost;
+                                            (item.accessories || []).forEach(a => {
+                                                const unit = a.unit || ((a.isGasket || (a.code || '').toLowerCase().includes('gasket')) ? 'm' : 'Nos');
+                                                if (!acc[a.code]) acc[a.code] = { name: a.name, qty: 0, cost: 0, rate: a.unitRate, unit, isGasket: a.isGasket || unit === 'm' };
+                                                acc[a.code].qty = parseFloat((acc[a.code].qty + (Number(a.qty) || 0)).toFixed(2));
+                                                acc[a.code].cost += (a.cost || 0);
+                                            });
+                                            // Also include item.gasketItems if stored separately
+                                            (item.gasketItems || []).forEach(g => {
+                                                if (!acc[g.code]) {
+                                                    acc[g.code] = { name: g.name, qty: 0, cost: 0, rate: g.unitRate, unit: 'm', isGasket: true };
+                                                    acc[g.code].qty = parseFloat((acc[g.code].qty + (Number(g.qty) || 0)).toFixed(2));
+                                                    acc[g.code].cost += (g.cost || 0);
+                                                }
                                             });
                                             return acc;
                                         }, {})
                                     ).map(([code, a]) => (
-                                        <tr key={code}>
-                                            <td className="py-2 font-medium text-slate-800">{a.name}</td>
-                                            <td className="py-2">Nos</td>
-                                            <td className="py-2 text-right">{a.qty}</td>
+                                        <tr key={code} className={a.isGasket ? 'bg-amber-50/30' : ''}>
+                                            <td className="py-2 font-medium text-slate-800">
+                                                {a.isGasket && <span className="mr-1 text-[9px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-bold">🪢 Gasket</span>}
+                                                {a.name}
+                                            </td>
+                                            <td className="py-2 font-bold font-mono">{a.unit || 'Nos'}</td>
+                                            <td className="py-2 text-right font-mono font-bold">{a.qty}</td>
                                             <td className="py-2 text-right">{a.rate.toLocaleString()}</td>
                                             <td className="py-2 text-right font-bold text-slate-800">{a.cost.toLocaleString()}</td>
                                         </tr>

@@ -69,11 +69,13 @@ const AluConfiguratorPage = () => {
     const [aluminiumDiscountPercent, setAluminiumDiscountPercent] = useState(0);
 
     // Costing Parameters State
-    const [totalLabourCost, setTotalLabourCost] = useState(0);
+    const [labourRatePerSqFt, setLabourRatePerSqFt] = useState(150);
     const [profitMarginPercent, setProfitMarginPercent] = useState(20);
 
     // Dynamic Database Rates State
     const [dbRates, setDbRates] = useState(null);
+    const [inventoryGlassList, setInventoryGlassList] = useState([]);
+    const [selectedGlassCode, setSelectedGlassCode] = useState('');
 
     // =========================================================================
     // CUSTOM AD-HOC BOM BUILDER STATE (FOR PROJECTS WITHOUT STANDARD FORMULA)
@@ -88,8 +90,11 @@ const AluConfiguratorPage = () => {
     ]);
 
     const [customAccessories, setCustomAccessories] = useState([
-        { code: 'CUST-ACC-01', name: 'Heavy Duty Mortise Lock Set', qty: 1, unit: 'pcs', unitRate: 4500 },
-        { code: 'CUST-ACC-02', name: 'EPDM Heavy Weather Seal Gasket', qty: 12, unit: 'm', unitRate: 150 }
+        { code: 'CUST-ACC-01', name: 'Heavy Duty Mortise Lock Set', qty: 1, unit: 'pcs', unitRate: 4500 }
+    ]);
+
+    const [customGaskets, setCustomGaskets] = useState([
+        { code: 'CUST-GSK-01', name: 'EPDM Heavy Weather Seal Gasket', meters: 12, unitRate: 150 }
     ]);
 
 
@@ -101,19 +106,19 @@ const AluConfiguratorPage = () => {
     useEffect(() => {
         const fetchRates = async () => {
             try {
-                const [pRes, gRes, aRes, tRes, prodRes] = await Promise.all([
+                const [pRes, gRes, aRes, tRes, rawRes] = await Promise.all([
                     api.get('/alu/profiles').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/glass').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/accessories').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/applications').catch(() => ({ data: { data: [] } })),
-                    api.get('/products?businessType=alueco&aluCategory=accessories').catch(() => ({ data: { data: [] } }))
+                    api.get('/alu/raw-materials').catch(() => ({ data: { data: { products: [] } } }))
                 ]);
 
                 const profiles = pRes.data?.data || [];
                 const glass = gRes.data?.data || [];
                 const accessories = aRes.data?.data || [];
                 const templates = tRes.data?.data || tRes.data || [];
-                const aluProducts = prodRes.data?.data || [];
+                const rawMaterialsData = rawRes.data?.data?.products || (Array.isArray(rawRes.data?.data) ? rawRes.data.data : []);
                 setDbTemplates(templates);
 
                 const profMap = {};
@@ -125,37 +130,80 @@ const AluConfiguratorPage = () => {
                         pricePerM = ratesPerM.reduce((sum, rate) => sum + rate, 0) / ratesPerM.length;
                     }
                     profMap[p.profileCode] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
+                    if (p.profileCode) profMap[p.profileCode.toUpperCase()] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
                 });
 
                 const glassMap = {};
+                // 1. Load from AluGlass collection
                 glass.forEach(g => {
-                    glassMap[g.typeName] = { name: g.typeName, ratePerSqFt: g.ratePerSqFt || 0, ratePerSqM: g.ratePerSqM || 0 };
+                    const rate = Number(g.ratePerSqFt) || 0;
+                    const item = {
+                        name: g.typeName,
+                        code: g.typeName,
+                        ratePerSqFt: rate,
+                        ratePerSqM: g.ratePerSqM || Math.round(rate * 10.7639),
+                        thickness: g.thickness || ''
+                    };
+                    glassMap[g.typeName] = item;
+                    glassMap[g.typeName.toUpperCase()] = item;
+                    glassMap[g.typeName.toLowerCase()] = item;
                 });
+
+                // 2. Load from Material Inventory Products (PRIMARY source for inventory rates)
+                const invGlass = [];
+                rawMaterialsData.forEach(p => {
+                    const isGlass = p.aluCategory === 'glass' || 
+                                    p.aluSpecs?.type === 'GL' || 
+                                    (p.productCode && p.productCode.toUpperCase().startsWith('GL')) ||
+                                    (p.name && p.name.toLowerCase().includes('glass'));
+                    if (isGlass) {
+                        const sqftRate = Number(p.basePrice || p.costs?.lastPurchaseCost || p.costs?.standardCost || p.costs?.averageCost) || 0;
+                        const glassItem = {
+                            name: p.name || p.productCode,
+                            code: p.productCode || p.name,
+                            ratePerSqFt: sqftRate,
+                            ratePerSqM: Math.round(sqftRate * 10.7639),
+                            thickness: p.aluSpecs?.thickness || '',
+                            id: p._id?.toString()
+                        };
+                        invGlass.push(glassItem);
+
+                        if (p.productCode) {
+                            glassMap[p.productCode] = glassItem;
+                            glassMap[p.productCode.toUpperCase()] = glassItem;
+                            glassMap[p.productCode.toLowerCase()] = glassItem;
+                            glassMap[p.productCode.replace(/[-_\s]/g, '').toUpperCase()] = glassItem;
+                        }
+                        if (p.name) {
+                            glassMap[p.name] = glassItem;
+                            glassMap[p.name.toUpperCase()] = glassItem;
+                            glassMap[p.name.toLowerCase()] = glassItem;
+                        }
+                        if (p._id) {
+                            glassMap[p._id.toString()] = glassItem;
+                        }
+                    }
+                });
+                setInventoryGlassList(invGlass);
 
                 const accMap = {};
                 // First use AluAccessory collection - this is the PRIMARY source for accessory prices
-                // These have the correct codes (ACC001, ACC002, etc.) that match ERP templates
                 accessories.forEach(a => {
                     accMap[a.code] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
+                    if (a.code) accMap[a.code.toUpperCase()] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
                 });
 
-                // Then add/override with Product collection prices ONLY for codes that don't exist in AluAccessory
-                // This ensures AluAccessory prices take precedence (since they match ERP template codes)
-                // Include both accessories and gaskets/seals
-                aluProducts.forEach(p => {
-                    if (p.aluCategory === 'accessories' || p.aluCategory === 'gaskets') {
-                        // Try to match by productCode first (most reliable)
+                // Then add/override with Product collection prices
+                rawMaterialsData.forEach(p => {
+                    if (p.aluCategory === 'accessories' || p.aluCategory === 'hardware' || p.aluCategory === 'gaskets') {
                         let code = p.productCode?.toUpperCase();
-                        // If productCode doesn't exist or is auto-generated, try aluSpecs.profile
                         if (!code || code.startsWith('P-')) {
                             code = p.aluSpecs?.profile?.toUpperCase();
                         }
-                        // Also try name as fallback
                         if (!code) {
                             code = p.name?.toUpperCase();
                         }
                         
-                        // Only add if code doesn't already exist in accMap (AluAccessory takes precedence)
                         if (code && !accMap[code]) {
                             const unitRate = p.basePrice || p.mrp || 0;
                             accMap[code] = {
@@ -336,6 +384,18 @@ const AluConfiguratorPage = () => {
     const activeAppType = appType === 'CUSTOM_PRODUCT' ? customProductName : appType;
     const activeFormula = appType === 'CUSTOM_PRODUCT' ? baseFormula : appType;
 
+    // Unit & Total Sqft calculation
+    const unitAreaSqFt = useMemo(() => {
+        const w = Number(width) || 0;
+        const h = Number(height) || 0;
+        return (w > 0 && h > 0) ? parseFloat(((w * h) / 92903.04).toFixed(2)) : 0;
+    }, [width, height]);
+
+    const totalAreaSqFt = useMemo(() => {
+        const q = Math.max(1, Number(quantity) || 1);
+        return parseFloat((unitAreaSqFt * q).toFixed(2));
+    }, [unitAreaSqFt, quantity]);
+
     // Real-Time Dynamic BOM Calculation
     const bomResult = useMemo(() => {
         return calculateBOM({
@@ -350,16 +410,18 @@ const AluConfiguratorPage = () => {
             topSection,
             quantity: Number(quantity) || 1,
             rates: dbRates,
+            selectedGlassCode,
             customAddons,
             calculationMode,
             customProfiles,
             customGlass,
             customAccessories,
+            customGaskets,
             aluminiumDiscountPercent: Number(aluminiumDiscountPercent) || 0,
             profitMarginPercent: Number(profitMarginPercent) || 20,
-            totalLabourCost: Number(totalLabourCost) || 0
+            labourRatePerSqFt: Number(labourRatePerSqFt) || 0
         });
-    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, dbRates, customAddons, calculationMode, customProfiles, customGlass, customAccessories, aluminiumDiscountPercent, profitMarginPercent, totalLabourCost]);
+    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, dbRates, selectedGlassCode, customAddons, calculationMode, customProfiles, customGlass, customAccessories, customGaskets, aluminiumDiscountPercent, profitMarginPercent, labourRatePerSqFt]);
 
     // Build single opening object from current state
     const getCurrentOpeningItem = () => {
@@ -369,6 +431,20 @@ const AluConfiguratorPage = () => {
                 ? `${selectedTemplate.type} - ${selectedTemplate.configuration} (${selectedTemplate.brand || 'ERP Template'})`
                 : `${activeAppType} (Template Mode - No Template Selected)`;
 
+        const gasketItems = (bomResult?.gasketItems && bomResult.gasketItems.length > 0)
+            ? bomResult.gasketItems
+            : (bomResult?.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm');
+
+        const totalGasketMeters = bomResult?.summary?.totalGasketMeters !== undefined
+            ? bomResult.summary.totalGasketMeters
+            : parseFloat(gasketItems.reduce((s, g) => s + (Number(g.qty) || 0), 0).toFixed(2));
+
+        const gasketSpec = selectedTemplate?.gasketBOM?.length > 0
+            ? selectedTemplate.gasketBOM.map(g => `${g.name || g.gasketCode || 'EPDM'} (${g.formula}m)`).join(', ')
+            : gasketItems.length > 0
+                ? gasketItems.map(g => `${g.name || g.code} (${g.qty}m)`).join(', ')
+                : 'EPDM Weather Seal Gaskets Inclusive';
+
         return {
             applicationType: activeAppType,
             configuration: configTitle,
@@ -376,19 +452,25 @@ const AluConfiguratorPage = () => {
             height: Number(height),
             quantity: Number(quantity),
             profileSpec: selectedTemplate?.profileSpec || `${selectedTemplate?.brand || 'Standard'} Series (${selectedTemplate?.type || activeAppType})`,
-            glassSpec: selectedTemplate?.glassSpec || '5mm / 6mm Single Tempered Clear Glass',
+            glassSpec: selectedGlassCode 
+                ? (inventoryGlassList.find(g => g.code === selectedGlassCode)?.name || selectedGlassCode) 
+                : (selectedTemplate?.glassSpec || '5mm / 6mm Single Tempered Clear Glass'),
             hardwareSpec: selectedTemplate?.hardwareSpec || 'Heavy Duty Locks, Bearings, Hinges & EPDM Seals',
+            gasketSpec,
             scopeSpec: selectedTemplate?.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
             profileCuts: bomResult?.profileCuts || [],
             glassItems: bomResult?.glassItems || [],
             accessories: bomResult?.accessories || [],
-            totalAreaSqFt: bomResult?.summary?.totalAreaSqFt || 0,
+            gasketItems,
+            totalGasketMeters,
+            totalAreaSqFt: bomResult?.summary?.totalAreaSqFt || totalAreaSqFt,
             unitPrice: Math.round((bomResult?.summary?.finalSellingPrice || 0) / (Number(quantity) || 1)),
             totalPrice: bomResult?.summary?.finalSellingPrice || 0,
             topSection,
             panelArrangement,
             trackSystem,
-            labourCost: bomResult?.summary?.totalLabourCost || totalLabourCost,
+            labourRatePerSqFt: Number(labourRatePerSqFt) || 150,
+            labourCost: bomResult?.summary?.unitLabourCost || Math.round(unitAreaSqFt * (Number(labourRatePerSqFt) || 150)),
             // Include costing summary data
             costingSummary: bomResult?.summary || {},
             aluminiumDiscountPercent: aluminiumDiscountPercent,
@@ -424,7 +506,7 @@ const AluConfiguratorPage = () => {
             state: {
                 projectName: projectTitle,
                 items: itemsToSubmit,
-                totalLabourCost
+                totalLabourCost: itemsToSubmit.reduce((sum, item) => sum + (item.costingSummary?.totalLabourCost || (item.labourCost * item.quantity) || 0), 0)
             }
         });
     };
@@ -624,6 +706,7 @@ const AluConfiguratorPage = () => {
                                 </div>
                             </div>
                         )}
+
                     </div>
 
                     {/* Section 2: Panel Count & Arrangement (With 1-Panel Option!) */}
@@ -803,14 +886,25 @@ const AluConfiguratorPage = () => {
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Labour Cost (LKR)</label>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                        Labour Rate (LKR / Sqft)
+                                    </label>
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                        {unitAreaSqFt} sqft
+                                    </span>
+                                </div>
                                 <input
                                     type="number"
-                                    value={totalLabourCost}
-                                    onChange={(e) => setTotalLabourCost(Math.max(0, Number(e.target.value) || 0))}
-                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                                    placeholder="0"
+                                    value={labourRatePerSqFt}
+                                    onChange={(e) => setLabourRatePerSqFt(Math.max(0, Number(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-amber-700 bg-amber-50/20"
+                                    placeholder="150"
                                 />
+                                <div className="mt-1 text-[10px] text-slate-500 font-medium">
+                                    Labour: <span className="font-bold text-amber-800 font-mono">LKR {(bomResult.summary.totalLabourCost || 0).toLocaleString()}</span>
+                                    <span className="text-slate-400 block text-[9px]">({unitAreaSqFt} sqft × LKR {labourRatePerSqFt}{quantity > 1 ? ` × ${quantity}` : ''})</span>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Profit Margin (%)</label>
@@ -918,22 +1012,78 @@ const AluConfiguratorPage = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                                {projectBasket.map((item, idx) => (
-                                    <div key={idx} className="p-2.5 bg-slate-800/90 rounded-xl border border-indigo-500/30 flex justify-between items-center text-xs">
-                                        <div>
-                                            <div className="font-extrabold text-indigo-200">{item.applicationType}</div>
-                                            <div className="text-[10px] text-slate-400 font-medium">{item.width} &times; {item.height} mm &bull; <b className="text-emerald-400">{item.quantity} Qty</b></div>
-                                            <div className="text-[11px] font-bold text-emerald-400 font-mono mt-0.5">LKR {item.totalPrice.toLocaleString()}</div>
-                                        </div>
-                                        <button
-                                            onClick={() => handleRemoveFromBasket(idx)}
-                                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-900/30 rounded-lg transition"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ))}
+                            {/* Items Table with Gaskets column */}
+                            <div className="overflow-x-auto rounded-xl border border-indigo-500/30 bg-slate-900/80">
+                                <table className="w-full text-left text-xs font-sans">
+                                    <thead>
+                                        <tr className="bg-slate-800 text-slate-300 font-bold uppercase text-[10px] border-b border-indigo-500/30">
+                                            <th className="p-2.5 text-center">#</th>
+                                            <th className="p-2.5">Opening Item &amp; Configuration</th>
+                                            <th className="p-2.5 text-center">Size (W × H)</th>
+                                            <th className="p-2.5 text-center">Qty</th>
+                                            <th className="p-2.5">Profiles &amp; Glass</th>
+                                            <th className="p-2.5">Accessories &amp; Seals</th>
+                                            <th className="p-2.5 text-center bg-amber-950/40 text-amber-300 font-extrabold border-x border-amber-500/30">
+                                                🪢 Gaskets
+                                            </th>
+                                            <th className="p-2.5 text-right">Selling Price</th>
+                                            <th className="p-2.5 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-indigo-900/40">
+                                        {projectBasket.map((item, idx) => {
+                                            const totalGaskets = item.totalGasketMeters || (item.gasketItems ? item.gasketItems.reduce((s, g) => s + (Number(g.qty) || 0), 0) : 0);
+                                            return (
+                                                <tr key={idx} className="hover:bg-indigo-950/30 transition">
+                                                    <td className="p-2.5 text-center text-slate-400 font-bold">#{idx + 1}</td>
+                                                    <td className="p-2.5">
+                                                        <div className="font-extrabold text-indigo-200">{item.applicationType}</div>
+                                                        <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{item.configuration}</div>
+                                                    </td>
+                                                    <td className="p-2.5 text-center font-mono font-bold text-slate-300">
+                                                        {item.width} × {item.height} mm
+                                                    </td>
+                                                    <td className="p-2.5 text-center font-black text-emerald-400">
+                                                        {item.quantity}
+                                                    </td>
+                                                    <td className="p-2.5 text-[11px] text-slate-300">
+                                                        <div className="truncate max-w-[140px] font-semibold">{item.profileSpec || 'Aluminium'}</div>
+                                                        <div className="text-[10px] text-slate-400 truncate max-w-[140px]">{item.glassSpec || 'Glass'}</div>
+                                                    </td>
+                                                    <td className="p-2.5 text-[11px] text-slate-300 truncate max-w-[120px]">
+                                                        {item.hardwareSpec || 'Accessories & Seals'}
+                                                    </td>
+                                                    <td className="p-2.5 text-center bg-amber-950/20 border-x border-amber-500/20">
+                                                        {totalGaskets > 0 ? (
+                                                            <div className="inline-flex flex-col items-center">
+                                                                <span className="font-mono font-black text-amber-300 bg-amber-900/50 border border-amber-500/40 px-2 py-0.5 rounded-md text-[11px]">
+                                                                    {totalGaskets.toFixed(2)} m
+                                                                </span>
+                                                                <span className="text-[9px] text-amber-400/80 mt-0.5 max-w-[110px] truncate" title={item.gasketSpec}>
+                                                                    {item.gasketSpec || 'EPDM Weather Seal'}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-500 text-[10px]">None</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-2.5 text-right font-mono font-black text-emerald-400 text-xs">
+                                                        LKR {item.totalPrice.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-2.5 text-center">
+                                                        <button
+                                                            onClick={() => handleRemoveFromBasket(idx)}
+                                                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-900/30 rounded-lg transition"
+                                                            title="Remove Opening"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
 
                             <div className="flex justify-end pt-1">
@@ -1208,6 +1358,18 @@ const AluConfiguratorPage = () => {
                                             }}
                                             className="w-14 px-1 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold"
                                         />
+                                        <select
+                                            value={a.unit || 'pcs'}
+                                            onChange={(e) => {
+                                                const next = [...customAccessories];
+                                                next[idx].unit = e.target.value;
+                                                setCustomAccessories(next);
+                                            }}
+                                            className="w-16 px-1 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold text-slate-700"
+                                        >
+                                            <option value="pcs">pcs</option>
+                                            <option value="m">m</option>
+                                        </select>
                                         <input
                                             type="number"
                                             placeholder="Rate"
@@ -1228,6 +1390,70 @@ const AluConfiguratorPage = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* 4. Custom Gaskets */}
+                            <div className="space-y-2 pt-2 border-t">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-amber-800 uppercase flex items-center gap-1.5">
+                                        🪢 4. Custom Gaskets ({customGaskets.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => setCustomGaskets(prev => [...prev, { code: `CUST-GSK-${prev.length + 1}`, name: 'EPDM Weather Seal Gasket', meters: 12, unitRate: 150 }])}
+                                        className="text-xs font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1"
+                                    >
+                                        <Plus size={14} /> Add Gasket
+                                    </button>
+                                </div>
+                                {customGaskets.map((g, idx) => (
+                                    <div key={idx} className="flex gap-2 items-center bg-amber-50/50 p-2 rounded-xl border border-amber-200 text-xs">
+                                        <input
+                                            type="text"
+                                            placeholder="Gasket Name / Spec"
+                                            value={g.name}
+                                            onChange={(e) => {
+                                                const next = [...customGaskets];
+                                                next[idx].name = e.target.value;
+                                                setCustomGaskets(next);
+                                            }}
+                                            className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold"
+                                        />
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                placeholder="Meters"
+                                                value={g.meters}
+                                                onChange={(e) => {
+                                                    const next = [...customGaskets];
+                                                    next[idx].meters = Number(e.target.value);
+                                                    setCustomGaskets(next);
+                                                }}
+                                                className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold text-amber-900 font-mono"
+                                            />
+                                            <span className="text-[10px] font-bold text-slate-500">m</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                placeholder="Rate/m"
+                                                value={g.unitRate}
+                                                onChange={(e) => {
+                                                    const next = [...customGaskets];
+                                                    next[idx].unitRate = Number(e.target.value);
+                                                    setCustomGaskets(next);
+                                                }}
+                                                className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-right font-mono"
+                                            />
+                                            <span className="text-[10px] text-slate-500 font-medium">/m</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setCustomGaskets(prev => prev.filter((_, i) => i !== idx))}
+                                            className="text-rose-500 hover:text-rose-700"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -1236,18 +1462,31 @@ const AluConfiguratorPage = () => {
                         {/* Tab Headers */}
                         <div className="flex border-b border-slate-200 overflow-x-auto gap-2 text-xs font-bold select-none">
                             {[
-                                { id: 'profiles', label: `Aluminium Profiles (${bomResult.profileCuts.length})` },
-                                { id: 'glass', label: `Glass Panels (${bomResult.glassItems.length})` },
-                                { id: 'accessories', label: `Accessories & Seals (${bomResult.accessories.length})` },
-                                { id: 'optimization', label: '1D Cutting & Stock Optimization' },
-                                { id: 'summary', label: 'Costing Summary' }
+                                { id: 'profiles', icon: '📦', label: '1. Aluminium Profiles', count: bomResult.profileCuts.length },
+                                { id: 'glass', icon: '🪟', label: '2. Glass Panels', count: bomResult.glassItems.length },
+                                { id: 'accessories', icon: '⚙️', label: '3. Hardware & Accessories', count: (bomResult.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length },
+                                { id: 'gaskets', icon: '🪢', label: '4. Gaskets', count: (bomResult.gasketItems?.length || (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm').length) },
+                                { id: 'optimization', icon: '📐', label: '5. Cutting Optimization', count: null },
+                                { id: 'summary', icon: '💰', label: '6. Costing Summary', count: null }
                             ].map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`py-2.5 px-4 rounded-t-xl transition-all border-b-2 whitespace-nowrap ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                    className={`py-2.5 px-3.5 rounded-t-xl transition-all border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+                                        activeTab === tab.id 
+                                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/60 font-extrabold shadow-2xs' 
+                                            : 'border-transparent text-slate-500 hover:text-slate-800 font-semibold'
+                                    }`}
                                 >
-                                    {tab.label}
+                                    <span>{tab.icon}</span>
+                                    <span>{tab.label}</span>
+                                    {tab.count !== null && (
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                            activeTab === tab.id ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -1290,70 +1529,213 @@ const AluConfiguratorPage = () => {
 
                         {/* Tab Content: Glass */}
                         {activeTab === 'glass' && (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto space-y-3">
                                 {bomResult.glassItems.length === 0 ? (
                                     <div className="p-8 text-center text-slate-400 text-xs font-semibold">
                                         No glass panels calculated. Enter dimensions (Width & Height) to calculate BOM.
                                     </div>
                                 ) : (
-                                    <table className="w-full text-left text-xs font-sans">
-                                        <thead>
-                                            <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
-                                                <th className="p-2.5">Section</th>
-                                                <th className="p-2.5">Glass Type</th>
-                                                <th className="p-2.5">Pane Cut Size</th>
-                                                <th className="p-2.5 text-center">Qty</th>
-                                                <th className="p-2.5 text-right">Total Area</th>
-                                                <th className="p-2.5 text-right">Estimated Cost</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {bomResult.glassItems.map((g, i) => (
-                                                <tr key={i} className="hover:bg-slate-50">
-                                                    <td className="p-2.5 font-bold text-slate-700">{g.section}</td>
-                                                    <td className="p-2.5 font-semibold text-indigo-600">{g.type}</td>
-                                                    <td className="p-2.5 font-mono text-slate-600">{g.width} × {g.height} mm</td>
-                                                    <td className="p-2.5 text-center font-bold text-slate-700">{g.qty}</td>
-                                                    <td className="p-2.5 text-right font-mono text-slate-600">{g.areaSqFt} sq.ft</td>
-                                                    <td className="p-2.5 text-right font-bold text-slate-800">LKR {g.cost.toLocaleString()}</td>
+                                    <>
+                                        <table className="w-full text-left text-xs font-sans">
+                                            <thead>
+                                                <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
+                                                    <th className="p-2.5">Section</th>
+                                                    <th className="p-2.5">Glass Material / Code</th>
+                                                    <th className="p-2.5">Pane Cut Size</th>
+                                                    <th className="p-2.5 text-center">Qty</th>
+                                                    <th className="p-2.5 text-right">Total Area</th>
+                                                    <th className="p-2.5 text-right">Rate / Sq.Ft</th>
+                                                    <th className="p-2.5 text-right">Estimated Cost</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {bomResult.glassItems.map((g, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-2.5 font-bold text-slate-700">{g.section}</td>
+                                                        <td className="p-2.5 font-semibold text-indigo-600">{g.type}</td>
+                                                        <td className="p-2.5 font-mono text-slate-600">{g.width} × {g.height} mm</td>
+                                                        <td className="p-2.5 text-center font-bold text-slate-700">{g.qty}</td>
+                                                        <td className="p-2.5 text-right font-mono text-slate-600">{g.areaSqFt} sq.ft</td>
+                                                        <td className="p-2.5 text-right font-mono font-bold text-emerald-700">LKR {(g.unitRate || 0).toLocaleString()}</td>
+                                                        <td className="p-2.5 text-right font-bold text-slate-800">LKR {g.cost.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                                            <span className="text-slate-500 font-medium">
+                                                Total Panes: <b>{bomResult.glassItems.reduce((sum, g) => sum + (g.qty || 1), 0)}</b> | 
+                                                Total Glass Area: <b>{parseFloat(bomResult.glassItems.reduce((sum, g) => sum + (g.areaSqFt || 0), 0).toFixed(2))} sq.ft</b>
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 font-medium">Total Glass Cost:</span>
+                                                <span className="font-extrabold text-indigo-700 text-sm">LKR {bomResult.summary.totalGlassCost.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}
 
-                        {/* Tab Content: Accessories */}
+                        {/* Tab Content: Hardware Accessories */}
                         {activeTab === 'accessories' && (
-                            <div className="overflow-x-auto">
-                                {bomResult.accessories.length === 0 ? (
+                            <div className="space-y-3">
+                                {bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length === 0 ? (
                                     <div className="p-8 text-center text-slate-400 text-xs font-semibold">
-                                        No hardware accessories or seals calculated. Enter dimensions (Width & Height) to calculate BOM.
+                                        No hardware accessories calculated. Enter dimensions (Width &amp; Height) to calculate BOM.
                                     </div>
                                 ) : (
-                                    <table className="w-full text-left text-xs font-sans">
-                                        <thead>
-                                            <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
-                                                <th className="p-2.5">Item Code</th>
-                                                <th className="p-2.5">Description</th>
-                                                <th className="p-2.5 text-center">Quantity</th>
-                                                <th className="p-2.5 text-right">Unit Rate</th>
-                                                <th className="p-2.5 text-right">Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {bomResult.accessories.map((acc, i) => (
-                                                <tr key={i} className="hover:bg-slate-50">
-                                                    <td className="p-2.5 font-bold font-mono text-indigo-600">{acc.code}</td>
-                                                    <td className="p-2.5 font-semibold text-slate-700">{acc.name}</td>
-                                                    <td className="p-2.5 text-center font-bold text-slate-700">{acc.qty} {acc.unit}</td>
-                                                    <td className="p-2.5 text-right font-mono text-slate-600">LKR {Number(acc.unitRate).toLocaleString()}</td>
-                                                    <td className="p-2.5 text-right font-bold text-slate-800">LKR {acc.cost.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    <>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-xs font-sans">
+                                                <thead>
+                                                    <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] border-b">
+                                                        <th className="p-2.5">Category</th>
+                                                        <th className="p-2.5">Item Code</th>
+                                                        <th className="p-2.5">Description</th>
+                                                        <th className="p-2.5 text-center">Calculated Qty</th>
+                                                        <th className="p-2.5 text-right">Unit Rate (LKR)</th>
+                                                        <th className="p-2.5 text-right">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').map((acc, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50">
+                                                            <td className="p-2.5">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                                                    ⚙️ Accessories &amp; Seals
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2.5 font-bold font-mono text-indigo-700">{acc.code}</td>
+                                                            <td className="p-2.5 font-semibold text-slate-700">{acc.name}</td>
+                                                            <td className="p-2.5 text-center">
+                                                                <span className="font-mono font-bold text-slate-800">
+                                                                    {acc.qty} {acc.unit || 'pcs'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2.5 text-right font-mono text-slate-600">
+                                                                LKR {Number(acc.unitRate).toLocaleString()}
+                                                            </td>
+                                                            <td className="p-2.5 text-right font-bold text-slate-900">
+                                                                LKR {acc.cost.toLocaleString()}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Accessories Summary Footer */}
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                                            <span className="text-slate-600 font-medium">
+                                                Total Hardware Items: <strong className="text-indigo-700 font-bold">
+                                                    {bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length} Types
+                                                </strong>
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 font-medium">Total Hardware Cost:</span>
+                                                <span className="font-extrabold text-indigo-700 text-sm">
+                                                    LKR {bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').reduce((s, a) => s + (Number(a.cost) || 0), 0).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Tab Content: Gaskets & Weather Seals */}
+                        {activeTab === 'gaskets' && (
+                            <div className="space-y-3">
+                                {((bomResult.gasketItems && bomResult.gasketItems.length > 0)
+                                    ? bomResult.gasketItems
+                                    : (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+                                        No gasket weather seals calculated. Enter dimensions (Width &amp; Height) or configure gasket formulas in BOM Template.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-xs font-sans">
+                                                <thead>
+                                                    <tr className="bg-amber-100/70 text-amber-950 font-bold uppercase text-[10px] border-b border-amber-200">
+                                                        <th className="p-2.5">Category</th>
+                                                        <th className="p-2.5">Gasket Code</th>
+                                                        <th className="p-2.5">Gasket Description</th>
+                                                        <th className="p-2.5 text-center">Unit Length (Per Opening)</th>
+                                                        <th className="p-2.5 text-center">Total Meters ({quantity} Units)</th>
+                                                        <th className="p-2.5 text-right">Rate / Meter (LKR)</th>
+                                                        <th className="p-2.5 text-right">Estimated Cost</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-amber-100">
+                                                    {((bomResult.gasketItems && bomResult.gasketItems.length > 0)
+                                                        ? bomResult.gasketItems
+                                                        : (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).map((g, i) => {
+                                                        const unitMeters = Number(quantity) > 0 ? parseFloat((Number(g.qty) / quantity).toFixed(2)) : Number(g.qty);
+                                                        return (
+                                                            <tr key={i} className="hover:bg-amber-50/50 bg-amber-50/10">
+                                                                <td className="p-2.5">
+                                                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                                                                        🪢 EPDM Gasket
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-2.5 font-bold font-mono text-amber-900">{g.code || g.actualCode}</td>
+                                                                <td className="p-2.5 font-semibold text-slate-800">{g.name}</td>
+                                                                <td className="p-2.5 text-center font-mono text-slate-600">
+                                                                    {unitMeters.toFixed(2)} m
+                                                                </td>
+                                                                <td className="p-2.5 text-center">
+                                                                    <span className="font-mono font-extrabold text-amber-950 bg-amber-100 px-2.5 py-1 rounded-md border border-amber-300 text-xs">
+                                                                        {g.qty} meters
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-2.5 text-right font-mono text-slate-600">
+                                                                    LKR {Number(g.unitRate).toLocaleString()} / m
+                                                                </td>
+                                                                <td className="p-2.5 text-right font-bold text-amber-950 font-mono text-xs">
+                                                                    LKR {g.cost.toLocaleString()}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Gaskets Summary Footer */}
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-3 bg-amber-50/60 rounded-xl border border-amber-200 text-xs">
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                <span className="text-amber-900 font-medium">
+                                                    Gasket Types: <strong className="text-amber-950 font-bold">
+                                                        {((bomResult.gasketItems && bomResult.gasketItems.length > 0)
+                                                            ? bomResult.gasketItems
+                                                            : (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).length}
+                                                    </strong>
+                                                </span>
+                                                <span className="text-amber-300">|</span>
+                                                <span className="text-amber-900 font-medium">
+                                                    Total Gasket Length: <strong className="text-amber-950 font-black font-mono">
+                                                        {(bomResult.summary.totalGasketMeters !== undefined
+                                                            ? bomResult.summary.totalGasketMeters
+                                                            : ((bomResult.gasketItems && bomResult.gasketItems.length > 0)
+                                                                ? bomResult.gasketItems
+                                                                : (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).reduce((s, g) => s + (Number(g.qty) || 0), 0)).toFixed(2)} meters
+                                                    </strong>
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-amber-900 font-medium">Total Gaskets Cost:</span>
+                                                <span className="font-extrabold text-amber-950 text-sm">
+                                                    LKR {(bomResult.summary.totalGasketCost !== undefined
+                                                        ? bomResult.summary.totalGasketCost
+                                                        : ((bomResult.gasketItems && bomResult.gasketItems.length > 0)
+                                                            ? bomResult.gasketItems
+                                                            : (bomResult.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).reduce((s, g) => s + (Number(g.cost) || 0), 0)).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -1367,57 +1749,188 @@ const AluConfiguratorPage = () => {
                         )}
 
                         {/* Tab Content: Costing Summary */}
-                        {activeTab === 'summary' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                                <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <h4 className="font-bold text-slate-800 border-b pb-1">Raw Material Breakdown</h4>
-                                    <div className="flex justify-between py-1 border-b text-slate-600">
-                                        <span>Aluminium Profiles (Before Discount)</span>
-                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAluminiumCostBeforeDiscount?.toLocaleString() || bomResult.summary.totalAluminiumCost.toLocaleString()}</span>
-                                    </div>
-                                    {bomResult.summary.aluminiumDiscountPercent > 0 && (
-                                        <div className="flex justify-between py-1 border-b text-amber-600">
-                                            <span>Aluminium Discount ({bomResult.summary.aluminiumDiscountPercent}%)</span>
-                                            <span className="font-bold text-amber-700">- LKR {bomResult.summary.aluminiumDiscountAmount?.toLocaleString() || 0}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between py-1 border-b text-slate-600">
-                                        <span>Aluminium Profiles (After Discount)</span>
-                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAluminiumCost.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b text-slate-600">
-                                        <span>Glass Sheets</span>
-                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalGlassCost.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b text-slate-600">
-                                        <span>Hardware Accessories & Seals</span>
-                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAccessoriesCost.toLocaleString()}</span>
-                                    </div>
-                                </div>
+                        {activeTab === 'summary' && (() => {
+                            const hardwareCost = bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').reduce((s, a) => s + (Number(a.cost) || 0), 0);
+                            const gasketCost = bomResult.summary.totalGasketCost || (bomResult.gasketItems ? bomResult.gasketItems.reduce((s, g) => s + (Number(g.cost) || 0), 0) : 0);
+                            const totalRaw = Math.round(bomResult.summary.totalRawCost || 0);
+                            const totalLabour = Math.round(bomResult.summary.totalLabourCost || 0);
+                            const productionCost = totalRaw + totalLabour;
+                            const profitAmount = Math.round(bomResult.summary.profitMarginAmount || 0);
+                            const finalPrice = Math.round(bomResult.summary.finalSellingPrice || 0);
+                            const areaSqFt = bomResult.summary.totalAreaSqFt || totalAreaSqFt || 0;
+                            const ratePerSqFt = areaSqFt > 0 ? Math.round(finalPrice / areaSqFt) : 0;
 
-                                <div className="space-y-2 bg-emerald-50/50 p-4 rounded-xl border border-emerald-200 text-emerald-950">
-                                    <h4 className="font-bold border-b border-emerald-200 pb-1">Commercial Price Calculation</h4>
-                                    <div className="flex justify-between py-1 border-b border-emerald-200">
-                                        <span>Total Raw Cost (Materials)</span>
-                                        <span className="font-bold">LKR {bomResult.summary.totalRawCost.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b border-emerald-200">
-                                        <span>Total Labour Cost</span>
-                                        <span className="font-bold">LKR {(bomResult.summary.totalLabourCost || totalLabourCost).toLocaleString()}</span>
-                                    </div>
-                                    {bomResult.summary.profitMarginPercent > 0 && (
-                                        <div className="flex justify-between py-1 border-b border-emerald-200">
-                                            <span>Profit Margin ({bomResult.summary.profitMarginPercent}%)</span>
-                                            <span className="font-bold text-emerald-700">+ LKR {bomResult.summary.profitMarginAmount?.toLocaleString() || 0}</span>
+                            return (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs">
+                                    {/* 1. Raw Materials Breakdown */}
+                                    <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 mb-3">
+                                                <div>
+                                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                                        <span>📦</span> 1. Raw Material Breakdown
+                                                    </h4>
+                                                    <span className="text-[11px] text-slate-500">BOM Material Costs for {quantity} opening unit(s)</span>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                                    4 Categories
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-2.5">
+                                                {/* Category 1: Aluminium Profiles */}
+                                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 transition">
+                                                    <div className="flex justify-between items-center text-slate-800 font-bold">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <span className="text-slate-400 font-mono text-[11px]">1.1</span>
+                                                            <span>Aluminium Profiles</span>
+                                                            {bomResult.summary.aluminiumDiscountPercent > 0 && (
+                                                                <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                                                                    {bomResult.summary.aluminiumDiscountPercent}% Off
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        <span className="font-mono text-slate-900 font-black text-sm">
+                                                            LKR {Math.round(bomResult.summary.totalAluminiumCost).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    {bomResult.summary.aluminiumDiscountPercent > 0 && (
+                                                        <div className="flex justify-between text-[11px] text-slate-400 pt-1 mt-1 border-t border-slate-100">
+                                                            <span>Gross: LKR {Math.round(bomResult.summary.totalAluminiumCostBeforeDiscount || bomResult.summary.totalAluminiumCost).toLocaleString()}</span>
+                                                            <span className="text-amber-600 font-medium">Discount: - LKR {Math.round(bomResult.summary.aluminiumDiscountAmount || 0).toLocaleString()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Category 2: Glass Sheets */}
+                                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 transition flex justify-between items-center">
+                                                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                                        <span className="text-slate-400 font-mono text-[11px]">1.2</span>
+                                                        <span>Glass Sheets &amp; Panels</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">({bomResult.glassItems.length} panels)</span>
+                                                    </div>
+                                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                                        LKR {Math.round(bomResult.summary.totalGlassCost).toLocaleString()}
+                                                    </span>
+                                                </div>
+
+                                                {/* Category 3: Hardware & Accessories */}
+                                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 transition flex justify-between items-center">
+                                                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                                        <span className="text-slate-400 font-mono text-[11px]">1.3</span>
+                                                        <span>Hardware &amp; Accessories</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">
+                                                            ({bomResult.accessories.filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length} items)
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                                        LKR {hardwareCost.toLocaleString()}
+                                                    </span>
+                                                </div>
+
+                                                {/* Category 4: Gaskets */}
+                                                <div className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 transition flex justify-between items-center">
+                                                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                                        <span className="text-slate-400 font-mono text-[11px]">1.4</span>
+                                                        <span>Gaskets</span>
+                                                        {(bomResult.summary.totalGasketMeters || 0) > 0 && (
+                                                            <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                                                                {(bomResult.summary.totalGasketMeters || 0).toFixed(2)} m
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="font-mono text-slate-900 font-black text-sm">
+                                                        LKR {gasketCost.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="flex justify-between py-2 text-base font-extrabold text-emerald-900 border-t border-emerald-300">
-                                        <span>Final Selling Price</span>
-                                        <span>LKR {bomResult.summary.finalSellingPrice.toLocaleString()}</span>
+
+                                        {/* Total Raw Material Cost Footer */}
+                                        <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl flex justify-between items-center text-indigo-950">
+                                            <div className="flex flex-col">
+                                                <span className="font-extrabold text-xs uppercase tracking-wider text-indigo-900">Total Raw Materials Cost (A)</span>
+                                                <span className="text-[10px] text-indigo-600">Profiles + Glass + Accessories + Gaskets</span>
+                                            </div>
+                                            <span className="font-black font-mono text-base text-indigo-900">
+                                                LKR {totalRaw.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Commercial Pricing & Quotation */}
+                                    <div className="bg-emerald-50/40 p-5 rounded-2xl border border-emerald-200 shadow-2xs flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5 mb-3">
+                                                <div>
+                                                    <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                                                        <span>💼</span> 2. Commercial Price Calculation
+                                                    </h4>
+                                                    <span className="text-[11px] text-emerald-700">Fabrication, labour &amp; profit margin structure</span>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                                    Costing Flow
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-2.5">
+                                                {/* Step 1: Raw Materials */}
+                                                <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                                    <span className="font-semibold">1. Total Raw Materials (A)</span>
+                                                    <span className="font-mono font-bold text-slate-900">LKR {totalRaw.toLocaleString()}</span>
+                                                </div>
+
+                                                {/* Step 2: Labour Cost */}
+                                                <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold">2. Total Labour Cost (B)</span>
+                                                        <span className="text-[10px] text-emerald-700 font-medium">
+                                                            {areaSqFt} sqft × LKR {bomResult.summary.labourRatePerSqFt || labourRatePerSqFt}/sqft
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-mono font-bold text-slate-900">LKR {totalLabour.toLocaleString()}</span>
+                                                </div>
+
+                                                {/* Step 3: Base Production Cost */}
+                                                <div className="p-3 bg-emerald-100/60 rounded-xl border border-emerald-200 flex justify-between items-center text-emerald-950">
+                                                    <span className="font-bold text-[11px]">Base Production Cost (A + B)</span>
+                                                    <span className="font-mono font-extrabold text-sm text-emerald-900">LKR {productionCost.toLocaleString()}</span>
+                                                </div>
+
+                                                {/* Step 4: Profit Margin */}
+                                                {bomResult.summary.profitMarginPercent > 0 && (
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 flex justify-between items-center text-slate-700">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold">3. Profit Margin</span>
+                                                            <span className="text-[10px] text-slate-500 font-medium">+{bomResult.summary.profitMarginPercent}% markup</span>
+                                                        </div>
+                                                        <span className="font-mono font-bold text-emerald-700">+ LKR {profitAmount.toLocaleString()}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Grand Total Final Selling Price */}
+                                        <div className="p-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl shadow-sm space-y-1.5">
+                                            <div className="flex justify-between items-baseline">
+                                                <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-100">Final Selling Price</span>
+                                                <span className="text-xl font-black font-mono">
+                                                    LKR {finalPrice.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            {areaSqFt > 0 && (
+                                                <div className="flex justify-between text-[11px] text-emerald-100/90 border-t border-emerald-500/50 pt-1.5 mt-1 font-medium">
+                                                    <span>Effective Sq.Ft Selling Rate</span>
+                                                    <span className="font-mono font-extrabold text-white">
+                                                        LKR {ratePerSqFt.toLocaleString()} / sqft
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </div>
 
                 </div>

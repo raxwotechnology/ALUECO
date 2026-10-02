@@ -23,9 +23,9 @@ export const createAuditLog = async ({
             description,
             changes,
             previousData,
-            performedBy: req.user._id,
-            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-            userAgent: req.headers['user-agent'],
+            performedBy: req?.user?._id,
+            ipAddress: req?.ip || req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || '',
+            userAgent: req?.headers?.['user-agent'] || '',
         });
     } catch (error) {
         console.error('Failed to create audit log:', error);

@@ -36,6 +36,13 @@ const aluApplicationSchema = new mongoose.Schema({
         actualCode: { type: String, default: '' },
         quantityFormula: { type: String, required: true }   // e.g. "4 * P" or "2 * Q"
     }],
+    gasketBOM: [{
+        gasketCode: { type: String, default: '' },
+        actualCode: { type: String, default: '' },
+        name: { type: String, default: '' },
+        formula: { type: String, default: '' },              // e.g. "2 * (W + H) / 1000" (in meters)
+        unit: { type: String, default: 'm' }
+    }],
     brand: {
         type: String,
         default: 'Standard',
