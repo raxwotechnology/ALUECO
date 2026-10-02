@@ -4,25 +4,62 @@ import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import SalesOrder from '../models/SalesOrder.js';
 import Warehouse from '../models/Warehouse.js';
-import { decreaseStock } from '../services/stockService.js';
+import { decreaseStock, increaseStock } from '../services/stockService.js';
+import StockItem from '../models/StockItem.js';
+import StockMovement from '../models/StockMovement.js';
+import Product from '../models/Product.js';
 import AuditLog from '../models/AuditLog.js';
 import { broadcast } from '../services/socketService.js';
 
 const deductStockForInvoice = async (invoice, userId) => {
     if (invoice.invoiceType === 'proforma') return; // Proforma NEVER impacts stock
     if (invoice.stockDeducted) return;
+    // Sales orders already deduct stock on approval (salesOrderController:602), so do not deduct twice
+    if (invoice.salesOrderIds && invoice.salesOrderIds.length > 0) {
+        invoice.stockDeducted = true;
+        invoice.stockDeductionError = null;
+        await invoice.save();
+        return;
+    }
 
     let whId = invoice.warehouseId;
     if (!whId) {
         const wh = await Warehouse.findOne({ deletedAt: null });
         whId = wh?._id;
     }
-    if (!whId) return;
+    if (!whId) {
+        invoice.stockDeductionError = 'No active warehouse found for stock deduction';
+        await invoice.save();
+        throw new Error('No active warehouse found for stock deduction');
+    }
 
-    for (const item of invoice.items) {
-        if (!item.productId) continue;
-        try {
-            await decreaseStock({
+    const warehouse = await Warehouse.findById(whId);
+    const allowNegative = warehouse?.settings?.allowNegativeStock || false;
+
+    // Check availability first if negative stock is not allowed
+    if (!allowNegative) {
+        for (const item of invoice.items) {
+            if (!item.productId) continue;
+            const stockItem = await StockItem.findOne({
+                productId: item.productId,
+                warehouseId: whId,
+            });
+            const openStock = stockItem?.quantities?.openStock || 0;
+            if (!stockItem || openStock < item.quantity) {
+                const errMsg = `Insufficient stock for "${item.productName || item.productId}". Available: ${openStock}, Required: ${item.quantity}`;
+                invoice.stockDeducted = false;
+                invoice.stockDeductionError = errMsg;
+                await invoice.save();
+                throw new Error(errMsg);
+            }
+        }
+    }
+
+    const deductedMovements = [];
+    try {
+        for (const item of invoice.items) {
+            if (!item.productId) continue;
+            const result = await decreaseStock({
                 productId: item.productId,
                 warehouseId: whId,
                 quantity: item.quantity,
@@ -30,19 +67,50 @@ const deductStockForInvoice = async (invoice, userId) => {
                 sourceDocument: {
                     type: 'invoice',
                     id: invoice._id,
-                    number: invoice.invoiceNumber
+                    number: invoice.invoiceNumber,
                 },
                 reason: `Inventory deduction for Commercial Invoice ${invoice.invoiceNumber}`,
-                userId
+                userId,
+                allowNegative,
             });
-        } catch (err) {
-            console.warn(`[Invoice Stock Deduction] Failed for ${item.productName}:`, err.message);
+            if (result?.movement) {
+                deductedMovements.push(result.movement);
+            }
         }
-    }
 
-    invoice.stockDeducted = true;
-    invoice.warehouseId = whId;
-    await invoice.save();
+        invoice.stockDeducted = true;
+        invoice.warehouseId = whId;
+        invoice.stockDeductionError = null;
+        await invoice.save();
+    } catch (err) {
+        // Rollback any items deducted in this attempt
+        for (const m of deductedMovements) {
+            try {
+                await increaseStock({
+                    productId: m.productId,
+                    warehouseId: m.warehouseId || whId,
+                    batchNumber: m.batchNumber || null,
+                    quantity: m.quantity,
+                    costPerUnit: m.costPerUnit || 0,
+                    movementType: 'sale_return',
+                    sourceDocument: {
+                        type: 'invoice',
+                        id: invoice._id,
+                        number: invoice.invoiceNumber,
+                    },
+                    reason: `Rollback deduction failure for invoice ${invoice.invoiceNumber}`,
+                    userId,
+                });
+            } catch (rbErr) {
+                console.warn('[Invoice Stock Deduction Rollback]', rbErr.message);
+            }
+        }
+
+        invoice.stockDeducted = false;
+        invoice.stockDeductionError = err.message;
+        await invoice.save();
+        throw new Error(`Stock deduction failed for invoice ${invoice.invoiceNumber}: ${err.message}`);
+    }
 };
 
 /**
@@ -125,7 +193,14 @@ export const createInvoice = asyncHandler(async (req, res) => {
     });
 
     await invoice.save();
-    await deductStockForInvoice(invoice, req.user._id);
+    try {
+        await deductStockForInvoice(invoice, req.user._id);
+    } catch (deductErr) {
+        // Rollback/delete the incomplete invoice if initial deduction failed
+        await Invoice.findByIdAndDelete(invoice._id);
+        res.status(400);
+        throw deductErr;
+    }
     await updateCustomerBalance(customer._id);
 
     const populated = await Invoice.findById(invoice._id)
@@ -218,11 +293,12 @@ export const createFromSalesOrder = asyncHandler(async (req, res) => {
         items: invoiceItems,
         notes,
         status: 'approved',
+        stockDeducted: true, // Stock was already deducted when sales order was approved
+        warehouseId: orders[0]?.sourceWarehouseId,
         createdBy: req.user._id,
     });
 
     await invoice.save();
-    await deductStockForInvoice(invoice, req.user._id);
 
     // Update sales orders to "invoiced" or "completed"
     for (const order of orders) {
@@ -368,20 +444,123 @@ export const changeInvoiceStatus = asyncHandler(async (req, res) => {
         throw new Error(`Cannot change status from '${invoice.status}' to '${status}'`);
     }
 
-    invoice.status = status;
-    invoice.updatedBy = req.user._id;
-
     if (['approved', 'sent', 'viewed', 'paid'].includes(status)) {
         await deductStockForInvoice(invoice, req.user._id);
     }
 
     if (status === 'sent') invoice.sentAt = new Date();
-    if (status === 'cancelled') {
+    if (status === 'cancelled' || status === 'void') {
         invoice.cancelledBy = req.user._id;
         invoice.cancelledAt = new Date();
         invoice.cancellationReason = reason;
         invoice.paymentStatus = 'cancelled';
+
+        // ─── RESTORE STOCK ON CANCEL / VOID ───
+        if (invoice.stockDeducted) {
+            const outgoingMovements = await StockMovement.find({
+                'sourceDocument.id': invoice._id,
+                direction: 'out',
+            });
+
+            if (outgoingMovements.length > 0) {
+                const existingReturns = await StockMovement.find({
+                    'sourceDocument.id': invoice._id,
+                    direction: 'in',
+                    movementType: 'sale_return',
+                });
+
+                const returnedQtyMap = {};
+                for (const ret of existingReturns) {
+                    const key = `${ret.productId}_${ret.batchNumber || 'nobatch'}_${ret.warehouseId}`;
+                    returnedQtyMap[key] = (returnedQtyMap[key] || 0) + (ret.quantity || 0);
+                }
+
+                for (const movement of outgoingMovements) {
+                    const key = `${movement.productId}_${movement.batchNumber || 'nobatch'}_${movement.warehouseId}`;
+                    const alreadyReturned = returnedQtyMap[key] || 0;
+                    const netQtyToReturn = Math.max(0, movement.quantity - alreadyReturned);
+
+                    if (netQtyToReturn > 0) {
+                        try {
+                            await increaseStock({
+                                productId: movement.productId,
+                                warehouseId: movement.warehouseId || invoice.warehouseId,
+                                batchNumber: movement.batchNumber || null,
+                                quantity: netQtyToReturn,
+                                costPerUnit: movement.costPerUnit || 0,
+                                movementType: 'sale_return',
+                                sourceDocument: {
+                                    type: 'invoice',
+                                    id: invoice._id,
+                                    number: invoice.invoiceNumber,
+                                },
+                                reason: reason || `Invoice ${invoice.invoiceNumber} cancelled — stock restored`,
+                                userId: req.user._id,
+                            });
+                            returnedQtyMap[key] = alreadyReturned + netQtyToReturn;
+                        } catch (stockErr) {
+                            console.warn(`[Invoice Stock Return] Failed for movement ${movement._id}:`, stockErr.message);
+                        }
+                    }
+                }
+            } else if (!invoice.salesOrderIds || invoice.salesOrderIds.length === 0) {
+                // Fallback for direct invoices without StockMovement records
+                let whId = invoice.warehouseId;
+                if (!whId) {
+                    const wh = await Warehouse.findOne({ deletedAt: null });
+                    whId = wh?._id;
+                }
+                for (const item of invoice.items) {
+                    if (!item.productId) continue;
+                    try {
+                        const stockItem = await StockItem.findOne({
+                            productId: item.productId,
+                            warehouseId: whId,
+                        });
+                        const product = !stockItem ? await Product.findById(item.productId) : null;
+                        const originalCost = stockItem?.costPerUnit
+                            || product?.costs?.averageCost
+                            || product?.costs?.lastPurchaseCost
+                            || item.unitPrice
+                            || 0;
+
+                        await increaseStock({
+                            productId: item.productId,
+                            warehouseId: whId,
+                            quantity: item.quantity,
+                            costPerUnit: originalCost,
+                            movementType: 'sale_return',
+                            sourceDocument: {
+                                type: 'invoice',
+                                id: invoice._id,
+                                number: invoice.invoiceNumber,
+                            },
+                            reason: reason || `Invoice ${invoice.invoiceNumber} cancelled — stock restored`,
+                            userId: req.user._id,
+                        });
+                    } catch (stockErr) {
+                        console.warn(`[Invoice Stock Return] Failed for ${item.productName}:`, stockErr.message);
+                    }
+                }
+            }
+
+            invoice.stockDeducted = false;
+        }
+
+        // If invoice was created from sales orders, revert sales order status if applicable
+        if (invoice.salesOrderIds && invoice.salesOrderIds.length > 0) {
+            for (const soId of invoice.salesOrderIds) {
+                const so = await SalesOrder.findById(soId);
+                if (so && so.status === 'invoiced') {
+                    so.status = 'delivered';
+                    await so.save();
+                }
+            }
+        }
     }
+
+    invoice.status = status;
+    invoice.updatedBy = req.user._id;
 
     await invoice.save();
     await updateCustomerBalance(invoice.customerId);

@@ -465,6 +465,7 @@ export default function PosPage() {
             status: saveAsDraft ? 'draft' : 'approved',
             paymentMethod: saveAsDraft ? undefined : paymentMethod,
             advancePaidAmount: saveAsDraft ? undefined : effectiveAdvance,
+            partialPaidAmount: saveAsDraft ? undefined : (paymentMethod !== 'cash' && paymentMethod !== 'advance' ? Number(partialPaidAmount || 0) : undefined),
             advanceMethod: saveAsDraft ? undefined : advanceMethod,
             bankAccountId: (saveAsDraft || paymentMethod === 'cash') ? undefined : bankAccountId,
             paymentReference: saveAsDraft ? undefined : (paymentMethod === 'card' || paymentMethod === 'bank_transfer') ? paymentReference : undefined,
@@ -482,6 +483,8 @@ export default function PosPage() {
                 setCart([]);
                 setCustomerId('');
                 setOrderDiscountPercent(0);
+                setAdvancePaidAmount('');
+                setPartialPaidAmount('');
                 setIsCartOpen(false);
                 navigate(`/sales-orders/${result.data._id}`);
             } else {
@@ -491,6 +494,7 @@ export default function PosPage() {
                 setCustomerId('');
                 setOrderDiscountPercent(0);
                 setAdvancePaidAmount('');
+                setPartialPaidAmount('');
                 setIsCartOpen(false);
             }
         } catch { }
@@ -884,6 +888,8 @@ export default function PosPage() {
                         setAdvancePaidAmount={setAdvancePaidAmount}
                         advanceMethod={advanceMethod}
                         setAdvanceMethod={setAdvanceMethod}
+                        partialPaidAmount={partialPaidAmount}
+                        setPartialPaidAmount={setPartialPaidAmount}
                         bankAccounts={bankAccounts}
                     />
                 </div>
@@ -1001,6 +1007,8 @@ export default function PosPage() {
                             setAdvancePaidAmount={setAdvancePaidAmount}
                             advanceMethod={advanceMethod}
                             setAdvanceMethod={setAdvanceMethod}
+                            partialPaidAmount={partialPaidAmount}
+                            setPartialPaidAmount={setPartialPaidAmount}
                             bankAccounts={bankAccounts}
                         />
                     </div>
@@ -1044,6 +1052,8 @@ export default function PosPage() {
                     setIsReceiptModalOpen(false);
                     setCart([]);
                     setCustomerId('');
+                    setAdvancePaidAmount('');
+                    setPartialPaidAmount('');
                 }}
             />
 
@@ -1168,6 +1178,7 @@ function CartPanel({
     chequeStatus, setChequeStatus,
     advancePaidAmount, setAdvancePaidAmount,
     advanceMethod, setAdvanceMethod,
+    partialPaidAmount, setPartialPaidAmount,
     bankAccounts,
 }) {
     return (

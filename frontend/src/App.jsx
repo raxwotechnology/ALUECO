@@ -139,6 +139,7 @@ import FuturePredictionsPage from './pages/reports/FuturePredictionsPage';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
@@ -192,9 +193,9 @@ function App() {
         <Route path="/finance/cheques" element={<ProtectedRoute requiredPermission="payments.view"><ChequeLedgerPage /></ProtectedRoute>} />
         <Route path="/finance/bank-accounts" element={<ProtectedRoute requiredPermission="payments.view"><BankAccountsPage /></ProtectedRoute>} />
         <Route path="/boms" element={<ProtectedRoute requiredPermission="bom.view"><BomsPage /></ProtectedRoute>} />
-        <Route path="/boms/new" element={<ProtectedRoute requiredPermission="bom.manage"><BomFormPage /></ProtectedRoute>} />
+        <Route path="/boms/new" element={<ProtectedRoute requiredPermission="bom.manage"><ErrorBoundary><BomFormPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/boms/:id" element={<ProtectedRoute requiredPermission="bom.view"><BomDetailPage /></ProtectedRoute>} />
-        <Route path="/boms/:id/edit" element={<ProtectedRoute requiredPermission="bom.manage"><BomFormPage /></ProtectedRoute>} />
+        <Route path="/boms/:id/edit" element={<ProtectedRoute requiredPermission="bom.manage"><ErrorBoundary><BomFormPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/inventory-recipes" element={<ProtectedRoute requiredPermission="bom.view"><InventoryRecipesPage /></ProtectedRoute>} />
         <Route path="/inventory-recipes/new" element={<ProtectedRoute requiredPermission="bom.manage"><InventoryRecipeFormPage /></ProtectedRoute>} />
         <Route path="/inventory-recipes/:id/edit" element={<ProtectedRoute requiredPermission="bom.manage"><InventoryRecipeFormPage /></ProtectedRoute>} />

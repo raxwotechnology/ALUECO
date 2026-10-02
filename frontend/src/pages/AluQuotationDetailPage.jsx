@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings as SettingsIcon, Users, Truck, DollarSign, Edit, Receipt, CreditCard, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Download, Printer, Info, Layers, Eye, Settings as SettingsIcon, Users, Truck, DollarSign, Edit, Receipt, CreditCard, CheckCircle2, Package, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import Button from '../components/ui/Button';
@@ -21,12 +21,33 @@ const AluQuotationDetailPage = () => {
     const [quotation, setQuotation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [converting, setConverting] = useState(false);
+    const [recalculating, setRecalculating] = useState(false);
     const [selectedProfileCode, setSelectedProfileCode] = useState(null);
     const [selectedGlassType, setSelectedGlassType] = useState(null);
     const [viewMode, setViewMode] = useState('customer'); // 'customer' or 'internal'
     const [includeVat, setIncludeVat] = useState(true);
     const [distributeTransportCost, setDistributeTransportCost] = useState(false);
     const [customTerms, setCustomTerms] = useState('');
+
+    const handleRecalculate = async () => {
+        if (!quotation) return;
+        if (!window.confirm('Recalculate this quotation with the latest rates and calculation logic? This will update the subtotal to match the Final Selling Price from 2D Configuration.')) {
+            return;
+        }
+
+        try {
+            setRecalculating(true);
+            const toastId = toast.loading('Recalculating quotation...');
+            const response = await api.post(`/alu/quotations/${quotation._id}/recalculate`);
+            setQuotation(response.data.data);
+            toast.success('Quotation recalculated successfully!', { id: toastId });
+        } catch (error) {
+            console.error('Recalculation error:', error);
+            toast.error('Failed to recalculate quotation');
+        } finally {
+            setRecalculating(false);
+        }
+    };
 
     const handleConvertToOrder = async () => {
         if (!quotation) return;
@@ -308,6 +329,7 @@ const AluQuotationDetailPage = () => {
             ['Total Accessories Cost', quotation.totalAccessoriesCost.toLocaleString()],
             ['Total Labour Cost', quotation.totalLabourCost.toLocaleString()],
             ['Transport Cost', quotation.transportCost.toLocaleString()],
+            ['Other Cost', (quotation.otherCost || 0).toLocaleString()],
             ['Other Charges', quotation.additionalCosts.reduce((s, a) => s + a.cost, 0).toLocaleString()],
             ['Profit Margin (GP)', `${quotation.profitMarginPercent}%`],
             ['Quoted Selling Price', quotation.finalSellingPrice.toLocaleString()]
@@ -338,7 +360,9 @@ const AluQuotationDetailPage = () => {
     }
 
     const additionalCostSum = (quotation.additionalCosts || []).reduce((s, a) => s + (a?.cost || 0), 0);
-    const subtotalCost = (quotation.totalAluminiumCost || 0) + (quotation.totalGlassCost || 0) + (quotation.totalAccessoriesCost || 0) + (quotation.totalLabourCost || 0) + (quotation.transportCost || 0) + additionalCostSum;
+    // Subtotal = Final Selling Price from 2D Configuration (excludes transport, other cost, and additional costs)
+    // These are added separately to reach the Grand Total
+    const subtotalCost = quotation.subtotal || ((quotation.totalAluminiumCost || 0) + (quotation.totalGlassCost || 0) + (quotation.totalAccessoriesCost || 0) + (quotation.totalLabourCost || 0));
 
     const selectedProfileOpt = (quotation.cuttingOptimizationResults && selectedProfileCode) ? quotation.cuttingOptimizationResults[selectedProfileCode] : null;
 
@@ -407,16 +431,23 @@ const AluQuotationDetailPage = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                    <Button
+                        onClick={handleRecalculate}
+                        disabled={recalculating}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition"
+                    >
+                        <RefreshCw size={14} /> {recalculating ? 'Recalculating...' : '🔄 Recalculate'}
+                    </Button>
                     {quotation.status === 'converted' ? (
-                        <Button 
-                            onClick={() => navigate('/invoices')} 
+                        <Button
+                            onClick={() => navigate('/invoices')}
                             className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition"
                         >
                             <CreditCard size={14} /> View Invoice &amp; Track Payments
                         </Button>
                     ) : (
-                        <Button 
-                            onClick={handleConvertToOrder} 
+                        <Button
+                            onClick={handleConvertToOrder}
                             disabled={converting}
                             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2 px-4 rounded-xl text-xs shadow-sm transition"
                         >
@@ -489,8 +520,9 @@ const AluQuotationDetailPage = () => {
                     { label: 'Total Glass Cost', val: `${quotation.totalGlassCost.toLocaleString()}`, color: 'text-slate-800', icon: Eye, iconColor: 'bg-cyan-50 text-cyan-600' },
                     { label: 'Total Accessories Cost', val: `${quotation.totalAccessoriesCost.toLocaleString()}`, color: 'text-slate-800', icon: SettingsIcon, iconColor: 'bg-amber-50 text-amber-600' },
                     { label: 'Total Labour Cost', val: `${quotation.totalLabourCost.toLocaleString()}`, color: 'text-slate-800', icon: Users, iconColor: 'bg-orange-50 text-orange-600' },
+                    { label: 'Subtotal (Final Selling Price)', val: `${subtotalCost.toLocaleString()}`, color: 'text-slate-800', icon: DollarSign, iconColor: 'bg-slate-100 text-slate-700' },
                     { label: 'Transport Cost', val: `${quotation.transportCost.toLocaleString()}`, color: 'text-slate-800', icon: Truck, iconColor: 'bg-teal-50 text-teal-600' },
-                    { label: 'Total Cost (Before Margin)', val: `${subtotalCost.toLocaleString()}`, color: 'text-slate-800', icon: DollarSign, iconColor: 'bg-slate-100 text-slate-700' }
+                    { label: 'Other Cost', val: `${quotation.otherCost.toLocaleString()}`, color: 'text-slate-800', icon: Package, iconColor: 'bg-purple-50 text-purple-600' }
                 ].map((c, idx) => (
                     <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-white shadow-sm flex items-center gap-3">
                         <div className={`p-2.5 rounded-xl ${c.iconColor}`}>
@@ -743,25 +775,35 @@ const AluQuotationDetailPage = () => {
                             { label: 'Aluminium Cost', val: quotation.totalAluminiumCost },
                             { label: 'Glass Cost', val: quotation.totalGlassCost },
                             { label: 'Accessories Cost', val: quotation.totalAccessoriesCost },
-                            { label: 'Labour Cost', val: quotation.totalLabourCost },
-                            { label: 'Transport Cost', val: quotation.transportCost },
-                            { label: 'Other Charges', val: additionalCostSum }
+                            { label: 'Labour Cost', val: quotation.totalLabourCost }
                         ].map((row, idx) => (
                             <div key={idx} className="flex justify-between items-center text-slate-600 py-0.5">
                                 <span>{row.label}</span>
                                 <span className="font-semibold text-slate-800">{row.val.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                         ))}
-                        
+
                         <div className="flex justify-between items-center font-bold border-t pt-2.5 text-slate-800 mt-2">
-                            <span>Total Cost (Before Margin)</span>
+                            <span>Subtotal (Final Selling Price from 2D Config)</span>
                             <span>{subtotalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
+
+                        {[
+                            { label: 'Transport Cost', val: quotation.transportCost },
+                            { label: 'Other Cost', val: quotation.otherCost },
+                            { label: 'Additional Charges', val: additionalCostSum }
+                        ].map((row, idx) => (
+                            <div key={`extra-${idx}`} className="flex justify-between items-center text-slate-600 py-0.5">
+                                <span>{row.label}</span>
+                                <span className="font-semibold text-slate-800">{row.val.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                        ))}
+
                         <div className="flex justify-between items-center text-slate-500">
-                            <span>Profit Margin</span>
+                            <span>Profit Margin (included in Subtotal)</span>
                             <span>{quotation.profitMarginPercent.toFixed(2)} %</span>
                         </div>
-                        
+
                         <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-2">
                             <span className="font-bold text-emerald-700">Selling Price (Quotation Value)</span>
                             <span className="text-base font-black text-emerald-600">LKR {quotation.finalSellingPrice.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>

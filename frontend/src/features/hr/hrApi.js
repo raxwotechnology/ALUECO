@@ -34,6 +34,9 @@ export const attendanceApi = {
     list: async (params = {}) => (await api.get('/hr/attendance', { params })).data,
     mark: async (data) => (await api.post('/hr/attendance', data)).data,
     bulkMark: async (data) => (await api.post('/hr/attendance/bulk', data)).data,
+    previewExcel: async (formData) => (await api.post('/hr/attendance/preview', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })).data,
     importFromExcel: async (formData) => (await api.post('/hr/attendance/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     })).data,

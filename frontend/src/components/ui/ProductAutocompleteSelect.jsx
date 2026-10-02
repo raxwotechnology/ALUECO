@@ -16,6 +16,7 @@ export default function ProductAutocompleteSelect({
     const [inputValue, setInputValue] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [categories, setCategories] = useState([]);
+    const [isSelecting, setIsSelecting] = useState(false);
     const wrapperRef = useRef(null);
 
     // Fetch categories on mount to determine RAW category for auto-saving raw materials
@@ -60,9 +61,11 @@ export default function ProductAutocompleteSelect({
     );
 
     const handleSelectOption = (product) => {
+        setIsSelecting(true);
         setInputValue(product.name);
         onChange(product._id, product);
         setIsOpen(false);
+        setTimeout(() => setIsSelecting(false), 100);
     };
 
     // Auto-create product if it doesn't exist
@@ -121,6 +124,10 @@ export default function ProductAutocompleteSelect({
     };
 
     const handleBlur = () => {
+        // Don't process blur if user is selecting an option
+        if (isSelecting) {
+            return;
+        }
         // Delay to allow item click
         setTimeout(() => {
             if (!inputValue.trim()) {
@@ -128,7 +135,7 @@ export default function ProductAutocompleteSelect({
                 return;
             }
             // Check if exactly matches an option
-            const exactMatch = products.find(p => p.name.toLowerCase() === inputValue.trim().toLowerCase());
+            const exactMatch = products.find(p => p && p.name && p.name.toLowerCase() === inputValue.trim().toLowerCase());
             if (exactMatch) {
                 setInputValue(exactMatch.name);
                 onChange(exactMatch._id, exactMatch);
@@ -136,10 +143,8 @@ export default function ProductAutocompleteSelect({
                 // If it is a new name and auto-create is enabled, create it
                 handleAutoCreate(inputValue);
             } else {
-                // If auto-create is disabled, clear the value
-                toast.error('Please select a product from the dropdown list');
-                setInputValue('');
-                onChange('');
+                // If auto-create is disabled, just keep the input value as-is
+                // Don't clear it or show error - let the user handle it
             }
         }, 250);
     };

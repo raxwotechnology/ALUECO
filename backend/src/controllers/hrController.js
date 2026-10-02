@@ -403,17 +403,44 @@ export const bulkMarkAttendance = asyncHandler(async (req, res) => {
 });
 
 /**
- * Find employee by biometric/system employee code.
+ * Find employee by biometric/system employee code or name.
  */
-const findEmployeeByCode = async (employeeCode) => {
-    const normalized = normalizeEmployeeCode(employeeCode);
-    if (!normalized) return null;
+const findEmployeeByCode = async (employeeCode, employeeName = null) => {
+    if (!employeeCode && !employeeName) return null;
+
+    const rawCode = String(employeeCode || '').trim();
+    const cleanNum = rawCode.replace(/\D/g, ''); // Extract numeric part, e.g. "2" from "EMP-2"
+
+    const orConditions = [];
+
+    if (rawCode) {
+        orConditions.push({ employeeCode: rawCode });
+        orConditions.push({ employeeCode: rawCode.toUpperCase() });
+        if (cleanNum) {
+            orConditions.push({ employeeCode: cleanNum });
+            orConditions.push({ employeeCode: new RegExp(`^EMP[-_]?0*${cleanNum}$`, 'i') });
+        }
+    }
+
+    if (employeeName && String(employeeName).trim()) {
+        const cleanName = String(employeeName).trim();
+        orConditions.push({ firstName: new RegExp(`^${cleanName}$`, 'i') });
+        orConditions.push({ lastName: new RegExp(`^${cleanName}$`, 'i') });
+        orConditions.push({
+            $expr: {
+                $regexMatch: {
+                    input: { $concat: ['$firstName', ' ', '$lastName'] },
+                    regex: new RegExp(`^${cleanName}$`, 'i'),
+                },
+            },
+        });
+    }
+
+    if (orConditions.length === 0) return null;
 
     return Employee.findOne({
-        $or: [
-            { employeeCode: normalized },
-            { employeeCode: String(employeeCode).trim() },
-        ],
+        deletedAt: null,
+        $or: orConditions,
     });
 };
 
@@ -425,6 +452,12 @@ const upsertAttendanceRecord = async ({
     checkOutTime,
     totalWorkedMinutes,
     overtimeMinutes,
+    arrivalTime,
+    departureTime,
+    workingHours,
+    overtimeHours,
+    month,
+    year,
     markedBy,
     fromImport = false,
 }) => {
@@ -445,6 +478,13 @@ const upsertAttendanceRecord = async ({
     att.checkOutTime = checkOutTime || null;
     att.checkInMethod = fromImport ? 'excel_import' : 'manual';
 
+    if (arrivalTime) att.arrivalTime = arrivalTime;
+    if (departureTime) att.departureTime = departureTime;
+    if (workingHours) att.workingHours = workingHours;
+    if (overtimeHours) att.overtimeHours = overtimeHours;
+    if (month) att.month = month;
+    if (year) att.year = year;
+
     if (fromImport) {
         att.totalWorkedMinutes = totalWorkedMinutes || 0;
         att.overtimeMinutes = overtimeMinutes || 0;
@@ -461,9 +501,9 @@ const upsertAttendanceRecord = async ({
 };
 
 /**
- * Import attendance from Excel file
+ * Preview attendance from Excel file before saving
  */
-export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
+export const previewAttendanceFromExcel = asyncHandler(async (req, res) => {
     if (!req.file) {
         res.status(400);
         throw new Error('No file uploaded');
@@ -474,8 +514,123 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
     const worksheet = workbook.Sheets[sheetName];
     const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
 
+    // ── Monthly biometric report (Luxo format) ──
+    if (isMonthlyPerformanceReport(rawRows)) {
+        const { period, records, employees: parsedEmployees, errors: parseErrors } = parseMonthlyPerformanceSheet(rawRows);
+
+        const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        const monthName = period?.month ? `${monthNames[period.month - 1]} ${period.year}` : 'Unknown Period';
+
+        const employeesWithMatch = [];
+        let matchedCount = 0;
+        let unmatchedCount = 0;
+
+        for (const emp of (parsedEmployees || [])) {
+            const dbEmp = await findEmployeeByCode(emp.employeeCode, emp.employeeName);
+            const isRegistered = !!dbEmp;
+            if (isRegistered) {
+                matchedCount++;
+            } else {
+                unmatchedCount++;
+            }
+
+            employeesWithMatch.push({
+                ...emp,
+                isRegistered,
+                dbEmployee: dbEmp ? {
+                    _id: dbEmp._id,
+                    employeeCode: dbEmp.employeeCode,
+                    fullName: dbEmp.fullName,
+                    displayName: dbEmp.displayName,
+                    designation: dbEmp.designationId?.name || dbEmp.designation || 'Staff',
+                    department: dbEmp.departmentId?.name || 'General',
+                } : null,
+            });
+        }
+
+        return res.json({
+            success: true,
+            format: 'monthly',
+            period: {
+                ...period,
+                monthName,
+                daysInMonth: period ? new Date(period.year, period.month, 0).getDate() : 31,
+            },
+            summary: {
+                totalEmployees: employeesWithMatch.length,
+                matchedCount,
+                unmatchedCount,
+                totalAttendanceDays: records.length,
+            },
+            employees: employeesWithMatch,
+            errors: parseErrors,
+        });
+    }
+
+    // ── Simple daily flat format ──
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    const dailyRows = parseDailyAttendanceRows(jsonData);
+    const enrichedDaily = [];
+    let matchedCount = 0;
+    let unmatchedCount = 0;
+
+    for (const row of dailyRows) {
+        const dbEmp = await findEmployeeByCode(row.employeeCode, row.employeeName);
+        const isRegistered = !!dbEmp;
+        if (isRegistered) matchedCount++;
+        else unmatchedCount++;
+
+        enrichedDaily.push({
+            employeeCode: row.employeeCode,
+            employeeName: row.employeeName || (dbEmp ? dbEmp.fullName : 'Unknown'),
+            status: row.status,
+            checkInTime: row.checkInTime,
+            checkOutTime: row.checkOutTime,
+            isRegistered,
+            dbEmployee: dbEmp ? {
+                _id: dbEmp._id,
+                employeeCode: dbEmp.employeeCode,
+                fullName: dbEmp.fullName,
+            } : null,
+        });
+    }
+
+    return res.json({
+        success: true,
+        format: 'daily',
+        summary: {
+            totalEmployees: dailyRows.length,
+            matchedCount,
+            unmatchedCount,
+            totalAttendanceDays: dailyRows.length,
+        },
+        records: enrichedDaily,
+    });
+});
+
+/**
+ * Import attendance from Excel file
+ */
+export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        res.status(400);
+        throw new Error('No file uploaded');
+    }
+
+    const autoCreateEmployees = req.body.autoCreateEmployees === 'true' || req.body.autoCreateEmployees === true;
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+
     const results = [];
     const errors = [];
+    let createdEmployeesCount = 0;
+    const employeeCache = new Map();
 
     // ── Monthly biometric report (Luxo / fingerprint machine format) ──
     if (isMonthlyPerformanceReport(rawRows)) {
@@ -489,25 +644,85 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
 
         for (const record of records) {
             try {
-                const emp = await findEmployeeByCode(record.employeeCode);
+                let emp = null;
+                const cacheKey = `${record.employeeCode || ''}_${record.employeeName || ''}`;
+
+                if (employeeCache.has(cacheKey)) {
+                    emp = employeeCache.get(cacheKey);
+                } else {
+                    emp = await findEmployeeByCode(record.employeeCode, record.employeeName);
+                    
+                    if (!emp && autoCreateEmployees) {
+                        let proposedCode = null;
+                        if (record.employeeCode) {
+                            const clean = String(record.employeeCode).trim();
+                            const codeCandidate = isNaN(clean) ? clean : `EMP-${clean.padStart(3, '0')}`;
+                            const exists = await Employee.findOne({ employeeCode: new RegExp(`^${codeCandidate}$`, 'i') });
+                            if (!exists) proposedCode = codeCandidate;
+                        }
+
+                        let designationId = undefined;
+                        if (record.designation) {
+                            const desigDoc = await Designation.findOne({
+                                name: new RegExp(`^${record.designation.trim()}$`, 'i'),
+                            });
+                            if (desigDoc) designationId = desigDoc._id;
+                        }
+
+                        emp = new Employee({
+                            employeeCode: proposedCode,
+                            firstName: record.employeeName || `Staff ${record.employeeCode || ''}`.trim(),
+                            displayName: record.employeeName,
+                            designationId,
+                            status: 'active',
+                            employmentType: 'permanent',
+                        });
+                        await emp.save();
+                        createdEmployeesCount++;
+                    }
+
+                    if (emp) {
+                        employeeCache.set(cacheKey, emp);
+                    }
+                }
+
                 if (!emp) {
                     errors.push({
                         employeeCode: record.employeeCode,
                         employeeName: record.employeeName,
                         date: record.date,
-                        error: `Employee not found for Emp Code: ${record.employeeCode}`,
+                        error: `Employee not found for Emp Code: ${record.employeeCode} (${record.employeeName})`,
                     });
                     continue;
+                }
+
+                let checkIn = null;
+                let checkOut = null;
+
+                if (record.arrivalTime) {
+                    checkIn = parseTimeOnDate(record.arrivalTime, record.date);
+                }
+                if (record.departureTime) {
+                    checkOut = parseTimeOnDate(record.departureTime, record.date);
+                    if (checkIn && checkOut && checkOut < checkIn) {
+                        checkOut = new Date(checkOut.getTime() + 24 * 60 * 60 * 1000);
+                    }
                 }
 
                 const att = await upsertAttendanceRecord({
                     emp,
                     attendanceDate: record.date,
                     status: record.status,
-                    checkInTime: record.checkInTime,
-                    checkOutTime: record.checkOutTime,
+                    checkInTime: checkIn,
+                    checkOutTime: checkOut,
+                    arrivalTime: record.arrivalTime,
+                    departureTime: record.departureTime,
+                    workingHours: record.workingHours,
+                    overtimeHours: record.overtimeHours,
                     totalWorkedMinutes: record.totalWorkedMinutes,
                     overtimeMinutes: record.overtimeMinutes,
+                    month: record.month,
+                    year: record.year,
                     markedBy: req.user._id,
                     fromImport: true,
                 });
@@ -526,6 +741,7 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
             format: 'monthly',
             period: { month: period.month, year: period.year },
             imported: results.length,
+            createdEmployees: createdEmployeesCount,
             errors: errors.length,
             data: results,
             errorDetails: errors,
@@ -547,7 +763,38 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
 
     for (const row of dailyRows) {
         try {
-            const emp = await findEmployeeByCode(row.employeeCode);
+            let emp = null;
+            const cacheKey = `${row.employeeCode || ''}_${row.employeeName || ''}`;
+
+            if (employeeCache.has(cacheKey)) {
+                emp = employeeCache.get(cacheKey);
+            } else {
+                emp = await findEmployeeByCode(row.employeeCode, row.employeeName);
+                if (!emp && autoCreateEmployees) {
+                    let proposedCode = null;
+                    if (row.employeeCode) {
+                        const clean = String(row.employeeCode).trim();
+                        const codeCandidate = isNaN(clean) ? clean : `EMP-${clean.padStart(3, '0')}`;
+                        const exists = await Employee.findOne({ employeeCode: new RegExp(`^${codeCandidate}$`, 'i') });
+                        if (!exists) proposedCode = codeCandidate;
+                    }
+
+                    emp = new Employee({
+                        employeeCode: proposedCode,
+                        firstName: row.employeeName || `Staff ${row.employeeCode || ''}`.trim(),
+                        displayName: row.employeeName,
+                        status: 'active',
+                        employmentType: 'permanent',
+                    });
+                    await emp.save();
+                    createdEmployeesCount++;
+                }
+
+                if (emp) {
+                    employeeCache.set(cacheKey, emp);
+                }
+            }
+
             if (!emp) {
                 errors.push({ row, error: `Employee not found: ${row.employeeCode}` });
                 continue;
@@ -589,6 +836,7 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
         success: true,
         format: 'daily',
         imported: results.length,
+        createdEmployees: createdEmployeesCount,
         errors: errors.length,
         data: results,
         errorDetails: errors,

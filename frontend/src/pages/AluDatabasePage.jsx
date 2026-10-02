@@ -56,9 +56,7 @@ export default function AluDatabasePage() {
         description: '',
         profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
         glassBOM: [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
-        accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
-        labourMethod: 'linear_feet',
-        labourRate: 0
+        accessoryBOM: [{ accessoryCode: '', actualCode: '', quantityFormula: '' }]
     });
 
     const fetchData = async () => {
@@ -285,9 +283,7 @@ export default function AluDatabasePage() {
                 description: item.description || '',
                 profileBOM: item.profileBOM?.length ? item.profileBOM : [{ profileCode: '', actualCode: '', description: '', quantityFormula: '', lengthFormula: '' }],
                 glassBOM: item.glassBOM?.length ? item.glassBOM : [{ glassCode: '', quantityFormula: '', widthFormula: '', heightFormula: '', glassSheetLength: '8', base21ftPrice: 0 }],
-                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }],
-                labourMethod: item.labourMethod || 'linear_feet',
-                labourRate: item.labourRate || 0
+                accessoryBOM: item.accessoryBOM?.length ? item.accessoryBOM : [{ accessoryCode: '', actualCode: '', quantityFormula: '' }]
             });
         } else {
             setAppForm({
@@ -296,9 +292,7 @@ export default function AluDatabasePage() {
                 description: '',
                 profileBOM: [{ profileCode: '', actualCode: '', description: '', quantityFormula: '2', lengthFormula: 'W' }],
                 glassBOM: [{ glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }],
-                accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }],
-                labourMethod: 'linear_feet',
-                labourRate: 150
+                accessoryBOM: [{ accessoryCode: 'ROLLER-01', actualCode: '', quantityFormula: '4 * P' }]
             });
         }
         setIsOpen(true);
@@ -429,9 +423,6 @@ export default function AluDatabasePage() {
                                         </span>
                                         <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-medium">
                                             ⚙️ {app.accessoryBOM?.length || 0} Accessories
-                                        </span>
-                                        <span className="bg-amber-50 text-amber-800 px-2.5 py-1 rounded-md font-semibold">
-                                            🔨 Labor: {app.labourMethod === 'linear_feet' ? 'Per Running Foot' : app.labourMethod === 'sqft' ? 'Per Sq.Ft' : app.labourMethod} (Rs. {app.labourRate})
                                         </span>
                                     </div>
                                 </div>
@@ -813,13 +804,14 @@ export default function AluDatabasePage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100', glassSheetLength: '8', base21ftPrice: 0 }] })}
+                                onClick={() => setAppForm({ ...appForm, glassBOM: [...appForm.glassBOM, { glassCode: '', quantityFormula: 'P', widthFormula: '[W - (70 x 4)] / 2', heightFormula: 'H - 100' }] })}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition"
                             >
                                 + Add Glass Sizing
                             </button>
                         </div>
                         {appForm.glassBOM.map((gb, idx) => {
+                            const matchedGlass = glassItemsFromRawMaterials.find(g => g.productCode === (gb.glassCode || '').trim());
                             return (
                                 <div key={idx} className="p-3 bg-blue-50/40 border border-blue-150 rounded-xl space-y-2 transition-all hover:border-blue-300">
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 relative">
@@ -879,7 +871,7 @@ export default function AluDatabasePage() {
                                         </div>
 
                                         {/* Height Formula */}
-                                        <div className="sm:col-span-3">
+                                        <div className="sm:col-span-2">
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Height: H-100</label>
                                             <input
                                                 type="text"
@@ -892,45 +884,6 @@ export default function AluDatabasePage() {
                                                 }}
                                                 required
                                                 className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-600 bg-white"
-                                            />
-                                        </div>
-
-                                        {/* Glass Sheet Length */}
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Sheet Length (ft)</label>
-                                            <select
-                                                value={gb.glassSheetLength || '8'}
-                                                onChange={e => {
-                                                    const next = [...appForm.glassBOM];
-                                                    next[idx].glassSheetLength = e.target.value;
-                                                    setAppForm({ ...appForm, glassBOM: next });
-                                                }}
-                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
-                                            >
-                                                <option value="4">4 ft</option>
-                                                <option value="7">7 ft</option>
-                                                <option value="8">8 ft</option>
-                                                <option value="14">14 ft</option>
-                                                <option value="16">16 ft</option>
-                                                <option value="21">21 ft</option>
-                                            </select>
-                                        </div>
-
-                                        {/* Base 21ft Price */}
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Base 21ft Price</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                placeholder="Base 21ft price"
-                                                value={gb.base21ftPrice || 0}
-                                                onChange={e => {
-                                                    const next = [...appForm.glassBOM];
-                                                    next[idx].base21ftPrice = e.target.value;
-                                                    setAppForm({ ...appForm, glassBOM: next });
-                                                }}
-                                                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
                                             />
                                         </div>
 
@@ -1168,37 +1121,6 @@ export default function AluDatabasePage() {
                                 </div>
                             );
                         })}
-                    </div>
-
-                    {/* Labour Configuration */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Labour Charge Method</label>
-                            <select
-                                value={appForm.labourMethod}
-                                onChange={e => setAppForm({ ...appForm, labourMethod: e.target.value })}
-                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600 bg-white"
-                            >
-                                <option value="linear_feet">Per Linear Foot (Running Feet / Perimeter)</option>
-                                <option value="sqft">Per Square Foot (Sq.Ft Area)</option>
-                                <option value="opening">Per Opening / Unit</option>
-                                <option value="sqm">Per Square Meter (Sq.M Area)</option>
-                                <option value="fixed">Fixed Project Labor Cost</option>
-                                <option value="percentage">% of Total Material Cost</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Labour Rate (LKR or %)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={appForm.labourRate}
-                                onChange={e => setAppForm({ ...appForm, labourRate: Number(e.target.value) })}
-                                required
-                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-600"
-                            />
-                        </div>
                     </div>
 
                     <div className="flex justify-end gap-2 border-t pt-4">

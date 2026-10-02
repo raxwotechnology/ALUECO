@@ -46,11 +46,20 @@ const getEmployeeMonthAttendance = async (employeeId, year, month) => {
     let daysAbsent = 0;
     let halfDays = 0;
     let overtimeMinutes = 0;
+    let attendanceLeaveDays = 0;
 
     records.forEach((r) => {
-        if (r.status === 'present' || r.status === 'late') daysPresent++;
-        else if (r.status === 'half_day') halfDays++;
-        else if (r.status === 'absent') daysAbsent++;
+        const s = String(r.status || '').trim().toLowerCase();
+        // Present, late, or biometric codes: P (Present), POW (Present on Weekly Off)
+        if (['present', 'late', 'p', 'pow'].includes(s)) {
+            daysPresent++;
+        } else if (['half_day', 'hl'].includes(s)) {
+            halfDays++;
+        } else if (['absent', 'a'].includes(s)) {
+            daysAbsent++;
+        } else if (['al-al', 'leave', 'l'].includes(s)) {
+            attendanceLeaveDays++;
+        }
         overtimeMinutes += r.overtimeMinutes || 0;
     });
 
@@ -72,6 +81,10 @@ const getEmployeeMonthAttendance = async (employeeId, year, month) => {
         leaveDays += actualDays;
         if (l.leaveType === 'unpaid') unpaidLeaveDays += actualDays;
     });
+
+    if (leaveDays === 0 && attendanceLeaveDays > 0) {
+        leaveDays = attendanceLeaveDays;
+    }
 
     return {
         daysPresent: daysPresent + halfDays * 0.5,

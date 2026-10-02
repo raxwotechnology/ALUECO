@@ -212,14 +212,15 @@ const captureRatesSnapshot = async () => {
 };
 
 // Calculate and Optimize Quotation Pipeline
-const calculateQuotation = async (itemsInput, rates, transportCost = 0, additionalCosts = [], profitMarginPercent = 20) => {
+const calculateQuotation = async (itemsInput, rates, transportCost = 0, additionalCosts = [], profitMarginPercent = 20, manualLabourCost = 0, manualOtherCost = 0) => {
     let totalAluminiumCost = 0;
     let totalGlassCost = 0;
     let totalAccessoriesCost = 0;
-    let totalLabourCost = 0;
+    let totalLabourCost = manualLabourCost || 0;
     
     const projectCuts = {}; // profileCode -> array of cut lengths (in mm)
     const projectGlassPanels = {}; // glassCode -> array of { width, height, glassCode }
+    let hasPreCalculatedData = false; // Flag to track if any item has pre-calculated BOM
     
     // Step 1: Calculate individual elements (Cuts, Glass, Accessories)
     const items = [];
@@ -227,171 +228,255 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
     for (const item of itemsInput) {
         const { applicationType, configuration, width, height, quantity } = item;
         
-        // Parse panel count
-        let P = 1;
-        const panelMatch = configuration.match(/^(\d+)\s*Panel/i);
-        if (panelMatch) {
-            P = parseInt(panelMatch[1]);
-        }
+        // Check if item has pre-calculated BOM data from 2D configurator
+        const hasPreCalculatedBOM = item.profileCuts && item.profileCuts.length > 0 &&
+                                     item.glassItems && item.glassItems.length > 0 &&
+                                     item.accessories && item.accessories.length > 0;
         
-        const variables = { W: width, H: height, P, Q: quantity };
+        // Check if item has pre-calculated pricing from configurator
+        const hasPreCalculatedPricing = item.unitPrice > 0 && item.totalPrice > 0;
         
-        // Find application configuration details with graceful fallback for custom configurations
-        const appKey = `${applicationType}_${configuration}`;
-        let appData = rates.applications[appKey];
-        if (!appData) {
-            const fallbackKeys = Object.keys(rates.applications).filter(k => k.startsWith(applicationType));
-            if (fallbackKeys.length > 0) {
-                appData = rates.applications[fallbackKeys[0]];
-            } else {
-                appData = rates.applications[Object.keys(rates.applications)[0]];
-            }
-        }
-        if (!appData) {
-            throw new Error(`Application configuration "${applicationType} - ${configuration}" is not defined in system templates.`);
-        }
-        
-        // Profile cuts
-        const profileCuts = [];
-        appData.profileBOM.forEach(pb => {
-            const qty = evaluateFormula(pb.quantityFormula, variables);
-            const length = evaluateFormula(pb.lengthFormula, variables);
-            if (qty > 0 && length > 0) {
-                // Round length to nearest integer
-                const roundedLength = Math.round(length);
-                const totalQty = qty * quantity; // multiplier for number of openings
-                
-                profileCuts.push({
-                    profileCode: pb.profileCode,
-                    actualCode: pb.actualCode || pb.profileCode,
-                    description: pb.description,
-                    length: roundedLength,
-                    qty: qty,
-                    totalLength: roundedLength * qty
-                });
-                
-                // Add to project-wide cuts for packing optimization
-                if (!projectCuts[pb.profileCode]) {
-                    projectCuts[pb.profileCode] = [];
-                }
-                for (let k = 0; k < totalQty; k++) {
-                    projectCuts[pb.profileCode].push(roundedLength);
-                }
-            }
-        });
-        
-        // Glass items
-        const glassItems = [];
+        let profileCuts = [];
+        let glassItems = [];
+        let accessories = [];
         let itemGlassCost = 0;
-        appData.glassBOM.forEach(gb => {
-            const gQty = evaluateFormula(gb.quantityFormula, variables);
-            const gW = evaluateFormula(gb.widthFormula, variables);
-            const gH = evaluateFormula(gb.heightFormula, variables);
+        let itemAccCost = 0;
+        let labourCost = 0;
+        let totalAreaSqFt = 0;
+        let unitPrice = 0;
+        let totalPrice = 0;
+        
+        if (hasPreCalculatedBOM) {
+            // Use pre-calculated BOM data from configurator
+            hasPreCalculatedData = true;
+            profileCuts = item.profileCuts;
+            glassItems = item.glassItems;
+            accessories = item.accessories;
+            labourCost = item.labourCost || 0;
+            totalAreaSqFt = item.totalAreaSqFt || ((width * height * quantity) / 92903.04);
             
-            if (gQty > 0 && gW > 0 && gH > 0) {
-                // Calculate area: Area of single sheet in sqft
-                const areaSqFt = (gW * gH) / 92903.04;
-                const totalAreaSqFt = areaSqFt * gQty * quantity;
-                
-                const glassRate = rates.glass[gb.glassCode];
-                if (glassRate) {
-                    // Use pricing formula: (base21ftPrice/21) * glassSheetLength * 1.05 if base21ftPrice is provided
-                    let cost;
-                    if (gb.base21ftPrice && gb.base21ftPrice > 0) {
-                        const sheetLength = parseFloat(gb.glassSheetLength) || 8;
-                        const pricePerFoot = gb.base21ftPrice / 21;
-                        const sheetCost = pricePerFoot * sheetLength * 1.05;
-                        cost = totalAreaSqFt * sheetCost;
-                    } else {
-                        const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
-                        cost = totalAreaSqFt * unitRate;
-                    }
-
-                    glassItems.push({
-                        glassCode: gb.glassCode,
-                        width: Math.round(gW),
-                        height: Math.round(gH),
-                        qty: gQty * quantity,
-                        areaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
-                        unitRate: parseFloat((gb.base21ftPrice ? (gb.base21ftPrice / 21) * parseFloat(gb.glassSheetLength || 8) * 1.05 : (glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge)).toFixed(2)),
-                        cost: parseFloat(cost.toFixed(2)),
-                        glassSheetLength: gb.glassSheetLength || '8',
-                        base21ftPrice: gb.base21ftPrice || 0
+            // Use pre-calculated pricing from configurator if available
+            if (hasPreCalculatedPricing) {
+                unitPrice = item.unitPrice;
+                totalPrice = item.totalPrice;
+                // Calculate costs from pre-calculated data for totals
+                itemGlassCost = glassItems.reduce((sum, g) => sum + (g.cost || 0), 0);
+                itemAccCost = accessories.reduce((sum, a) => sum + (a.cost || 0), 0);
+            } else {
+                // Calculate costs from pre-calculated data
+                itemGlassCost = glassItems.reduce((sum, g) => sum + (g.cost || 0), 0);
+                itemAccCost = accessories.reduce((sum, a) => sum + (a.cost || 0), 0);
+            }
+            
+            // Calculate profile cost from pre-calculated profileCuts
+            let itemProfileCost = 0;
+            profileCuts.forEach(pc => {
+                const profRate = rates.profiles[pc.profileCode || pc.code];
+                if (profRate) {
+                    const lengthM = (pc.length * pc.qty) / 1000;
+                    itemProfileCost += lengthM * (profRate.ratePerM || 0);
+                }
+            });
+            
+            totalAluminiumCost += itemProfileCost;
+            totalGlassCost += itemGlassCost;
+            totalAccessoriesCost += itemAccCost;
+            
+            // Add profile cuts to project-wide optimization
+            profileCuts.forEach(pc => {
+                const code = pc.profileCode || pc.code;
+                if (!projectCuts[code]) {
+                    projectCuts[code] = [];
+                }
+                const cutLength = pc.length || 0;
+                const cutQty = pc.qty || 1;
+                for (let k = 0; k < cutQty * quantity; k++) {
+                    projectCuts[code].push(cutLength);
+                }
+            });
+            
+            // Add glass panels to project-wide optimization
+            glassItems.forEach(g => {
+                const code = g.glassCode || g.type;
+                if (!projectGlassPanels[code]) {
+                    projectGlassPanels[code] = [];
+                }
+                const panelQty = g.qty || 1;
+                for (let k = 0; k < panelQty * quantity; k++) {
+                    projectGlassPanels[code].push({
+                        width: g.width || 0,
+                        height: g.height || 0,
+                        glassCode: code,
+                        glassSheetLength: g.glassSheetLength || '8',
+                        base21ftPrice: g.base21ftPrice || 0
                     });
-
-                    itemGlassCost += cost;
-
-                    // Accumulate panels for 2D optimization with sheet length
-                    if (!projectGlassPanels[gb.glassCode]) {
-                        projectGlassPanels[gb.glassCode] = [];
+                }
+            });
+        } else {
+            // Parse panel count
+            let P = 1;
+            const panelMatch = configuration.match(/^(\d+)\s*Panel/i);
+            if (panelMatch) {
+                P = parseInt(panelMatch[1]);
+            }
+            
+            const variables = { W: width, H: height, P, Q: quantity };
+            
+            // Find application configuration details with graceful fallback for custom configurations
+            const appKey = `${applicationType}_${configuration}`;
+            let appData = rates.applications[appKey];
+            if (!appData) {
+                const fallbackKeys = Object.keys(rates.applications).filter(k => k.startsWith(applicationType));
+                if (fallbackKeys.length > 0) {
+                    appData = rates.applications[fallbackKeys[0]];
+                } else {
+                    appData = rates.applications[Object.keys(rates.applications)[0]];
+                }
+            }
+            if (!appData) {
+                throw new Error(`Application configuration "${applicationType} - ${configuration}" is not defined in system templates.`);
+            }
+            
+            // Profile cuts
+            appData.profileBOM.forEach(pb => {
+                const qty = evaluateFormula(pb.quantityFormula, variables);
+                const length = evaluateFormula(pb.lengthFormula, variables);
+                if (qty > 0 && length > 0) {
+                    // Round length to nearest integer
+                    const roundedLength = Math.round(length);
+                    const totalQty = qty * quantity; // multiplier for number of openings
+                    
+                    profileCuts.push({
+                        profileCode: pb.profileCode,
+                        actualCode: pb.actualCode || pb.profileCode,
+                        description: pb.description,
+                        length: roundedLength,
+                        qty: qty,
+                        totalLength: roundedLength * qty
+                    });
+                    
+                    // Add to project-wide cuts for packing optimization
+                    if (!projectCuts[pb.profileCode]) {
+                        projectCuts[pb.profileCode] = [];
                     }
-                    const totalQty = gQty * quantity;
                     for (let k = 0; k < totalQty; k++) {
-                        projectGlassPanels[gb.glassCode].push({
+                        projectCuts[pb.profileCode].push(roundedLength);
+                    }
+                }
+            });
+            
+            // Glass items
+            appData.glassBOM.forEach(gb => {
+                const gQty = evaluateFormula(gb.quantityFormula, variables);
+                const gW = evaluateFormula(gb.widthFormula, variables);
+                const gH = evaluateFormula(gb.heightFormula, variables);
+                
+                if (gQty > 0 && gW > 0 && gH > 0) {
+                    // Calculate area: Area of single sheet in sqft
+                    const areaSqFt = (gW * gH) / 92903.04;
+                    const totalAreaSqFt_item = areaSqFt * gQty * quantity;
+                    
+                    const glassRate = rates.glass[gb.glassCode];
+                    if (glassRate) {
+                        // Use pricing formula: (base21ftPrice/21) * glassSheetLength * 1.05 if base21ftPrice is provided
+                        let cost;
+                        if (gb.base21ftPrice && gb.base21ftPrice > 0) {
+                            const sheetLength = parseFloat(gb.glassSheetLength) || 8;
+                            const pricePerFoot = gb.base21ftPrice / 21;
+                            const sheetCost = pricePerFoot * sheetLength * 1.05;
+                            cost = totalAreaSqFt_item * sheetCost;
+                        } else {
+                            const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
+                            cost = totalAreaSqFt_item * unitRate;
+                        }
+
+                        glassItems.push({
+                            glassCode: gb.glassCode,
                             width: Math.round(gW),
                             height: Math.round(gH),
-                            glassCode: gb.glassCode,
+                            qty: gQty * quantity,
+                            areaSqFt: parseFloat(totalAreaSqFt_item.toFixed(2)),
+                            unitRate: parseFloat((gb.base21ftPrice ? (gb.base21ftPrice / 21) * parseFloat(gb.glassSheetLength || 8) * 1.05 : (glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge)).toFixed(2)),
+                            cost: parseFloat(cost.toFixed(2)),
                             glassSheetLength: gb.glassSheetLength || '8',
                             base21ftPrice: gb.base21ftPrice || 0
                         });
+
+                        itemGlassCost += cost;
+
+                        // Accumulate panels for 2D optimization with sheet length
+                        if (!projectGlassPanels[gb.glassCode]) {
+                            projectGlassPanels[gb.glassCode] = [];
+                        }
+                        const totalQty = gQty * quantity;
+                        for (let k = 0; k < totalQty; k++) {
+                            projectGlassPanels[gb.glassCode].push({
+                                width: Math.round(gW),
+                                height: Math.round(gH),
+                                glassCode: gb.glassCode,
+                                glassSheetLength: gb.glassSheetLength || '8',
+                                base21ftPrice: gb.base21ftPrice || 0
+                            });
+                        }
                     }
                 }
-            }
-        });
-        totalGlassCost += itemGlassCost;
-        
-        // Accessories
-        const accessories = [];
-        let itemAccCost = 0;
-        appData.accessoryBOM.forEach(ab => {
-            const accQty = evaluateFormula(ab.quantityFormula, variables);
-            if (accQty > 0) {
-                const totalAccQty = accQty * quantity;
-                const accRate = rates.accessories[ab.accessoryCode];
-                if (accRate) {
-                    const cost = totalAccQty * accRate.sellingRate; // use selling rate for quotation
-                    accessories.push({
-                        code: ab.accessoryCode,
-                        actualCode: ab.actualCode || ab.accessoryCode,
-                        name: accRate.name,
-                        qty: totalAccQty,
-                        unitRate: accRate.sellingRate,
-                        cost: parseFloat(cost.toFixed(2))
-                    });
-                    itemAccCost += cost;
+            });
+            
+            totalGlassCost += itemGlassCost;
+            
+            // Accessories
+            appData.accessoryBOM.forEach(ab => {
+                const accQty = evaluateFormula(ab.quantityFormula, variables);
+                if (accQty > 0) {
+                    const totalAccQty = accQty * quantity;
+                    const accRate = rates.accessories[ab.accessoryCode];
+                    if (accRate) {
+                        const cost = totalAccQty * accRate.sellingRate; // use selling rate for quotation
+                        accessories.push({
+                            code: ab.accessoryCode,
+                            actualCode: ab.actualCode || ab.accessoryCode,
+                            name: accRate.name,
+                            qty: totalAccQty,
+                            unitRate: accRate.sellingRate,
+                            cost: parseFloat(cost.toFixed(2))
+                        });
+                        itemAccCost += cost;
+                    }
                 }
-            }
-        });
-        totalAccessoriesCost += itemAccCost;
-        
-        // Labour Calculation (supports Square Feet Rate, linear feet, opening, fixed, percentage)
-        let labourCost = 0;
-        const totalAreaSqFt = (width * height * quantity) / 92903.04;
-        const totalAreaSqM = (width * height * quantity) / 1000000;
-        const totalLinearFeet = (2 * (width + height) / 304.8) * quantity;
-        
-        const effectiveRatePerSqFt = Number(item.labourRatePerSqFt) || (appData.labourMethod === 'sqft' && Number(appData.labourRate)) || 0;
+            });
+            
+            totalAccessoriesCost += itemAccCost;
+            
+            // Labour Calculation (supports Square Feet Rate, linear feet, opening, fixed, percentage)
+            const totalAreaSqFt_item = (width * height * quantity) / 92903.04;
+            const totalAreaSqM = (width * height * quantity) / 1000000;
+            const totalLinearFeet = (2 * (width + height) / 304.8) * quantity;
+            
+            const effectiveRatePerSqFt = Number(item.labourRatePerSqFt) || (appData.labourMethod === 'sqft' && Number(appData.labourRate)) || 0;
 
-        if (effectiveRatePerSqFt > 0) {
-            labourCost = totalAreaSqFt * effectiveRatePerSqFt;
-        } else if (appData.labourMethod === 'linear_feet' || appData.labourMethod === 'feet') {
-            labourCost = totalLinearFeet * (appData.labourRate || 0);
-        } else if (appData.labourMethod === 'sqm') {
-            labourCost = totalAreaSqM * (appData.labourRate || 0);
-        } else if (appData.labourMethod === 'opening') {
-            labourCost = quantity * (appData.labourRate || 0);
-        } else if (appData.labourMethod === 'fixed') {
-            labourCost = appData.labourRate || 0;
-        } else if (appData.labourMethod === 'percentage') {
-            labourCost = (itemGlassCost + itemAccCost) * (appData.labourRate || 0) / 100;
-        } else if (Number(item.labourCost) > 0) {
-            labourCost = Number(item.labourCost);
-        } else {
-            // Default standard sqft labour rate (150 LKR/sqft)
-            labourCost = totalAreaSqFt * 150;
+            if (effectiveRatePerSqFt > 0) {
+                labourCost = totalAreaSqFt_item * effectiveRatePerSqFt;
+            } else if (appData.labourMethod === 'linear_feet' || appData.labourMethod === 'feet') {
+                labourCost = totalLinearFeet * (appData.labourRate || 0);
+            } else if (appData.labourMethod === 'sqm') {
+                labourCost = totalAreaSqM * (appData.labourRate || 0);
+            } else if (appData.labourMethod === 'opening') {
+                labourCost = quantity * (appData.labourRate || 0);
+            } else if (appData.labourMethod === 'fixed') {
+                labourCost = appData.labourRate || 0;
+            } else if (appData.labourMethod === 'percentage') {
+                labourCost = (itemGlassCost + itemAccCost) * (appData.labourRate || 0) / 100;
+            } else if (Number(item.labourCost) > 0) {
+                labourCost = Number(item.labourCost);
+            } else {
+                // Default standard sqft labour rate (150 LKR/sqft)
+                labourCost = totalAreaSqFt_item * 150;
+            }
+            
+            labourCost = parseFloat(labourCost.toFixed(2));
+            totalAreaSqFt = totalAreaSqFt_item;
         }
         
-        labourCost = parseFloat(labourCost.toFixed(2));
         totalLabourCost += labourCost;
         
         items.push({
@@ -404,116 +489,119 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             topSection: item.topSection,
             panelArrangement: item.panelArrangement,
             description: item.description,
-            profileSpec: item.profileSpec || appData.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
-            glassSpec: item.glassSpec || appData.glassSpec || '5mm Single Tempered Clear Glass',
-            hardwareSpec: item.hardwareSpec || appData.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
-            scopeSpec: item.scopeSpec || appData.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
+            profileSpec: item.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+            glassSpec: item.glassSpec || '5mm Single Tempered Clear Glass',
+            hardwareSpec: item.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+            scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
             sketchImage: item.sketchImage,
             totalAreaSqFt: parseFloat(totalAreaSqFt.toFixed(2)),
-            labourRatePerSqFt: effectiveRatePerSqFt || 150,
+            labourRatePerSqFt: Number(item.labourRatePerSqFt) || 150,
             labourMethod: 'sqft',
             profileCuts,
             glassItems,
             accessories,
             labourCost,
-            unitPrice: 0, // updated after project optimization & profit margin
-            totalPrice: 0
+            unitPrice: unitPrice || 0, // Use pre-calculated from configurator if available, otherwise 0 (updated after project optimization & profit margin)
+            totalPrice: totalPrice || 0 // Use pre-calculated from configurator if available, otherwise 0
         });
     }
     
     // Step 2: 1D Cutting Optimization across all profiles in project
     const cuttingOptimizationResults = {};
-    
+
+    // Always run cutting optimization for display purposes, even when using pre-calculated data
+    // When using configurator, we use pre-calculated costs but still show optimization results
     for (const code in projectCuts) {
-        const cuts = projectCuts[code];
-        const profile = rates.profiles[code];
-        if (profile && profile.standardLengths && profile.standardLengths.length > 0) {
-            // Find available scraps for this profile
-            const dbScraps = await AluScrap.find({ profileCode: code, status: 'available' }).lean();
-            
-            // Map to a mutable scrap pool
-            let scrapPool = dbScraps.map(s => ({
-                id: s._id,
-                length: s.lengthMm,
-                used: 0,
-                cuts: [],
-                isScrap: true,
-                price: 0
-            }));
-            
-            // Try to match cuts to scrap first (Best-Fit Decreasing match)
-            const sortedCuts = [...cuts].sort((a, b) => b - a);
-            const cutsForNewBars = [];
-            
-            for (const cut of sortedCuts) {
-                // Sort scraps by remaining capacity ascending (Best-Fit)
-                scrapPool.sort((a, b) => (a.length - a.used) - (b.length - b.used));
+            const cuts = projectCuts[code];
+            const profile = rates.profiles[code];
+            if (profile && profile.standardLengths && profile.standardLengths.length > 0) {
+                // Find available scraps for this profile
+                const dbScraps = await AluScrap.find({ profileCode: code, status: 'available' }).lean();
                 
-                let matchedScrap = null;
-                for (const scrap of scrapPool) {
-                    const remaining = scrap.length - scrap.used;
-                    if (remaining >= cut) {
-                        matchedScrap = scrap;
-                        break;
+                // Map to a mutable scrap pool
+                let scrapPool = dbScraps.map(s => ({
+                    id: s._id,
+                    length: s.lengthMm,
+                    used: 0,
+                    cuts: [],
+                    isScrap: true,
+                    price: 0
+                }));
+                
+                // Try to match cuts to scrap first (Best-Fit Decreasing match)
+                const sortedCuts = [...cuts].sort((a, b) => b - a);
+                const cutsForNewBars = [];
+                
+                for (const cut of sortedCuts) {
+                    // Sort scraps by remaining capacity ascending (Best-Fit)
+                    scrapPool.sort((a, b) => (a.length - a.used) - (b.length - b.used));
+                    
+                    let matchedScrap = null;
+                    for (const scrap of scrapPool) {
+                        const remaining = scrap.length - scrap.used;
+                        if (remaining >= cut) {
+                            matchedScrap = scrap;
+                            break;
+                        }
+                    }
+                    
+                    if (matchedScrap) {
+                        matchedScrap.cuts.push(cut);
+                        matchedScrap.used += cut;
+                    } else {
+                        cutsForNewBars.push(cut);
                     }
                 }
                 
-                if (matchedScrap) {
-                    matchedScrap.cuts.push(cut);
-                    matchedScrap.used += cut;
-                } else {
-                    cutsForNewBars.push(cut);
-                }
+                // Collect the scrap bars actually used
+                const usedScraps = scrapPool.filter(s => s.used > 0).map(s => ({
+                    length: s.length,
+                    price: 0,
+                    cuts: s.cuts,
+                    used: s.used,
+                    waste: s.length - s.used,
+                    isScrap: true,
+                    scrapId: s.id
+                }));
+                
+                // For the remaining cuts, solve using standard bars
+                const newBarsPacking = solve1DPacking(cutsForNewBars, profile.standardLengths);
+                
+                // Combine scrap bars and new bars
+                const packingLayout = [...usedScraps, ...newBarsPacking];
+                
+                // Calculate costs and waste lengths (only charge for new bars purchased)
+                const totalBarsPurchased = newBarsPacking.length;
+                const purchasedLength = newBarsPacking.reduce((sum, bar) => sum + bar.length, 0);
+                const usedLength = cuts.reduce((sum, len) => sum + len, 0);
+                const totalBarLength = packingLayout.reduce((sum, bar) => sum + bar.length, 0);
+                const wasteLength = totalBarLength - usedLength;
+                const wastePercent = totalBarLength > 0 ? (wasteLength / totalBarLength) * 100 : 0;
+                const cost = newBarsPacking.reduce((sum, bar) => sum + bar.price, 0);
+                
+                cuttingOptimizationResults[code] = {
+                    profileCode: code,
+                    description: profile.description,
+                    supplier: profile.supplier,
+                    requiredCuts: cuts.sort((a, b) => b - a),
+                    bars: packingLayout,
+                    totalBarsPurchased,
+                    purchasedLengthMm: purchasedLength,
+                    usedLengthMm: usedLength,
+                    wasteLengthMm: wasteLength,
+                    wastePercent: parseFloat(wastePercent.toFixed(1)),
+                    totalCost: parseFloat(cost.toFixed(2))
+                };
+                
+                totalAluminiumCost += cost;
             }
-            
-            // Collect the scrap bars actually used
-            const usedScraps = scrapPool.filter(s => s.used > 0).map(s => ({
-                length: s.length,
-                price: 0,
-                cuts: s.cuts,
-                used: s.used,
-                waste: s.length - s.used,
-                isScrap: true,
-                scrapId: s.id
-            }));
-            
-            // For the remaining cuts, solve using standard bars
-            const newBarsPacking = solve1DPacking(cutsForNewBars, profile.standardLengths);
-            
-            // Combine scrap bars and new bars
-            const packingLayout = [...usedScraps, ...newBarsPacking];
-            
-            // Calculate costs and waste lengths (only charge for new bars purchased)
-            const totalBarsPurchased = newBarsPacking.length;
-            const purchasedLength = newBarsPacking.reduce((sum, bar) => sum + bar.length, 0);
-            const usedLength = cuts.reduce((sum, len) => sum + len, 0);
-            const totalBarLength = packingLayout.reduce((sum, bar) => sum + bar.length, 0);
-            const wasteLength = totalBarLength - usedLength;
-            const wastePercent = totalBarLength > 0 ? (wasteLength / totalBarLength) * 100 : 0;
-            const cost = newBarsPacking.reduce((sum, bar) => sum + bar.price, 0);
-            
-            cuttingOptimizationResults[code] = {
-                profileCode: code,
-                description: profile.description,
-                supplier: profile.supplier,
-                requiredCuts: cuts.sort((a, b) => b - a),
-                bars: packingLayout,
-                totalBarsPurchased,
-                purchasedLengthMm: purchasedLength,
-                usedLengthMm: usedLength,
-                wasteLengthMm: wasteLength,
-                wastePercent: parseFloat(wastePercent.toFixed(1)),
-                totalCost: parseFloat(cost.toFixed(2))
-            };
-            
-            totalAluminiumCost += cost;
         }
-    }
     
     // Step 2.5: 2D Glass Cutting Optimization
     const glassOptimizationResults = {};
     let totalOptimizedGlassCost = 0;
-    
+
+    // Always run glass optimization for display purposes, even when using pre-calculated data
     // Standard glass sheet dimensions (length in ft to mm, standard height 4ft = 1219mm)
     const GLASS_SHEET_DIMENSIONS = {
         '4': { lengthMm: 1219, heightMm: 1219, areaSqFt: 16.0 },
@@ -523,14 +611,14 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
         '16': { lengthMm: 4877, heightMm: 1219, areaSqFt: 64.0 },
         '21': { lengthMm: 6401, heightMm: 1219, areaSqFt: 84.0 }
     };
-    
+
     for (const type in projectGlassPanels) {
         const panels = projectGlassPanels[type];
         const glassRate = rates.glass[type];
         if (glassRate) {
             const unitRate = glassRate.ratePerSqFt + glassRate.temperingCharge + glassRate.processingCharge;
             const cuttingCharge = glassRate.cuttingServiceCharge || 0;
-            
+
             // Group panels by sheet length
             const panelsBySheetLength = {};
             panels.forEach(panel => {
@@ -540,20 +628,20 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 }
                 panelsBySheetLength[sheetLength].push(panel);
             });
-            
+
             // Optimize for each sheet length
             const sheetPackingLayout = [];
             let sheetsPurchased = 0;
             let totalCost = 0;
-            
+
             for (const sheetLength in panelsBySheetLength) {
                 const sheetDims = GLASS_SHEET_DIMENSIONS[sheetLength] || GLASS_SHEET_DIMENSIONS['8'];
                 const panelsForLength = panelsBySheetLength[sheetLength];
                 const packingLayout = solve2DGlassPacking(panelsForLength, sheetDims.lengthMm, sheetDims.heightMm);
-                
+
                 sheetPackingLayout.push(...packingLayout);
                 sheetsPurchased += packingLayout.length;
-                
+
                 // Use pricing formula: (base21ftPrice/21) * sheetLength * 1.05 if base21ftPrice is provided
                 const base21ftPrice = panelsForLength[0]?.base21ftPrice || 0;
                 if (base21ftPrice > 0) {
@@ -563,11 +651,11 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 } else {
                     totalCost += packingLayout.length * sheetDims.areaSqFt * unitRate;
                 }
-                
+
                 // Add cutting service charge per sheet
                 totalCost += packingLayout.length * cuttingCharge;
             }
-            
+
             glassOptimizationResults[type] = {
                 glassCode: type,
                 thickness: glassRate.thickness,
@@ -577,13 +665,13 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
                 totalCost: parseFloat(totalCost.toFixed(2)),
                 cuttingServiceCharge: cuttingCharge
             };
-            
+
             totalOptimizedGlassCost += totalCost;
         }
     }
-    
-    // Override glass cost to reflect actual sheets purchased
-    if (Object.keys(projectGlassPanels).length > 0) {
+
+    // Override glass cost to reflect actual sheets purchased (only when not using pre-calculated data)
+    if (Object.keys(projectGlassPanels).length > 0 && !hasPreCalculatedData) {
         totalGlassCost = totalOptimizedGlassCost;
     }
     
@@ -595,14 +683,26 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
             // Estimate item-level profile cost as proportional to its total cuts length vs total project cuts length
             // This is a reasonable proxy for itemized pricing
             let itemProfileCost = 0;
-            item.profileCuts.forEach(pc => {
-                const opt = cuttingOptimizationResults[pc.profileCode];
-                if (opt && opt.purchasedLengthMm > 0) {
-                    const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
-                    itemProfileCost += opt.totalCost * proportion;
-                }
-            });
-            
+
+            // If we have pre-calculated data from configurator, calculate profile cost directly from cuts
+            if (hasPreCalculatedData) {
+                item.profileCuts.forEach(pc => {
+                    const profRate = rates.profiles[pc.profileCode || pc.code];
+                    if (profRate) {
+                        const lengthM = (pc.length * pc.qty) / 1000;
+                        itemProfileCost += lengthM * (profRate.ratePerM || 0);
+                    }
+                });
+            } else {
+                item.profileCuts.forEach(pc => {
+                    const opt = cuttingOptimizationResults[pc.profileCode];
+                    if (opt && opt.purchasedLengthMm > 0) {
+                        const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
+                        itemProfileCost += opt.totalCost * proportion;
+                    }
+                });
+            }
+
             const matCost = itemProfileCost + item.glassItems.reduce((s, g) => s + g.cost, 0) + item.accessories.reduce((s, a) => s + a.cost, 0);
             const labour = matCost * appData.labourRate / 100;
             item.labourCost = parseFloat(labour.toFixed(2));
@@ -611,41 +711,79 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
     
     // Re-sum labour
     totalLabourCost = items.reduce((sum, item) => sum + item.labourCost, 0);
-    
+
     // Step 3: Quotation Summary Costs
     const sumAdditional = additionalCosts.reduce((sum, ac) => sum + ac.cost, 0);
     const materialCost = totalAluminiumCost + totalGlassCost + totalAccessoriesCost;
-    const baseCostBeforeMargin = materialCost + totalLabourCost + transportCost + sumAdditional;
-    
-    // Profit margin added
-    const profitCost = baseCostBeforeMargin * (profitMarginPercent / 100);
-    const calculatedSellingPrice = baseCostBeforeMargin + profitCost;
+
+    // Check if all items have pre-calculated pricing from 2D configurator
+    const allItemsHavePreCalculatedPricing = items.every(item => item.unitPrice > 0 && item.totalPrice > 0);
+
+    let calculatedSellingPrice;
+    let subtotal;
+
+    if (allItemsHavePreCalculatedPricing) {
+        // Use configurator's final selling prices as the base (no recalculation)
+        const configuratorTotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+        // Subtotal = Final Selling Price from 2D Configuration Cost Summary
+        // This is the base selling amount before adding Tax, Travelling Cost, and Other Cost
+        subtotal = configuratorTotal;
+        // calculatedSellingPrice = Subtotal + Transport Cost + Other Cost + Additional Costs
+        // Note: Profit margin is already included in the configurator's Final Selling Price
+        calculatedSellingPrice = configuratorTotal + transportCost + sumAdditional + (manualOtherCost || 0);
+    } else {
+        // Standard calculation for items without pre-calculated pricing
+        const baseCostBeforeMargin = materialCost + totalLabourCost + transportCost + sumAdditional + (manualOtherCost || 0);
+        const profitCost = baseCostBeforeMargin * (profitMarginPercent / 100);
+        calculatedSellingPrice = baseCostBeforeMargin + profitCost;
+        // Subtotal is base cost before profit margin
+        subtotal = baseCostBeforeMargin;
+    }
     
     // Calculate final unit prices for client view
     items.forEach(item => {
+        // If item has pre-calculated pricing from configurator, use it directly
+        if (item.unitPrice > 0 && item.totalPrice > 0) {
+            // Pricing already set from configurator, skip recalculation
+            return;
+        }
+
         // Calculate item base cost (proportional profile cost + item glass + item accessory + item labour)
         let itemProfileCost = 0;
-        item.profileCuts.forEach(pc => {
-            const opt = cuttingOptimizationResults[pc.profileCode];
-            if (opt && opt.usedLengthMm > 0) {
-                const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
-                itemProfileCost += opt.totalCost * proportion;
-            }
-        });
-        
+
+        // If we have pre-calculated data from configurator, calculate profile cost directly from cuts
+        if (hasPreCalculatedData) {
+            item.profileCuts.forEach(pc => {
+                const profRate = rates.profiles[pc.profileCode || pc.code];
+                if (profRate) {
+                    const lengthM = (pc.length * pc.qty) / 1000;
+                    itemProfileCost += lengthM * (profRate.ratePerM || 0);
+                }
+            });
+        } else {
+            // Use optimization results for formula-based calculations
+            item.profileCuts.forEach(pc => {
+                const opt = cuttingOptimizationResults[pc.profileCode];
+                if (opt && opt.usedLengthMm > 0) {
+                    const proportion = (pc.length * pc.qty * item.quantity) / opt.usedLengthMm;
+                    itemProfileCost += opt.totalCost * proportion;
+                }
+            });
+        }
+
         const itemGlass = item.glassItems.reduce((s, g) => s + g.cost, 0);
         const itemAcc = item.accessories.reduce((s, a) => s + a.cost, 0);
         const itemBaseCost = (itemProfileCost + itemGlass + itemAcc + (item.labourCost)) / item.quantity;
-        
+
         // Add proportional transport + additional + margin
         // Calculate the proportion of this item's cost to the total project cost (excluding transport/additional)
         const totalBaseCost = materialCost + totalLabourCost;
         const itemProportionOfCost = totalBaseCost > 0 ? (itemBaseCost * item.quantity) / totalBaseCost : 0;
         const proportionalExtras = (transportCost + sumAdditional) * itemProportionOfCost / item.quantity;
-        
+
         const unitCost = itemBaseCost + proportionalExtras;
         const unitSelling = unitCost * (1 + profitMarginPercent / 100);
-        
+
         item.unitPrice = parseFloat(unitSelling.toFixed(2));
         item.totalPrice = parseFloat((item.unitPrice * item.quantity).toFixed(2));
     });
@@ -656,6 +794,7 @@ const calculateQuotation = async (itemsInput, rates, transportCost = 0, addition
         totalGlassCost: parseFloat(totalGlassCost.toFixed(2)),
         totalAccessoriesCost: parseFloat(totalAccessoriesCost.toFixed(2)),
         totalLabourCost: parseFloat(totalLabourCost.toFixed(2)),
+        subtotal: parseFloat(subtotal.toFixed(2)),
         calculatedSellingPrice: parseFloat(calculatedSellingPrice.toFixed(2)),
         cuttingOptimizationResults,
         glassOptimizationResults
@@ -696,6 +835,8 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         validTill,
         items,
         transportCost,
+        totalLabourCost,
+        otherCost,
         additionalCosts,
         profitMarginPercent,
         discount,
@@ -713,7 +854,9 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         rates,
         Number(transportCost || 0),
         additionalCosts || [],
-        Number(profitMarginPercent || 20)
+        Number(profitMarginPercent || 20),
+        Number(totalLabourCost || 0),
+        Number(otherCost || 0)
     );
     
     // Generate unique quote number
@@ -762,10 +905,12 @@ export const createAluQuotation = asyncHandler(async (req, res) => {
         totalAluminiumCost: calc.totalAluminiumCost,
         totalGlassCost: calc.totalGlassCost,
         totalAccessoriesCost: calc.totalAccessoriesCost,
-        totalLabourCost: calc.totalLabourCost,
+        totalLabourCost: Number(totalLabourCost || calc.totalLabourCost),
         transportCost: Number(transportCost || 0),
+        otherCost: Number(otherCost || 0),
         additionalCosts: additionalCosts || [],
         profitMarginPercent: Number(profitMarginPercent || 20),
+        subtotal: calc.subtotal,
         calculatedSellingPrice: calc.calculatedSellingPrice,
         discount: Number(discount || 0),
         discountStatus,
@@ -853,6 +998,8 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
         validTill,
         items,
         transportCost,
+        totalLabourCost,
+        otherCost,
         additionalCosts,
         profitMarginPercent,
         discount,
@@ -870,7 +1017,9 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
         quotation.rateSnapshot,
         Number(transportCost || 0),
         additionalCosts || [],
-        Number(profitMarginPercent || 20)
+        Number(profitMarginPercent || 20),
+        Number(totalLabourCost || 0),
+        Number(otherCost || 0)
     );
     
     // Apply VAT if enabled
@@ -907,10 +1056,12 @@ export const updateAluQuotation = asyncHandler(async (req, res) => {
     quotation.totalAluminiumCost = calc.totalAluminiumCost;
     quotation.totalGlassCost = calc.totalGlassCost;
     quotation.totalAccessoriesCost = calc.totalAccessoriesCost;
-    quotation.totalLabourCost = calc.totalLabourCost;
+    quotation.totalLabourCost = Number(totalLabourCost || calc.totalLabourCost);
     quotation.transportCost = Number(transportCost || 0);
+    quotation.otherCost = Number(otherCost || 0);
     quotation.additionalCosts = additionalCosts || [];
     quotation.profitMarginPercent = Number(profitMarginPercent || 20);
+    quotation.subtotal = calc.subtotal;
     quotation.calculatedSellingPrice = calc.calculatedSellingPrice;
     quotation.discount = Number(discount || 0);
     quotation.discountStatus = discountStatus;
@@ -1007,13 +1158,21 @@ export const reviseAluQuotation = asyncHandler(async (req, res) => {
     const rates = await captureRatesSnapshot();
     
     // Calculate using the source quote items but with the LATEST active rates
+    // Preserve pre-calculated pricing from configurator if available
     const calc = await calculateQuotation(
         sourceQuote.items.map(item => ({
             applicationType: item.applicationType,
             configuration: item.configuration,
             width: item.width,
             height: item.height,
-            quantity: item.quantity
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            profileCuts: item.profileCuts,
+            glassItems: item.glassItems,
+            accessories: item.accessories,
+            labourCost: item.labourCost,
+            totalAreaSqFt: item.totalAreaSqFt
         })),
         rates,
         sourceQuote.transportCost,
@@ -1042,6 +1201,7 @@ export const reviseAluQuotation = asyncHandler(async (req, res) => {
         transportCost: sourceQuote.transportCost,
         additionalCosts: sourceQuote.additionalCosts,
         profitMarginPercent: sourceQuote.profitMarginPercent,
+        subtotal: calc.subtotal,
         calculatedSellingPrice: calc.calculatedSellingPrice,
         discount: sourceQuote.discount,
         manualAdjustment: sourceQuote.manualAdjustment,
@@ -1100,6 +1260,7 @@ export const duplicateAluQuotation = asyncHandler(async (req, res) => {
         transportCost: sourceQuote.transportCost,
         additionalCosts: sourceQuote.additionalCosts,
         profitMarginPercent: sourceQuote.profitMarginPercent,
+        subtotal: sourceQuote.subtotal,
         calculatedSellingPrice: sourceQuote.calculatedSellingPrice,
         discount: sourceQuote.discount,
         manualAdjustment: sourceQuote.manualAdjustment,
@@ -1188,6 +1349,11 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     const count = await SalesOrder.countDocuments({ orderNumber: { $regex: `^${prefix}` } });
     const orderNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
     
+    // Calculate sales order total based on quotation subtotal (Final Selling Price from 2D Config)
+    // Add transport cost, other cost, and additional costs separately
+    const sumAdditional = (quotation.additionalCosts || []).reduce((sum, ac) => sum + ac.cost, 0);
+    const orderTotalAmount = (quotation.subtotal - quotation.discount) + (quotation.transportCost || 0) + (quotation.otherCost || 0) + sumAdditional;
+    
     const salesOrder = await SalesOrder.create({
         orderNumber,
         businessType: 'alueco',
@@ -1198,10 +1364,10 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         orderDate: date,
         deliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         items,
-        totalAmount: quotation.calculatedSellingPrice - quotation.discount,
+        totalAmount: orderTotalAmount,
         discount: quotation.discount,
-        tax: 0,
-        grandTotal: quotation.finalSellingPrice,
+        tax: quotation.vatAmount || 0,
+        grandTotal: orderTotalAmount + (quotation.vatAmount || 0),
         status: 'pending',
         notes: `Converted from Aluminium Quotation: ${quotation.quoteNumber} (Rev ${quotation.version}). Project: ${quotation.projectName}`,
         createdBy: req.user._id
@@ -1238,6 +1404,13 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         labourCost: item.labourCost || 0
     }));
 
+    // Calculate invoice subtotal as the Final Selling Price from 2D Configuration
+    // This is quotation.subtotal (which equals the configurator's Final Selling Price)
+    const invoiceSubtotal = quotation.subtotal - quotation.discount;
+    
+    // Add transport cost, other cost, and additional costs separately
+    const invoiceGrandTotal = invoiceSubtotal + (quotation.transportCost || 0) + (quotation.otherCost || 0) + sumAdditional;
+    
     const invoice = await Invoice.create({
         businessType: 'alueco',
         customerId: customer._id,
@@ -1254,12 +1427,14 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         invoiceType: 'standard',
         invoiceDate: date,
         items: invoiceItems,
-        subtotal: quotation.calculatedSellingPrice - quotation.discount,
+        subtotal: invoiceSubtotal,
         totalDiscount: quotation.discount,
-        totalTax: 0,
-        grandTotal: quotation.finalSellingPrice,
+        totalTax: quotation.vatAmount || 0,
+        shippingCost: quotation.transportCost || 0,
+        otherCharges: (quotation.otherCost || 0) + sumAdditional,
+        grandTotal: invoiceGrandTotal + (quotation.vatAmount || 0),
         amountPaid: 0,
-        balanceDue: quotation.finalSellingPrice,
+        balanceDue: invoiceGrandTotal + (quotation.vatAmount || 0),
         paymentStatus: 'unpaid',
         status: 'approved',
         notes: `Auto-generated Invoice for Sales Order ${salesOrder.orderNumber} (Quotation ${quotation.quoteNumber})`,
@@ -1740,6 +1915,88 @@ export const getWastageVarianceReport = asyncHandler(async (req, res) => {
     }
     
     res.json({ success: true, data: report });
+});
+
+// Recalculate quotation with latest rates and logic
+export const recalculateAluQuotation = asyncHandler(async (req, res) => {
+    const quotation = await AluQuotation.findById(req.params.id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Quotation not found');
+    }
+
+    // Fetch latest active rates
+    const rates = await captureRatesSnapshot();
+
+    // Recalculate using the quotation items
+    const calc = await calculateQuotation(
+        quotation.items.map(item => ({
+            applicationType: item.applicationType,
+            configuration: item.configuration,
+            width: item.width,
+            height: item.height,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            profileCuts: item.profileCuts,
+            glassItems: item.glassItems,
+            accessories: item.accessories,
+            labourCost: item.labourCost,
+            totalAreaSqFt: item.totalAreaSqFt,
+            trackSystem: item.trackSystem,
+            topSection: item.topSection,
+            panelArrangement: item.panelArrangement,
+            description: item.description,
+            profileSpec: item.profileSpec,
+            glassSpec: item.glassSpec,
+            hardwareSpec: item.hardwareSpec,
+            scopeSpec: item.scopeSpec
+        })),
+        rates,
+        quotation.transportCost,
+        quotation.additionalCosts,
+        quotation.profitMarginPercent,
+        quotation.totalLabourCost,
+        quotation.otherCost
+    );
+
+    // Update quotation with recalculated values
+    quotation.items = calc.items;
+    quotation.totalAluminiumCost = calc.totalAluminiumCost;
+    quotation.totalGlassCost = calc.totalGlassCost;
+    quotation.totalAccessoriesCost = calc.totalAccessoriesCost;
+    quotation.totalLabourCost = calc.totalLabourCost;
+    quotation.subtotal = calc.subtotal;
+    quotation.calculatedSellingPrice = calc.calculatedSellingPrice;
+    quotation.cuttingOptimizationResults = calc.cuttingOptimizationResults;
+    quotation.glassOptimizationResults = calc.glassOptimizationResults;
+    quotation.rateSnapshot = rates;
+
+    // Recalculate final price with discount and manual adjustment
+    const finalPrice = calc.calculatedSellingPrice - quotation.discount + quotation.manualAdjustment;
+    quotation.finalSellingPrice = parseFloat(finalPrice.toFixed(2));
+
+    // Recalculate VAT if enabled
+    if (quotation.includeVat) {
+        quotation.vatAmount = parseFloat((quotation.finalSellingPrice * 0.18).toFixed(2));
+        quotation.finalPriceWithVat = parseFloat((quotation.finalSellingPrice + quotation.vatAmount).toFixed(2));
+    } else {
+        quotation.vatAmount = 0;
+        quotation.finalPriceWithVat = quotation.finalSellingPrice;
+    }
+
+    await quotation.save();
+
+    await createAuditLog({
+        action: 'UPDATE',
+        module: 'CRM',
+        documentId: quotation._id,
+        documentCode: quotation.quoteNumber,
+        description: `Recalculated quotation ${quotation.quoteNumber} with latest rates and logic`,
+        req
+    });
+
+    res.json({ success: true, data: quotation });
 });
 
 // Get Project Costing Sheet (Budget vs Actual)

@@ -36,15 +36,6 @@ const aluApplicationSchema = new mongoose.Schema({
         actualCode: { type: String, default: '' },
         quantityFormula: { type: String, required: true }   // e.g. "4 * P" or "2 * Q"
     }],
-    labourMethod: {
-        type: String,
-        enum: ['linear_feet', 'feet', 'sqft', 'sqm', 'opening', 'fixed', 'percentage'],
-        default: 'opening'
-    },
-    labourRate: {
-        type: Number,
-        default: 0
-    },
     brand: {
         type: String,
         default: 'Standard',

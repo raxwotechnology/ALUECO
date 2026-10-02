@@ -5,9 +5,10 @@ import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
 import {
-    decreaseStock, increaseStock,
+    decreaseStock, increaseStock, releaseReservations,
 } from '../services/stockService.js';
 import StockItem from '../models/StockItem.js';
+import StockMovement from '../models/StockMovement.js';
 import excelService from '../services/excelService.js';
 import Invoice from '../models/Invoice.js';
 import { updateCustomerBalance } from './invoiceController.js';
@@ -219,14 +220,20 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
             order.approvedAt = new Date();
             order.isOnHold = false;
             order.holdReason = null;
+            order.stockDeducted = true;
             
             // Handle advance/partial payment for POS
-            const isAdvance = paymentMethod === 'advance' || (req.body.advancePaidAmount !== undefined && Number(req.body.advancePaidAmount) < order.grandTotal);
-            const rawPayAmount = isAdvance ? Number(req.body.advancePaidAmount || 0) : order.grandTotal;
+            const isAdvance = paymentMethod === 'advance' || 
+                (req.body.advancePaidAmount !== undefined && Number(req.body.advancePaidAmount) < order.grandTotal) ||
+                (req.body.partialPaidAmount !== undefined && Number(req.body.partialPaidAmount) < order.grandTotal);
+            const rawPayAmount = isAdvance 
+                ? Number(req.body.partialPaidAmount !== undefined ? req.body.partialPaidAmount : (req.body.advancePaidAmount || 0)) 
+                : order.grandTotal;
             const payAmount = Math.min(order.grandTotal, Math.max(0, +rawPayAmount.toFixed(2)));
             const balanceDue = Math.max(0, +(order.grandTotal - payAmount).toFixed(2));
 
             order.advancePaidAmount = payAmount;
+            order.partialPaidAmount = payAmount;
             order.pendingBalance = balanceDue;
             order.paymentMethod = paymentMethod;
             if (isAdvance) {
@@ -576,50 +583,57 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
 
     // ─── APPROVE: deduct stock immediately from warehouse ───────────────
     if (status === 'approved' && order.status !== 'approved') {
-        for (const item of order.items) {
-            // Check that stock exists and is sufficient
-            const stockItem = await StockItem.findOne({
-                productId: item.productId,
-                warehouseId,
-                batchNumber: null,
-            });
+        // Deduct only if stock has not already been deducted (e.g. returning from on_hold)
+        if (!order.stockDeducted) {
+            for (const item of order.items) {
+                // Deduct only if lines are not already dispatched
+                if (item.lineStatus === 'dispatched' || item.lineStatus === 'delivered') continue;
 
-            if (!allowNegative) {
-                if (!stockItem) {
-                    throw new Error(
-                        `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
-                    );
+                // Check that stock exists and is sufficient
+                const stockItem = await StockItem.findOne({
+                    productId: item.productId,
+                    warehouseId,
+                    batchNumber: null,
+                });
+
+                if (!allowNegative) {
+                    if (!stockItem) {
+                        throw new Error(
+                            `No stock record found for "${item.productName}" in the selected warehouse. Please enter opening stock first.`
+                        );
+                    }
+
+                    if (stockItem.quantities.openStock < item.orderedQuantity) {
+                        throw new Error(
+                            `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
+                        );
+                    }
                 }
 
-                if (stockItem.quantities.openStock < item.orderedQuantity) {
-                    throw new Error(
-                        `Insufficient stock for "${item.productName}". Open stock: ${stockItem.quantities.openStock}, ordered: ${item.orderedQuantity}`
-                    );
-                }
+                // Directly deduct onHand — stock leaves warehouse on approval
+                await decreaseStock({
+                    productId: item.productId,
+                    warehouseId,
+                    quantity: item.orderedQuantity,
+                    movementType: 'sale_dispatch',
+                    sourceDocument: {
+                        type: 'sales_order',
+                        id: order._id,
+                        number: order.orderNumber,
+                    },
+                    reason: 'Sales order approved',
+                    userId: req.user._id,
+                    allowNegative,
+                });
+
+                item.dispatchedQuantity = item.orderedQuantity;
+                item.lineStatus = 'dispatched';
             }
-
-            // Directly deduct onHand — stock leaves warehouse on approval
-            await decreaseStock({
-                productId: item.productId,
-                warehouseId,
-                quantity: item.orderedQuantity,
-                movementType: 'sale_dispatch',
-                sourceDocument: {
-                    type: 'sales_order',
-                    id: order._id,
-                    number: order.orderNumber,
-                },
-                reason: 'Sales order approved',
-                userId: req.user._id,
-                allowNegative,
-            });
-
-            item.dispatchedQuantity = item.orderedQuantity;
-            item.lineStatus = 'dispatched';
+            order.stockDeducted = true;
         }
 
-        order.approvedBy = req.user._id;
-        order.approvedAt = new Date();
+        order.approvedBy = order.approvedBy || req.user._id;
+        order.approvedAt = order.approvedAt || new Date();
         order.isOnHold = false;
         order.holdReason = null;
     }
@@ -642,28 +656,112 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
         }
     }
 
-    // ─── CANCELLED: restore stock only if order was already approved ─────
-    if (status === 'cancelled' && ['approved', 'dispatched', 'on_hold'].includes(order.status)) {
-        for (const item of order.items) {
-            try {
-                await increaseStock({
-                    productId: item.productId,
-                    warehouseId,
-                    quantity: item.orderedQuantity,
-                    costPerUnit: 0,
-                    movementType: 'sale_return',
-                    sourceDocument: {
-                        type: 'sales_order',
-                        id: order._id,
-                        number: order.orderNumber,
-                    },
-                    reason: reason || 'Order cancelled — stock restored',
-                    userId: req.user._id,
-                });
-            } catch (stockErr) {
-                // Non-fatal: log but don't block cancellation
-                console.warn(`Stock restore failed for ${item.productName}:`, stockErr.message);
+    // ─── CANCELLED: restore stock whenever stock was deducted ───────────
+    if (status === 'cancelled') {
+        const wasStockDeducted = order.stockDeducted ||
+            order.items.some(i => i.lineStatus === 'dispatched' || i.lineStatus === 'delivered');
+
+        // Look up original outgoing stock movements for this sales order to get exact quantities, batches, and costs
+        const outgoingMovements = await StockMovement.find({
+            'sourceDocument.id': order._id,
+            direction: 'out',
+        });
+
+        if (wasStockDeducted || outgoingMovements.length > 0) {
+            // Check if any movements have already been returned to prevent duplicate returns
+            const existingReturns = await StockMovement.find({
+                'sourceDocument.id': order._id,
+                direction: 'in',
+                movementType: 'sale_return',
+            });
+
+            const returnedQtyMap = {};
+            for (const ret of existingReturns) {
+                const key = `${ret.productId}_${ret.batchNumber || 'nobatch'}_${ret.warehouseId}`;
+                returnedQtyMap[key] = (returnedQtyMap[key] || 0) + (ret.quantity || 0);
             }
+
+            if (outgoingMovements.length > 0) {
+                // Restore each movement using its original movement cost, quantity, batch, and warehouse
+                for (const movement of outgoingMovements) {
+                    const key = `${movement.productId}_${movement.batchNumber || 'nobatch'}_${movement.warehouseId}`;
+                    const alreadyReturned = returnedQtyMap[key] || 0;
+                    const netQtyToReturn = Math.max(0, movement.quantity - alreadyReturned);
+
+                    if (netQtyToReturn > 0) {
+                        try {
+                            await increaseStock({
+                                productId: movement.productId,
+                                warehouseId: movement.warehouseId || warehouseId,
+                                batchNumber: movement.batchNumber || null,
+                                quantity: netQtyToReturn,
+                                costPerUnit: movement.costPerUnit || 0,
+                                movementType: 'sale_return',
+                                sourceDocument: {
+                                    type: 'sales_order',
+                                    id: order._id,
+                                    number: order.orderNumber,
+                                },
+                                reason: reason || 'Order cancelled — stock restored',
+                                userId: req.user._id,
+                            });
+                            returnedQtyMap[key] = alreadyReturned + netQtyToReturn;
+                        } catch (stockErr) {
+                            console.warn(`Stock restore failed for movement ${movement._id}:`, stockErr.message);
+                        }
+                    }
+                }
+            } else if (wasStockDeducted) {
+                // Fallback for orders without StockMovement records: restore each deducted item with product/stock cost
+                for (const item of order.items) {
+                    if (item.lineStatus !== 'dispatched' && item.lineStatus !== 'delivered' && !order.stockDeducted) continue;
+                    try {
+                        const stockItem = await StockItem.findOne({
+                            productId: item.productId,
+                            warehouseId,
+                        });
+                        const product = !stockItem ? await Product.findById(item.productId) : null;
+                        const originalCost = stockItem?.costPerUnit
+                            || product?.costs?.averageCost
+                            || product?.costs?.lastPurchaseCost
+                            || item.unitPrice
+                            || 0;
+
+                        await increaseStock({
+                            productId: item.productId,
+                            warehouseId,
+                            quantity: item.dispatchedQuantity || item.orderedQuantity,
+                            costPerUnit: originalCost,
+                            movementType: 'sale_return',
+                            sourceDocument: {
+                                type: 'sales_order',
+                                id: order._id,
+                                number: order.orderNumber,
+                            },
+                            reason: reason || 'Order cancelled — stock restored',
+                            userId: req.user._id,
+                        });
+                    } catch (stockErr) {
+                        console.warn(`Stock restore failed for ${item.productName}:`, stockErr.message);
+                    }
+                }
+            }
+
+            order.stockDeducted = false;
+        }
+
+        for (const item of order.items) {
+            item.lineStatus = 'cancelled';
+        }
+
+        // Release any active stock reservations associated with this order
+        try {
+            await releaseReservations({
+                sourceDocumentId: order._id,
+                reason: reason || 'Order cancelled',
+            });
+        } catch (resErr) {
+            console.warn(`Failed to release reservations for order ${order._id}:`, resErr.message);
         }
     }
 

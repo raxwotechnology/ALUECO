@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Sparkles, Settings, Layers, Eye, FileText, Plus, ChevronRight, 
     Sliders, CheckCircle2, Package, Grid, AlertCircle, Info, Lock, ArrowLeftRight, 
-    MoveLeft, MoveRight, Trash2, Wrench, RefreshCw, Box, ShoppingBag, ListPlus, FolderPlus
+    MoveLeft, MoveRight, Trash2, Wrench, RefreshCw, ShoppingBag, ListPlus, FolderPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
@@ -27,8 +27,8 @@ const PRODUCT_CATEGORIES = [
 const AluConfiguratorPage = () => {
     const navigate = useNavigate();
 
-    // Mode: 'standard' (Automatic Formula BOM) vs 'custom' (Ad-Hoc Manual BOM Builder)
-    const [calculationMode, setCalculationMode] = useState('standard');
+    // Mode: 'template' (ERP Template) vs 'custom' (Ad-Hoc Manual BOM Builder)
+    const [calculationMode, setCalculationMode] = useState('template');
 
     // Multi-Item Quotation Basket (for accumulating multiple items across different categories)
     const [projectBasket, setProjectBasket] = useState([]);
@@ -60,11 +60,17 @@ const AluConfiguratorPage = () => {
         type: 'fixed' // 'fixed' | 'awning' | 'louver'
     });
 
-    // Profit Margin % State
-    const [profitMarginPercent, setProfitMarginPercent] = useState(20);
+
 
     // Active BOM View Tab State
     const [activeTab, setActiveTab] = useState('profiles'); // 'profiles' | 'glass' | 'accessories' | 'optimization' | 'summary'
+
+    // Aluminium Profile Discount State
+    const [aluminiumDiscountPercent, setAluminiumDiscountPercent] = useState(0);
+
+    // Costing Parameters State
+    const [totalLabourCost, setTotalLabourCost] = useState(0);
+    const [profitMarginPercent, setProfitMarginPercent] = useState(20);
 
     // Dynamic Database Rates State
     const [dbRates, setDbRates] = useState(null);
@@ -86,12 +92,7 @@ const AluConfiguratorPage = () => {
         { code: 'CUST-ACC-02', name: 'EPDM Heavy Weather Seal Gasket', qty: 12, unit: 'm', unitRate: 150 }
     ]);
 
-    // Labour Rate per Square Feet (LKR/sqft) - Default & Primary Standard
-    const [labourRatePerSqFt, setLabourRatePerSqFt] = useState(150);
 
-    // Labour Mode in Custom & Standard: 'sqft' (LKR/sqft) vs 'fixed' (LKR amount) vs 'percentage' (% of material cost)
-    const [customLabourType, setCustomLabourType] = useState('sqft');
-    const [customLabourValue, setCustomLabourValue] = useState(150);
 
     // Custom Hardware Add-ons & Extra Items State
     const [customAddons, setCustomAddons] = useState([]);
@@ -100,25 +101,30 @@ const AluConfiguratorPage = () => {
     useEffect(() => {
         const fetchRates = async () => {
             try {
-                const [pRes, gRes, aRes, tRes] = await Promise.all([
+                const [pRes, gRes, aRes, tRes, prodRes] = await Promise.all([
                     api.get('/alu/profiles').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/glass').catch(() => ({ data: { data: [] } })),
                     api.get('/alu/accessories').catch(() => ({ data: { data: [] } })),
-                    api.get('/alu/applications').catch(() => ({ data: { data: [] } }))
+                    api.get('/alu/applications').catch(() => ({ data: { data: [] } })),
+                    api.get('/products?businessType=alueco&aluCategory=accessories').catch(() => ({ data: { data: [] } }))
                 ]);
 
                 const profiles = pRes.data?.data || [];
                 const glass = gRes.data?.data || [];
                 const accessories = aRes.data?.data || [];
                 const templates = tRes.data?.data || tRes.data || [];
+                const aluProducts = prodRes.data?.data || [];
                 setDbTemplates(templates);
 
                 const profMap = {};
                 profiles.forEach(p => {
-                    const pricePerM = p.standardLengths?.length > 0
-                        ? (p.standardLengths[0].price / (p.standardLengths[0].lengthMm / 1000))
-                        : 0;
-                    profMap[p.profileCode] = { name: p.description, ratePerM: pricePerM, code: p.profileCode };
+                    let pricePerM = 0;
+                    if (p.standardLengths?.length > 0) {
+                        // Calculate average price per meter from all standard lengths
+                        const ratesPerM = p.standardLengths.map(sl => sl.price / (sl.lengthMm / 1000));
+                        pricePerM = ratesPerM.reduce((sum, rate) => sum + rate, 0) / ratesPerM.length;
+                    }
+                    profMap[p.profileCode] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
                 });
 
                 const glassMap = {};
@@ -127,8 +133,38 @@ const AluConfiguratorPage = () => {
                 });
 
                 const accMap = {};
+                // First use AluAccessory collection - this is the PRIMARY source for accessory prices
+                // These have the correct codes (ACC001, ACC002, etc.) that match ERP templates
                 accessories.forEach(a => {
                     accMap[a.code] = { name: a.name, unitRate: a.sellingRate || a.purchaseRate || 0, unit: a.unit };
+                });
+
+                // Then add/override with Product collection prices ONLY for codes that don't exist in AluAccessory
+                // This ensures AluAccessory prices take precedence (since they match ERP template codes)
+                // Include both accessories and gaskets/seals
+                aluProducts.forEach(p => {
+                    if (p.aluCategory === 'accessories' || p.aluCategory === 'gaskets') {
+                        // Try to match by productCode first (most reliable)
+                        let code = p.productCode?.toUpperCase();
+                        // If productCode doesn't exist or is auto-generated, try aluSpecs.profile
+                        if (!code || code.startsWith('P-')) {
+                            code = p.aluSpecs?.profile?.toUpperCase();
+                        }
+                        // Also try name as fallback
+                        if (!code) {
+                            code = p.name?.toUpperCase();
+                        }
+                        
+                        // Only add if code doesn't already exist in accMap (AluAccessory takes precedence)
+                        if (code && !accMap[code]) {
+                            const unitRate = p.basePrice || p.mrp || 0;
+                            accMap[code] = {
+                                name: p.name || code,
+                                unitRate: unitRate,
+                                unit: p.unitOfMeasure || 'pcs'
+                            };
+                        }
+                    }
                 });
 
                 setDbRates({
@@ -284,6 +320,19 @@ const AluConfiguratorPage = () => {
 
     const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+    // Auto-select first template when templates are loaded or when switching to template mode
+    useEffect(() => {
+        if (dbTemplates.length > 0 && calculationMode === 'template') {
+            const match = dbTemplates.find(t => t.type?.toLowerCase().includes(appType.toLowerCase().split(' ')[0])) || dbTemplates[0];
+            if (match && (!selectedTemplate || match._id !== selectedTemplate._id)) {
+                setSelectedTemplate(match);
+            }
+        } else if (dbTemplates.length === 0 && calculationMode === 'template') {
+            // No templates available, switch to custom mode
+            setSelectedTemplate(null);
+        }
+    }, [dbTemplates, appType, calculationMode]);
+
     const activeAppType = appType === 'CUSTOM_PRODUCT' ? customProductName : appType;
     const activeFormula = appType === 'CUSTOM_PRODUCT' ? baseFormula : appType;
 
@@ -300,18 +349,17 @@ const AluConfiguratorPage = () => {
             panelArrangement,
             topSection,
             quantity: Number(quantity) || 1,
-            profitMarginPercent: Number(profitMarginPercent) || 0,
             rates: dbRates,
             customAddons,
             calculationMode,
             customProfiles,
             customGlass,
             customAccessories,
-            labourRatePerSqFt: Number(labourRatePerSqFt) || 150,
-            customLabourType,
-            customLabourValue: customLabourType === 'sqft' ? (Number(labourRatePerSqFt) || 150) : customLabourValue
+            aluminiumDiscountPercent: Number(aluminiumDiscountPercent) || 0,
+            profitMarginPercent: Number(profitMarginPercent) || 20,
+            totalLabourCost: Number(totalLabourCost) || 0
         });
-    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, profitMarginPercent, dbRates, customAddons, calculationMode, customProfiles, customGlass, customAccessories, labourRatePerSqFt, customLabourType, customLabourValue]);
+    }, [activeAppType, activeFormula, selectedTemplate, width, height, trackSystem, panelCount, panelArrangement, topSection, quantity, dbRates, customAddons, calculationMode, customProfiles, customGlass, customAccessories, aluminiumDiscountPercent, profitMarginPercent, totalLabourCost]);
 
     // Build single opening object from current state
     const getCurrentOpeningItem = () => {
@@ -319,8 +367,8 @@ const AluConfiguratorPage = () => {
             ? `${activeAppType} (Custom Ad-Hoc BOM)`
             : selectedTemplate
                 ? `${selectedTemplate.type} - ${selectedTemplate.configuration} (${selectedTemplate.brand || 'ERP Template'})`
-                : `${panelCount} Panel ${activeAppType} (${trackSystem})`;
-        
+                : `${activeAppType} (Template Mode - No Template Selected)`;
+
         return {
             applicationType: activeAppType,
             configuration: configTitle,
@@ -331,18 +379,20 @@ const AluConfiguratorPage = () => {
             glassSpec: selectedTemplate?.glassSpec || '5mm / 6mm Single Tempered Clear Glass',
             hardwareSpec: selectedTemplate?.hardwareSpec || 'Heavy Duty Locks, Bearings, Hinges & EPDM Seals',
             scopeSpec: selectedTemplate?.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
-            profileCuts: bomResult.profileCuts,
-            glassItems: bomResult.glassItems,
-            accessories: bomResult.accessories,
-            totalAreaSqFt: bomResult.summary.totalAreaSqFt,
-            labourRatePerSqFt: Number(labourRatePerSqFt) || 150,
-            labourMethod: 'sqft',
-            labourCost: bomResult.summary.totalLabourCost,
-            unitPrice: Math.round(bomResult.summary.finalSellingPrice / (Number(quantity) || 1)),
-            totalPrice: bomResult.summary.finalSellingPrice,
+            profileCuts: bomResult?.profileCuts || [],
+            glassItems: bomResult?.glassItems || [],
+            accessories: bomResult?.accessories || [],
+            totalAreaSqFt: bomResult?.summary?.totalAreaSqFt || 0,
+            unitPrice: Math.round((bomResult?.summary?.finalSellingPrice || 0) / (Number(quantity) || 1)),
+            totalPrice: bomResult?.summary?.finalSellingPrice || 0,
             topSection,
             panelArrangement,
-            trackSystem
+            trackSystem,
+            labourCost: bomResult?.summary?.totalLabourCost || totalLabourCost,
+            // Include costing summary data
+            costingSummary: bomResult?.summary || {},
+            aluminiumDiscountPercent: aluminiumDiscountPercent,
+            profitMarginPercent: profitMarginPercent
         };
     };
 
@@ -373,7 +423,8 @@ const AluConfiguratorPage = () => {
         navigate('/alu/quotations/new', {
             state: {
                 projectName: projectTitle,
-                items: itemsToSubmit
+                items: itemsToSubmit,
+                totalLabourCost
             }
         });
     };
@@ -397,27 +448,11 @@ const AluConfiguratorPage = () => {
                         <Sparkles className="text-indigo-600 animate-pulse" size={28} /> Advanced 2D Window &amp; Door Configurator
                     </h1>
                     <p className="text-slate-500 text-xs md:text-sm mt-0.5">
-                        Design 1-Panel to Multi-Panel sliding, casement, fixed, awning &amp; louver systems with real-time CAD sketch and automatic BOM formulas or custom ad-hoc costing.
+                        Design 1-Panel to Multi-Panel sliding, casement, fixed, awning &amp; louver systems with real-time CAD sketch using ERP templates or custom ad-hoc costing.
                     </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Calculation Mode Toggle Button */}
-                    <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
-                        <button
-                            onClick={() => setCalculationMode('standard')}
-                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${calculationMode === 'standard' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                        >
-                            <Box size={14} /> Standard BOM
-                        </button>
-                        <button
-                            onClick={() => setCalculationMode('custom')}
-                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${calculationMode === 'custom' ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                        >
-                            <Wrench size={14} /> Custom Ad-Hoc BOM
-                        </button>
-                    </div>
-
                     {/* Add to Basket Button */}
                     <Button
                         onClick={handleAddToBasket}
@@ -467,30 +502,20 @@ const AluConfiguratorPage = () => {
                             ))}
                         </div>
 
-                        {/* BOM Source Selector: Standard Formula | Saved ERP Template | Custom Ad-Hoc */}
+                        {/* BOM Source Selector: Saved ERP Template | Custom Ad-Hoc */}
                         <div className="pt-1.5 space-y-2">
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">BOM Formula Source</label>
-                            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-[10.5px] font-bold">
+                            <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl text-[10.5px] font-bold">
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setCalculationMode('standard');
-                                        setSelectedTemplate(null);
-                                    }}
-                                    className={`py-1.5 px-1 rounded-lg transition-all text-center ${calculationMode === 'standard' && !selectedTemplate ? 'bg-indigo-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-white/80'}`}
-                                >
-                                    ⚡ Standard
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setCalculationMode('standard');
+                                        setCalculationMode('template');
                                         if (dbTemplates.length > 0 && !selectedTemplate) {
-                                            const match = dbTemplates.find(t => t.type.toLowerCase().includes(appType.toLowerCase().split(' ')[0])) || dbTemplates[0];
-                                            setSelectedTemplate(match);
+                                            const match = dbTemplates.find(t => t.type?.toLowerCase().includes(appType.toLowerCase().split(' ')[0])) || dbTemplates[0];
+                                            setSelectedTemplate(match || null);
                                         }
                                     }}
-                                    className={`py-1.5 px-1 rounded-lg transition-all text-center ${selectedTemplate ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-white/80'}`}
+                                    className={`py-1.5 px-1 rounded-lg transition-all text-center ${calculationMode === 'template' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-white/80'}`}
                                 >
                                     📁 ERP Template
                                 </button>
@@ -507,48 +532,56 @@ const AluConfiguratorPage = () => {
                             </div>
 
                             {/* Saved ERP Template Selection Dropdown when active */}
-                            {selectedTemplate && (
+                            {calculationMode === 'template' && (
                                 <div className="space-y-2 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 mt-2">
                                     <div className="flex justify-between items-center">
                                         <label className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Select Saved ERP Template</label>
-                                        <button 
-                                            onClick={() => setSelectedTemplate(null)} 
+                                        <button
+                                            onClick={() => setSelectedTemplate(null)}
                                             className="text-[10px] font-bold text-slate-400 hover:text-slate-700 underline"
                                         >
-                                            Reset to Standard
+                                            Clear Selection
                                         </button>
                                     </div>
-                                    <select
-                                        value={selectedTemplate._id}
-                                        onChange={(e) => {
-                                            const t = dbTemplates.find(x => x._id === e.target.value);
-                                            if (t) {
-                                                setSelectedTemplate(t);
-                                                setCustomProductName(`${t.type} (${t.configuration})`);
-                                                setBaseFormula(t.type);
-                                                if (t.labourRate) {
-                                                    setLabourRatePerSqFt(t.labourRate);
-                                                    setCustomLabourValue(t.labourRate);
-                                                }
-                                            }
-                                        }}
-                                        className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-emerald-950 font-bold shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    >
-                                        {dbTemplates.map(t => (
-                                            <option key={t._id} value={t._id}>
-                                                {t.type} - {t.configuration} ({t.brand || 'Standard'})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="p-2 bg-white rounded-lg border border-emerald-100 text-[10px] text-slate-600 space-y-0.5">
-                                        <div className="flex justify-between font-bold text-slate-800">
-                                            <span>{selectedTemplate.type} ({selectedTemplate.configuration})</span>
-                                            <span className="text-emerald-700 font-extrabold">{selectedTemplate.brand || 'Standard'}</span>
+                                    {dbTemplates.length === 0 ? (
+                                        <div className="p-3 bg-white rounded-lg border border-emerald-100 text-[10px] text-slate-600">
+                                            <p className="font-semibold text-amber-700">No BOM templates available</p>
+                                            <p className="text-slate-500 mt-1">Please create templates in the Database section or use Custom Ad-Hoc mode.</p>
                                         </div>
-                                        <div className="text-slate-500">
-                                            Profiles: <b>{selectedTemplate.profileBOM?.length || 0}</b> | Glass: <b>{selectedTemplate.glassBOM?.length || 0}</b> | Labour: <b>{selectedTemplate.labourRate} LKR</b>
-                                        </div>
-                                    </div>
+                                    ) : (
+                                        <>
+                                            <select
+                                                value={selectedTemplate?._id || ''}
+                                                onChange={(e) => {
+                                                    const t = dbTemplates.find(x => x._id === e.target.value);
+                                                    if (t) {
+                                                        setSelectedTemplate(t);
+                                                        setCustomProductName(`${t.type} (${t.configuration})`);
+                                                        setBaseFormula(t.type);
+                                                    }
+                                                }}
+                                                className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-emerald-950 font-bold shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            >
+                                                <option value="">-- Select a Template --</option>
+                                                {dbTemplates.map(t => (
+                                                    <option key={t._id} value={t._id}>
+                                                        {t.type} - {t.configuration} ({t.brand || 'Standard'})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {selectedTemplate && (
+                                                <div className="p-2 bg-white rounded-lg border border-emerald-100 text-[10px] text-slate-600 space-y-0.5">
+                                                    <div className="flex justify-between font-bold text-slate-800">
+                                                        <span>{selectedTemplate.type} ({selectedTemplate.configuration})</span>
+                                                        <span className="text-emerald-700 font-extrabold">{selectedTemplate.brand || 'Standard'}</span>
+                                                    </div>
+                                                    <div className="text-slate-500">
+                                                        Profiles: <b>{selectedTemplate.profileBOM?.length || 0}</b> | Glass: <b>{selectedTemplate.glassBOM?.length || 0}</b>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -751,52 +784,48 @@ const AluConfiguratorPage = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Profit Margin %</label>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Aluminium Discount %</label>
                                 <input
                                     type="number"
-                                    value={profitMarginPercent}
-                                    onChange={(e) => setProfitMarginPercent(Math.max(0, parseInt(e.target.value) || 0))}
-                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-emerald-600"
+                                    value={aluminiumDiscountPercent}
+                                    onChange={(e) => setAluminiumDiscountPercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-amber-600"
+                                    placeholder="0"
                                 />
-                            </div>
-                        </div>
-
-                        {/* Fabrication & Labour Cost by Square Feet (Auto-Calculated) */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
-                                    🛠️ Labour & Fabrication Rate
-                                </span>
-                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                                    {bomResult.summary.totalAreaSqFt} Sq.Ft Total
-                                </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 items-center">
-                                <div>
-                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Rate / Sq.Ft (LKR)</label>
-                                    <input
-                                        type="number"
-                                        value={labourRatePerSqFt}
-                                        onChange={(e) => {
-                                            const val = Math.max(0, parseInt(e.target.value) || 0);
-                                            setLabourRatePerSqFt(val);
-                                            setCustomLabourValue(val);
-                                        }}
-                                        placeholder="150"
-                                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono text-indigo-700 focus:outline-none focus:border-indigo-500"
-                                    />
-                                </div>
-                                <div className="bg-white p-2 rounded-lg border border-slate-200 text-right">
-                                    <span className="block text-[8.5px] font-bold text-slate-400 uppercase">Auto Labour Cost</span>
-                                    <span className="text-xs font-black text-emerald-600 font-mono">
-                                        LKR {bomResult.summary.totalLabourCost.toLocaleString()}
-                                    </span>
-                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Section 4: Vertical Sub-Division (Fanlight / Louvers) */}
+                    {/* Section 4: Costing Parameters */}
+                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
+                            <Sliders size={16} /> 4. Costing Parameters
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Labour Cost (LKR)</label>
+                                <input
+                                    type="number"
+                                    value={totalLabourCost}
+                                    onChange={(e) => setTotalLabourCost(Math.max(0, Number(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Profit Margin (%)</label>
+                                <input
+                                    type="number"
+                                    value={profitMarginPercent}
+                                    onChange={(e) => setProfitMarginPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                                    className="w-full px-3 py-2 border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-emerald-600"
+                                    placeholder="20"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section 5: Vertical Sub-Division (Fanlight / Louvers) */}
                     <div className="space-y-3 pt-2 border-t border-slate-100">
                         <div className="flex justify-between items-center">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
@@ -933,7 +962,7 @@ const AluConfiguratorPage = () => {
                     />
 
                     {/* Estimation Costing Overview Banner */}
-                    <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 sm:p-5 rounded-2xl text-white shadow-lg grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                    <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 sm:p-5 rounded-2xl text-white shadow-lg grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-center">
                         <div>
                             <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Raw Cost</span>
                             <span className="text-lg md:text-xl font-black text-slate-100">
@@ -946,15 +975,12 @@ const AluConfiguratorPage = () => {
                             )}
                         </div>
                         <div>
-                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Profit Margin ({profitMarginPercent}%)</span>
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Quantity</span>
                             <span className="text-lg md:text-xl font-black text-emerald-400">
-                                LKR {bomResult.summary.profitMargin.toLocaleString()}
-                            </span>
-                            <span className="block text-[10px] text-indigo-300 font-bold">
-                                Qty: {quantity} {quantity > 1 ? 'Openings' : 'Opening'}
+                                {quantity} {quantity > 1 ? 'Openings' : 'Opening'}
                             </span>
                         </div>
-                        <div className="col-span-1 sm:col-span-2 lg:col-span-2 bg-emerald-900/40 p-3.5 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="col-span-1 sm:col-span-2 lg:col-span-1 bg-emerald-900/40 p-3.5 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">Total Estimated Selling Price</span>
@@ -1147,117 +1173,60 @@ const AluConfiguratorPage = () => {
                                 </div>
                             </div>
 
-                            {/* 3. Custom Accessories & Labour */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-xs font-bold text-slate-700 uppercase">3. Hardware Accessories ({customAccessories.length})</h4>
-                                        <button
-                                            onClick={() => setCustomAccessories(prev => [...prev, { code: `CUST-ACC-${prev.length + 1}`, name: 'Accessory', qty: 1, unit: 'pcs', unitRate: 500 }])}
-                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-                                        >
-                                            <Plus size={14} /> Add Accessory
-                                        </button>
-                                    </div>
-                                    {customAccessories.map((a, idx) => (
-                                        <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs">
-                                            <input
-                                                type="text"
-                                                placeholder="Hardware Name"
-                                                value={a.name}
-                                                onChange={(e) => {
-                                                    const next = [...customAccessories];
-                                                    next[idx].name = e.target.value;
-                                                    setCustomAccessories(next);
-                                                }}
-                                                className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold"
-                                            />
-                                            <input
-                                                type="number"
-                                                placeholder="Qty"
-                                                value={a.qty}
-                                                onChange={(e) => {
-                                                    const next = [...customAccessories];
-                                                    next[idx].qty = Number(e.target.value);
-                                                    setCustomAccessories(next);
-                                                }}
-                                                className="w-14 px-1 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold"
-                                            />
-                                            <input
-                                                type="number"
-                                                placeholder="Rate"
-                                                value={a.unitRate}
-                                                onChange={(e) => {
-                                                    const next = [...customAccessories];
-                                                    next[idx].unitRate = Number(e.target.value);
-                                                    setCustomAccessories(next);
-                                                }}
-                                                className="w-20 px-1 py-1 bg-white border border-slate-200 rounded-lg text-right font-mono"
-                                            />
-                                            <button
-                                                onClick={() => setCustomAccessories(prev => prev.filter((_, i) => i !== idx))}
-                                                className="text-rose-500 hover:text-rose-700"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    ))}
+                            {/* 3. Custom Accessories */}
+                            <div className="space-y-2 pt-2 border-t">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase">3. Hardware Accessories ({customAccessories.length})</h4>
+                                    <button
+                                        onClick={() => setCustomAccessories(prev => [...prev, { code: `CUST-ACC-${prev.length + 1}`, name: 'Accessory', qty: 1, unit: 'pcs', unitRate: 500 }])}
+                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                                    >
+                                        <Plus size={14} /> Add Accessory
+                                    </button>
                                 </div>
-
-                                <div className="space-y-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-xs font-bold text-slate-700 uppercase">4. Fabrication &amp; Labour Charge</h4>
-                                        <span className="text-xs font-black font-mono text-emerald-700">
-                                            LKR {bomResult.summary.totalLabourCost.toLocaleString()}
-                                        </span>
-                                    </div>
-
-                                    {/* Toggle: Fixed Amount vs % of Material Cost */}
-                                    <div className="grid grid-cols-2 gap-1 bg-white p-1 rounded-lg border border-slate-200 text-[10.5px] font-bold">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCustomLabourType('fixed');
-                                                if (customLabourValue < 100) setCustomLabourValue(7500);
+                                {customAccessories.map((a, idx) => (
+                                    <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs">
+                                        <input
+                                            type="text"
+                                            placeholder="Hardware Name"
+                                            value={a.name}
+                                            onChange={(e) => {
+                                                const next = [...customAccessories];
+                                                next[idx].name = e.target.value;
+                                                setCustomAccessories(next);
                                             }}
-                                            className={`py-1.5 rounded-md text-center transition ${customLabourType === 'fixed' ? 'bg-indigo-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-50'}`}
-                                        >
-                                            Fixed Amount (LKR)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCustomLabourType('percentage');
-                                                if (customLabourValue > 100) setCustomLabourValue(15);
+                                            className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold"
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            value={a.qty}
+                                            onChange={(e) => {
+                                                const next = [...customAccessories];
+                                                next[idx].qty = Number(e.target.value);
+                                                setCustomAccessories(next);
                                             }}
-                                            className={`py-1.5 rounded-md text-center transition ${customLabourType === 'percentage' ? 'bg-indigo-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-50'}`}
+                                            className="w-14 px-1 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold"
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="Rate"
+                                            value={a.unitRate}
+                                            onChange={(e) => {
+                                                const next = [...customAccessories];
+                                                next[idx].unitRate = Number(e.target.value);
+                                                setCustomAccessories(next);
+                                            }}
+                                            className="w-20 px-1 py-1 bg-white border border-slate-200 rounded-lg text-right font-mono"
+                                        />
+                                        <button
+                                            onClick={() => setCustomAccessories(prev => prev.filter((_, i) => i !== idx))}
+                                            className="text-rose-500 hover:text-rose-700"
                                         >
-                                            % of Material Cost
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                                            {customLabourType === 'percentage' ? 'Labour % of Raw Materials Cost' : 'Labour & Fabrication Cost per Opening (LKR)'}
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                value={customLabourValue}
-                                                onChange={(e) => setCustomLabourValue(Number(e.target.value))}
-                                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold font-mono text-sm text-indigo-700 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                            <span className="absolute right-3 top-2.5 text-xs font-black text-slate-400">
-                                                {customLabourType === 'percentage' ? '%' : 'LKR'}
-                                            </span>
-                                        </div>
-                                        {customLabourType === 'percentage' && (
-                                            <span className="text-[10px] text-slate-500 font-medium block mt-1">
-                                                Calculated: {customLabourValue}% of (Alu + Glass + Hardware) = <b>LKR {bomResult.summary.totalLabourCost.toLocaleString()}</b>
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -1379,7 +1348,7 @@ const AluConfiguratorPage = () => {
                                                     <td className="p-2.5 font-bold font-mono text-indigo-600">{acc.code}</td>
                                                     <td className="p-2.5 font-semibold text-slate-700">{acc.name}</td>
                                                     <td className="p-2.5 text-center font-bold text-slate-700">{acc.qty} {acc.unit}</td>
-                                                    <td className="p-2.5 text-right font-mono text-slate-600">LKR {acc.unitRate}</td>
+                                                    <td className="p-2.5 text-right font-mono text-slate-600">LKR {Number(acc.unitRate).toLocaleString()}</td>
                                                     <td className="p-2.5 text-right font-bold text-slate-800">LKR {acc.cost.toLocaleString()}</td>
                                                 </tr>
                                             ))}
@@ -1403,7 +1372,17 @@ const AluConfiguratorPage = () => {
                                 <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
                                     <h4 className="font-bold text-slate-800 border-b pb-1">Raw Material Breakdown</h4>
                                     <div className="flex justify-between py-1 border-b text-slate-600">
-                                        <span>Aluminium Profiles</span>
+                                        <span>Aluminium Profiles (Before Discount)</span>
+                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAluminiumCostBeforeDiscount?.toLocaleString() || bomResult.summary.totalAluminiumCost.toLocaleString()}</span>
+                                    </div>
+                                    {bomResult.summary.aluminiumDiscountPercent > 0 && (
+                                        <div className="flex justify-between py-1 border-b text-amber-600">
+                                            <span>Aluminium Discount ({bomResult.summary.aluminiumDiscountPercent}%)</span>
+                                            <span className="font-bold text-amber-700">- LKR {bomResult.summary.aluminiumDiscountAmount?.toLocaleString() || 0}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between py-1 border-b text-slate-600">
+                                        <span>Aluminium Profiles (After Discount)</span>
                                         <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAluminiumCost.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between py-1 border-b text-slate-600">
@@ -1414,22 +1393,24 @@ const AluConfiguratorPage = () => {
                                         <span>Hardware Accessories & Seals</span>
                                         <span className="font-bold text-slate-800">LKR {bomResult.summary.totalAccessoriesCost.toLocaleString()}</span>
                                     </div>
-                                    <div className="flex justify-between py-1 text-slate-600">
-                                        <span>Assembly & Installation Labour</span>
-                                        <span className="font-bold text-slate-800">LKR {bomResult.summary.totalLabourCost.toLocaleString()}</span>
-                                    </div>
                                 </div>
 
                                 <div className="space-y-2 bg-emerald-50/50 p-4 rounded-xl border border-emerald-200 text-emerald-950">
                                     <h4 className="font-bold border-b border-emerald-200 pb-1">Commercial Price Calculation</h4>
                                     <div className="flex justify-between py-1 border-b border-emerald-200">
-                                        <span>Total Raw Cost</span>
+                                        <span>Total Raw Cost (Materials)</span>
                                         <span className="font-bold">LKR {bomResult.summary.totalRawCost.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between py-1 border-b border-emerald-200">
-                                        <span>Fabrication Margin ({profitMarginPercent}%)</span>
-                                        <span className="font-bold text-emerald-700">LKR {bomResult.summary.profitMargin.toLocaleString()}</span>
+                                        <span>Total Labour Cost</span>
+                                        <span className="font-bold">LKR {(bomResult.summary.totalLabourCost || totalLabourCost).toLocaleString()}</span>
                                     </div>
+                                    {bomResult.summary.profitMarginPercent > 0 && (
+                                        <div className="flex justify-between py-1 border-b border-emerald-200">
+                                            <span>Profit Margin ({bomResult.summary.profitMarginPercent}%)</span>
+                                            <span className="font-bold text-emerald-700">+ LKR {bomResult.summary.profitMarginAmount?.toLocaleString() || 0}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between py-2 text-base font-extrabold text-emerald-900 border-t border-emerald-300">
                                         <span>Final Selling Price</span>
                                         <span>LKR {bomResult.summary.finalSellingPrice.toLocaleString()}</span>

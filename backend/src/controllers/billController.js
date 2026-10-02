@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import asyncHandler from 'express-async-handler';
 import Bill from '../models/Bill.js';
 import Supplier from '../models/Supplier.js';
@@ -36,6 +37,7 @@ export const createBill = asyncHandler(async (req, res) => {
     });
 
     await bill.save();
+    await updateSupplierBalance(supplier._id);
 
     const populated = await Bill.findById(bill._id).populate('supplierId', 'displayName supplierCode');
     res.status(201).json({ success: true, data: populated });
@@ -117,6 +119,7 @@ export const createFromGrn = asyncHandler(async (req, res) => {
     });
 
     await bill.save();
+    await updateSupplierBalance(supplier._id);
 
     const populated = await Bill.findById(bill._id).populate('supplierId', 'displayName supplierCode');
     res.status(201).json({ success: true, data: populated });
@@ -225,6 +228,39 @@ export const changeBillStatus = asyncHandler(async (req, res) => {
         bill.disputeReason = reason;
     }
     await bill.save();
+    if (bill.supplierId) {
+        await updateSupplierBalance(bill.supplierId);
+    }
 
     res.json({ success: true, data: bill });
 });
+
+/**
+ * Recomputes and updates supplier.balanceDueLKR based on all outstanding bills
+ */
+export const updateSupplierBalance = async (supplierId, session) => {
+    if (!supplierId) return;
+    const result = await Bill.aggregate([
+        {
+            $match: {
+                supplierId: new mongoose.Types.ObjectId(supplierId),
+                paymentStatus: { $in: ['unpaid', 'partially_paid', 'overdue', 'Unpaid', 'Partially Paid', 'Overdue', 'partially paid'] },
+                status: { $ne: 'cancelled' },
+                deletedAt: null,
+            },
+        },
+        {
+            $group: {
+                _id: null,
+                totalBalance: { $sum: '$balanceDue' },
+            },
+        },
+    ]).session(session || null);
+
+    const summary = result[0] || { totalBalance: 0 };
+    const supplier = await Supplier.findById(supplierId).session(session || null);
+    if (supplier) {
+        supplier.balanceDueLKR = +summary.totalBalance.toFixed(2);
+        await supplier.save({ session: session || undefined });
+    }
+};

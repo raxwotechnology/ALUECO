@@ -148,6 +148,7 @@ const salesOrderSchema = new mongoose.Schema(
 
         // Advance payment & balance tracking
         advancePaidAmount: { type: Number, default: 0 },
+        partialPaidAmount: { type: Number, default: 0 },
         pendingBalance: { type: Number, default: 0 },
 
         // Order-level discount
@@ -175,6 +176,7 @@ const salesOrderSchema = new mongoose.Schema(
         // Holds
         isOnHold: { type: Boolean, default: false },
         holdReason: String,
+        stockDeducted: { type: Boolean, default: false },
 
         // Credit check result
         creditCheck: {
@@ -218,7 +220,8 @@ const salesOrderSchema = new mongoose.Schema(
         paymentSchedule: [{
             stageName: { type: String, required: true },
             amount: { type: Number, required: true },
-            status: { type: String, enum: ['pending', 'paid'], default: 'pending' },
+            status: { type: String, enum: ['pending', 'paid', 'partially_paid'], default: 'pending' },
+            paidAmount: { type: Number, default: 0 },
             paidAt: Date
         }],
         totalPaid: { type: Number, default: 0 },

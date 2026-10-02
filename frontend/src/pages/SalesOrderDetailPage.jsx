@@ -393,16 +393,19 @@ export default function SalesOrderDetailPage() {
                                     <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div className="flex-1">
                                             <p className="text-sm font-medium text-gray-800">{stage.stageName}</p>
-                                            <p className="text-xs text-gray-500">Amount: {fmt(stage.amount)}</p>
+                                            <p className="text-xs text-gray-500">
+                                                Amount: {fmt(stage.amount)}
+                                                {stage.status === 'partially_paid' && stage.paidAmount ? ` (Paid: ${fmt(stage.paidAmount)})` : ''}
+                                            </p>
                                             {stage.paidAt && (
                                                 <p className="text-xs text-gray-400">Paid: {fmtDate(stage.paidAt)}</p>
                                             )}
                                         </div>
                                         <Badge 
-                                            variant={stage.status === 'paid' ? 'success' : 'warning'}
-                                            className="ml-3"
+                                            variant={stage.status === 'paid' ? 'success' : stage.status === 'partially_paid' ? 'info' : 'warning'}
+                                            className="ml-3 capitalize"
                                         >
-                                            {stage.status}
+                                            {stage.status === 'partially_paid' ? 'Partial' : stage.status}
                                         </Badge>
                                     </div>
                                 ))}

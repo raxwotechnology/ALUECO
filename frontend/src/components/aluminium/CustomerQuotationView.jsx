@@ -65,7 +65,20 @@ export default function CustomerQuotationView({
     // Costs & Amounts Calculation
     const itemsList = doc.items || [];
     const transportCost = Number(doc.transportCost || doc.shippingCost || 0);
-    
+    const totalLabourCost = Number(doc.totalLabourCost || 0);
+    const otherCost = Number(doc.otherCost || 0);
+    const profitMarginPercent = Number(doc.profitMarginPercent || 0);
+
+    // Check if items have profit margin already applied (from configurator)
+    const hasItemLevelProfitMargin = itemsList.some(item =>
+        item.costingSummary?.profitMarginPercent > 0 || item.profitMarginPercent > 0
+    );
+
+    // Check if items have labour cost already included (from configurator)
+    const hasItemLevelLabourCost = itemsList.some(item =>
+        item.costingSummary?.totalLabourCost > 0 || item.labourCost > 0
+    );
+
     // Calculate raw subtotal of items
     const rawItemsSubtotal = itemsList.reduce((sum, item) => {
         const qty = item.quantity || 1;
@@ -76,9 +89,14 @@ export default function CustomerQuotationView({
 
     // Calculate apportioned item prices if transport cost is distributed into items
     const processedItems = itemsList.map((item, idx) => {
-        const qty = item.quantity || 1;
-        const rawLineTotal = item.totalPrice || item.lineTotal || (qty * (item.unitPrice || 0));
-        
+        const qty = Math.max(1, item.quantity || 1);
+        const costSummary = item.costingSummary || {};
+        const aluminiumCost = costSummary.totalAluminiumCost || 0;
+        const glassCost = costSummary.totalGlassCost || 0;
+        const hardwareCost = costSummary.totalAccessoriesCost || 0;
+        const labourCost = item.labourCost || costSummary.labourCost || 0;
+        const rawLineTotal = item.totalPrice || item.lineTotal || (aluminiumCost + glassCost + hardwareCost + labourCost) || (qty * (item.unitPrice || 0));
+
         let apportionedTransport = 0;
         if (distributeTransportCost && transportCost > 0 && rawItemsSubtotal > 0) {
             apportionedTransport = (rawLineTotal / rawItemsSubtotal) * transportCost;
@@ -89,20 +107,71 @@ export default function CustomerQuotationView({
 
         return {
             ...item,
+            rawLineTotal,
             displayUnitPrice: finalUnitPrice,
             displayLineTotal: finalLineTotal,
             apportionedTransport
         };
     });
 
-    const subtotalExclTax = processedItems.reduce((sum, item) => sum + item.displayLineTotal, 0);
+    // Calculate subtotal based on whether items have profit margin applied
+    let subtotalExclTax, baseAmount, profitMarginAmount;
 
-    // Show transport line item only if NOT distributed
-    const visibleTransportCost = distributeTransportCost ? 0 : transportCost;
+    if (hasItemLevelProfitMargin) {
+        // Items from configurator - Subtotal is the Final Selling Price from 2D Configuration
+        // Calculate from items' raw totalPrice (configurator's Final Selling Price per item)
+        const rawConfiguratorSubtotal = processedItems.reduce((sum, item) => {
+            return sum + (item.totalPrice || item.lineTotal || (item.quantity * item.unitPrice));
+        }, 0);
+
+        // When distributeTransportCost is true, subtotal absorbs the transport cost
+        subtotalExclTax = distributeTransportCost 
+            ? (rawConfiguratorSubtotal + transportCost)
+            : rawConfiguratorSubtotal;
+
+        // Profit margin is already included in the Final Selling Price
+        profitMarginAmount = processedItems.reduce((sum, item) => {
+            const pm = item.costingSummary?.profitMarginAmount || 0;
+            return sum + (pm * (item.quantity || 1));
+        }, 0);
+
+        // Show transport line item only if NOT distributed
+        const visibleTransportCost = distributeTransportCost ? 0 : transportCost;
+
+        // Base amount = Subtotal + Transport Cost + Other Cost
+        // When distributed, transport is already in subtotalExclTax and visibleTransportCost is 0,
+        // so baseAmount remains identically equal to rawConfiguratorSubtotal + transportCost + otherCost.
+        baseAmount = subtotalExclTax + visibleTransportCost + otherCost;
+    } else {
+        // Manual quotation - Use backend-calculated subtotal if available, otherwise calculate from cost components
+        const rawCostSubtotal = doc.subtotal || processedItems.reduce((sum, item) => {
+            const costSummary = item.costingSummary || {};
+            const aluminiumCost = costSummary.totalAluminiumCost || 0;
+            const glassCost = costSummary.totalGlassCost || 0;
+            const hardwareCost = costSummary.totalAccessoriesCost || 0;
+            const labourCost = item.labourCost || costSummary.labourCost || 0;
+
+            return sum + aluminiumCost + glassCost + hardwareCost + labourCost;
+        }, 0);
+
+        // When distributeTransportCost is true, subtotal absorbs the transport cost
+        subtotalExclTax = distributeTransportCost 
+            ? (rawCostSubtotal + transportCost)
+            : rawCostSubtotal;
+
+        // Show transport line item only if NOT distributed
+        const visibleTransportCost = distributeTransportCost ? 0 : transportCost;
+
+        // Calculate base amount before VAT
+        baseAmount = subtotalExclTax + visibleTransportCost + totalLabourCost + otherCost;
+
+        // Calculate profit margin amount
+        profitMarginAmount = baseAmount * (profitMarginPercent / 100);
+    }
 
     // VAT Calculation
     const vatRate = includeVat ? 0.18 : 0;
-    const vatBase = subtotalExclTax + visibleTransportCost;
+    const vatBase = baseAmount + profitMarginAmount;
     const vatAmount = vatBase * vatRate;
     const finalGrandTotal = vatBase + vatAmount;
 
@@ -278,7 +347,6 @@ export default function CustomerQuotationView({
                                 <th className="p-2 min-w-[190px]">Description &amp; Specifications</th>
                                 <th className="p-2 w-20 text-center">Size (W&times;H mm)</th>
                                 <th className="p-2 w-10 text-center">Qty</th>
-                                <th className="p-2 w-24 text-right">Unit Rate (LKR)</th>
                                 <th className="p-2 w-24 text-right">Total (LKR)</th>
                             </tr>
                         </thead>
@@ -288,6 +356,18 @@ export default function CustomerQuotationView({
                                 const config = item.configuration || 'Standard Profile';
                                 const itemWidth = item.width || 0;
                                 const itemHeight = item.height || 0;
+
+                                // Calculate cost components from costingSummary
+                                const costSummary = item.costingSummary || {};
+                                const aluminiumCost = costSummary.totalAluminiumCost || 0;
+                                const glassCost = costSummary.totalGlassCost || 0;
+                                const hardwareCost = costSummary.totalAccessoriesCost || 0;
+                                const labourCost = item.labourCost || costSummary.labourCost || 0;
+
+                                // Use displayLineTotal if transport distributed, otherwise totalPrice / cost components
+                                const itemTotal = distributeTransportCost 
+                                    ? item.displayLineTotal 
+                                    : (item.totalPrice || (aluminiumCost + glassCost + hardwareCost + labourCost));
 
                                 return (
                                     <tr key={index} className={index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}>
@@ -333,11 +413,8 @@ export default function CustomerQuotationView({
                                         <td className="p-2 text-center font-bold text-slate-900 border-r border-slate-200">
                                             {item.quantity || 1}
                                         </td>
-                                        <td className="p-2 text-right font-mono text-slate-800 border-r border-slate-200">
-                                            {item.displayUnitPrice.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </td>
                                         <td className="p-2 text-right font-mono font-extrabold text-slate-950">
-                                            {item.displayLineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {itemTotal.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
                                     </tr>
                                 );
@@ -345,8 +422,8 @@ export default function CustomerQuotationView({
                         </tbody>
                         <tfoot>
                             <tr className="bg-slate-100 border-t-2 border-slate-800 text-[10px] font-black">
-                                <td colSpan="6" className="p-2 text-right text-emerald-900 uppercase tracking-wide border-r border-slate-300">
-                                    SUBTOTAL (EXCLUDING TAX)
+                                <td colSpan="5" className="p-2 text-right text-emerald-900 uppercase tracking-wide border-r border-slate-300">
+                                    SUBTOTAL {distributeTransportCost ? '(INCL. TRANSPORT)' : '(EXCLUDING TAX)'}
                                 </td>
                                 <td className="p-2 text-right font-mono text-emerald-950 text-[11px]">
                                     {subtotalExclTax.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -388,6 +465,31 @@ export default function CustomerQuotationView({
                                     <span>Transport &amp; Handling Cost</span>
                                     <span className="font-mono font-bold text-slate-900">
                                         LKR {transportCost.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
+
+                            {!hasItemLevelLabourCost && totalLabourCost > 0 && (
+                                <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                    <span>Labour Cost</span>
+                                    <span className="font-mono font-bold text-slate-900">
+                                        LKR {totalLabourCost.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                <span>Other Cost</span>
+                                <span className="font-mono font-bold text-slate-900">
+                                    LKR {otherCost.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+
+                            {profitMarginAmount > 0 && (
+                                <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                    <span>Profit Margin {hasItemLevelProfitMargin ? '(Included in Items)' : `(${profitMarginPercent}%)`}</span>
+                                    <span className="font-mono font-bold text-slate-900">
+                                        LKR {profitMarginAmount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             )}

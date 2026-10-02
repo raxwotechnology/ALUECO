@@ -7,6 +7,7 @@ import BankAccount from '../models/BankAccount.js';
 import AuditLog from '../models/AuditLog.js';
 import { broadcast } from '../services/socketService.js';
 import { updateCustomerBalance } from './invoiceController.js';
+import { updateSupplierBalance } from './billController.js';
 
 /**
  * POST /api/payments
@@ -105,39 +106,59 @@ export const createPayment = asyncHandler(async (req, res) => {
                 await inv.save();
             } else if (alloc.documentType === 'bill') {
                 const bill = await Bill.findById(alloc.documentId);
-                bill.amountPaid = +(bill.amountPaid + alloc.amount).toFixed(2);
-                bill.lastPaymentDate = payment.paymentDate;
-                await bill.save();
+                if (bill) {
+                    bill.amountPaid = +(bill.amountPaid + alloc.amount).toFixed(2);
+                    bill.balanceDue = Math.max(0, +(bill.grandTotal - bill.amountPaid).toFixed(2));
+                    if (bill.amountPaid >= bill.grandTotal) {
+                        bill.paymentStatus = 'paid';
+                    } else if (bill.amountPaid > 0) {
+                        bill.paymentStatus = 'partially_paid';
+                    } else {
+                        bill.paymentStatus = 'unpaid';
+                    }
+                    bill.lastPaymentDate = payment.paymentDate;
+                    await bill.save();
+                }
             } else if (alloc.documentType === 'sales_order') {
                 const SalesOrder = (await import('../models/SalesOrder.js')).default;
                 const so = await SalesOrder.findById(alloc.documentId);
-                so.totalPaid = +(so.totalPaid + alloc.amount).toFixed(2);
-                
-                let remainingAlloc = alloc.amount;
-                for (const stage of so.paymentSchedule) {
-                    if (stage.status === 'pending' && remainingAlloc > 0) {
+                if (so) {
+                    so.totalPaid = +(so.totalPaid + alloc.amount).toFixed(2);
+                    
+                    let remainingAlloc = so.totalPaid;
+                    for (const stage of so.paymentSchedule) {
                         if (remainingAlloc >= stage.amount) {
+                            stage.paidAmount = stage.amount;
                             stage.status = 'paid';
-                            stage.paidAt = payment.paymentDate;
+                            if (!stage.paidAt) stage.paidAt = payment.paymentDate;
                             remainingAlloc -= stage.amount;
-                        } else {
+                        } else if (remainingAlloc > 0) {
+                            stage.paidAmount = +remainingAlloc.toFixed(2);
+                            stage.status = 'partially_paid';
+                            stage.paidAt = undefined;
                             remainingAlloc = 0;
+                        } else {
+                            stage.paidAmount = 0;
+                            stage.status = 'pending';
+                            stage.paidAt = undefined;
                         }
                     }
+                    
+                    if (so.totalPaid >= (so.advanceAmount || 0) && !so.advanceReceived) {
+                        so.advanceReceived = true;
+                        so.productionStatus = 'ready_for_production';
+                    }
+                    
+                    await so.save();
                 }
-                
-                if (so.totalPaid >= so.advanceAmount && !so.advanceReceived) {
-                    so.advanceReceived = true;
-                    so.productionStatus = 'ready_for_production';
-                }
-                
-                await so.save();
             }
         }
 
-        // Update customer balance if received
-        if (direction === 'received') {
+        // Update customer balance if received, or supplier balance if paid
+        if (direction === 'received' && customerId) {
             await updateCustomerBalance(customerId);
+        } else if (direction === 'paid' && supplierId) {
+            await updateSupplierBalance(supplierId);
         }
         try {
             broadcast('financial_update', {
@@ -489,6 +510,11 @@ export const deletePayment = asyncHandler(async (req, res) => {
         throw new Error('Payment not found');
     }
 
+    if (payment.deletedAt) {
+        res.status(400);
+        throw new Error('Payment has already been deleted');
+    }
+
     try {
         // Reverse bank account balance if applicable
         if (payment.bankAccountId) {
@@ -543,6 +569,16 @@ export const deletePayment = asyncHandler(async (req, res) => {
                     if (bill) {
                         bill.amountPaid = Math.max(0, +(bill.amountPaid - alloc.amount).toFixed(2));
                         bill.balanceDue = +(bill.grandTotal - bill.amountPaid).toFixed(2);
+
+                        // Update payment status based on remaining amount (mirror invoice logic)
+                        if (bill.amountPaid >= bill.grandTotal) {
+                            bill.paymentStatus = 'paid';
+                        } else if (bill.amountPaid > 0) {
+                            bill.paymentStatus = 'partially_paid';
+                        } else {
+                            bill.paymentStatus = 'unpaid';
+                        }
+
                         await bill.save();
                     }
                 } else if (alloc.documentType === 'sales_order') {
@@ -551,35 +587,44 @@ export const deletePayment = asyncHandler(async (req, res) => {
                     if (so) {
                         so.totalPaid = Math.max(0, +(so.totalPaid - alloc.amount).toFixed(2));
                         
-                        // Revert payment schedule statuses if needed
-                        let remainingToReverse = alloc.amount;
-                        for (let i = so.paymentSchedule.length - 1; i >= 0; i--) {
-                            const stage = so.paymentSchedule[i];
-                            if (stage.status === 'paid' && remainingToReverse > 0) {
-                                if (remainingToReverse >= stage.amount) {
-                                    stage.status = 'pending';
-                                    stage.paidAt = undefined;
-                                    remainingToReverse -= stage.amount;
-                                } else {
-                                    remainingToReverse = 0;
-                                }
+                        // Recompute payment schedule stages based on remaining totalPaid
+                        let remainingAlloc = so.totalPaid;
+                        for (const stage of so.paymentSchedule) {
+                            if (remainingAlloc >= stage.amount) {
+                                stage.paidAmount = stage.amount;
+                                stage.status = 'paid';
+                                remainingAlloc -= stage.amount;
+                            } else if (remainingAlloc > 0) {
+                                stage.paidAmount = +remainingAlloc.toFixed(2);
+                                stage.status = 'partially_paid';
+                                stage.paidAt = undefined;
+                                remainingAlloc = 0;
+                            } else {
+                                stage.paidAmount = 0;
+                                stage.status = 'pending';
+                                stage.paidAt = undefined;
                             }
                         }
                         
-                        if (so.totalPaid < so.advanceAmount && so.advanceReceived) {
+                        if (so.totalPaid < (so.advanceAmount || 0) && so.advanceReceived) {
                             so.advanceReceived = false;
-                            so.productionStatus = 'pending_advance';
+                            so.productionStatus = 'waiting_payment';
                         }
                         
                         await so.save();
                     }
                 }
             }
+        }
 
-            // Update customer balance if received payment
-            if (payment.direction === 'received' && payment.customerId) {
-                await updateCustomerBalance(payment.customerId);
-            }
+        // Update customer balance if received payment (always updated regardless of allocations)
+        if (payment.direction === 'received' && payment.customerId) {
+            await updateCustomerBalance(payment.customerId);
+        }
+
+        // Update supplier balance if paid payment (always updated regardless of allocations)
+        if (payment.direction === 'paid' && payment.supplierId) {
+            await updateSupplierBalance(payment.supplierId);
         }
 
         // Create audit log entry

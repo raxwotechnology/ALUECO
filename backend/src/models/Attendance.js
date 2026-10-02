@@ -25,7 +25,7 @@ const attendanceSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'present',
-        enum: ['present', 'absent', 'late', 'early_leave', 'half_day', 'P', 'A', 'AL-AL', 'POW', 'WO'],
+        enum: ['present', 'absent', 'late', 'early_leave', 'half_day', 'holiday', 'weekend', 'leave', 'P', 'A', 'AL-AL', 'POW', 'WO', 'HL', 'L'],
     },
 
     leaveId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeaveRequest' },

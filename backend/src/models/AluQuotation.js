@@ -53,7 +53,8 @@ const aluQuotationItemSchema = new mongoose.Schema({
     }],
     labourCost: Number,
     unitPrice: Number, // calculated selling price for 1 opening (before manual project adjustments)
-    totalPrice: Number // unitPrice * quantity
+    totalPrice: Number, // unitPrice * quantity
+    profitMarginPercent: { type: Number, default: 20 }, // profit margin for this specific item
 });
 
 const aluQuotationSchema = new mongoose.Schema({
@@ -78,6 +79,7 @@ const aluQuotationSchema = new mongoose.Schema({
     totalAccessoriesCost: { type: Number, default: 0 },
     totalLabourCost: { type: Number, default: 0 },
     transportCost: { type: Number, default: 0 },
+    otherCost: { type: Number, default: 0 },
     
     additionalCosts: [{
         name: { type: String, required: true },
@@ -85,6 +87,7 @@ const aluQuotationSchema = new mongoose.Schema({
     }],
     
     profitMarginPercent: { type: Number, default: 20 }, // profit margin applied
+    subtotal: { type: Number, default: 0 }, // subtotal before profit margin (from configurator or material+labour+transport+additional)
     calculatedSellingPrice: { type: Number, default: 0 }, // exact sum before discount/adjustments
     
     discount: { type: Number, default: 0 },

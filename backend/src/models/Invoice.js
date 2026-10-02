@@ -171,6 +171,7 @@ const invoiceSchema = new mongoose.Schema({
 
     warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
     stockDeducted: { type: Boolean, default: false },
+    stockDeductionError: { type: String, default: null },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

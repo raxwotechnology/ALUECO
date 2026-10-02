@@ -4,7 +4,7 @@ import {
     createDesignation, getDesignations, updateDesignation, deleteDesignation,
     createEmployee, getEmployees, getEmployeeById, updateEmployee, deleteEmployee,
     createShift, getShifts, updateShift, deleteShift,
-    markAttendance, getAttendance, bulkMarkAttendance, importAttendanceFromExcel,
+    markAttendance, getAttendance, bulkMarkAttendance, previewAttendanceFromExcel, importAttendanceFromExcel,
     createLeaveRequest, getLeaveRequests, approveLeaveRequest, rejectLeaveRequest, cancelLeaveRequest,
     createHoliday, getHolidays, updateHoliday, deleteHoliday,
     createSalaryStructure, getSalaryStructures, updateSalaryStructure, deleteSalaryStructure,
@@ -65,6 +65,7 @@ router.route('/attendance')
     .post(requirePermission('hr.attendance.manage'), markAttendance);
 
 router.post('/attendance/bulk', requirePermission('hr.attendance.manage'), bulkMarkAttendance);
+router.post('/attendance/preview', requirePermission('hr.attendance.manage'), uploadMemory.single('file'), previewAttendanceFromExcel);
 router.post('/attendance/import', requirePermission('hr.attendance.manage'), uploadMemory.single('file'), importAttendanceFromExcel);
 
 // ── Leave ──────────────────────────────────────────────────────────────────────

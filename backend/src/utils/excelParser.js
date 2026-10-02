@@ -1,13 +1,5 @@
 import XLSX from 'xlsx';
 
-/**
- * Parse Monthly Performance Report Excel file
- * Expected structure:
- * - EmpCode, Name, Designation columns
- * - Day 01 → Day 31 columns
- * - Arrived Time, Dept. Time, Working Hrs., O.Times Hrs., Status rows
- * - Monthly summary columns (Present, HL, WO, Absent, Leave, PaidDays, etc.)
- */
 export const parseMonthlyAttendanceExcel = (filePath, month, year) => {
     try {
         const workbook = XLSX.readFile(filePath);
@@ -26,84 +18,120 @@ export const parseMonthlyAttendanceExcel = (filePath, month, year) => {
             const row = rows[currentRowIndex];
             
             // Look for EmpCode column to identify employee section
-            const empCodeIndex = row.findIndex(cell => cell === 'EmpCode');
+            const empCodeIndex = row.findIndex(cell => cell !== null && cell !== undefined && /^(EmpCode|Emp\s*Code)$/i.test(String(cell).trim()));
             
             if (empCodeIndex === -1) {
                 currentRowIndex++;
                 continue;
             }
 
-            // Found employee section
-            const empCode = rows[currentRowIndex + 2]?.[empCodeIndex];
-            const employeeName = rows[currentRowIndex + 2]?.[empCodeIndex + 1];
-            const designation = rows[currentRowIndex + 2]?.[empCodeIndex + 2];
+            const nameIndex = row.findIndex(cell => cell !== null && cell !== undefined && /^name$/i.test(String(cell).trim()));
+            const desigIndex = row.findIndex(cell => cell !== null && cell !== undefined && /^designation$/i.test(String(cell).trim()));
 
-            if (!empCode || !employeeName) {
-                errors.push(`Row ${currentRowIndex + 2}: Missing employee code or name`);
-                currentRowIndex += 10;
+            // Found employee section. Look for employee data in subsequent rows (offset 1 to 3)
+            let empCode = null;
+            let employeeName = null;
+            let designation = null;
+            let empDataRowIndex = -1;
+
+            for (let offset = 1; offset <= 3; offset++) {
+                const check = rows[currentRowIndex + offset];
+                if (!check) continue;
+                const codeCandidate = check[empCodeIndex];
+                const nameCandidate = nameIndex !== -1 ? check[nameIndex] : check.slice(empCodeIndex + 1).find(c => c !== null && c !== undefined && String(c).trim() !== '');
+
+                if (codeCandidate !== undefined && codeCandidate !== null && String(codeCandidate).trim() !== '' &&
+                    nameCandidate !== undefined && nameCandidate !== null && String(nameCandidate).trim() !== '') {
+                    const strCode = String(codeCandidate).trim();
+                    if (strCode !== '01' && strCode !== '1' && !/arrived/i.test(strCode)) {
+                        empCode = strCode;
+                        employeeName = String(nameCandidate).trim();
+                        designation = desigIndex !== -1 && check[desigIndex] ? String(check[desigIndex]).trim() : '';
+                        empDataRowIndex = currentRowIndex + offset;
+                        break;
+                    }
+                }
+            }
+
+            if (!empCode || !employeeName || empDataRowIndex === -1) {
+                currentRowIndex++;
                 continue;
             }
 
-            // Find the row with day numbers (01, 02, 03, etc.)
+            // Find key attendance rows
             let dayRow = null;
             let arrivalRow = null;
             let departureRow = null;
             let workingRow = null;
             let overtimeRow = null;
             let statusRow = null;
+            let nextIndex = empDataRowIndex + 1;
 
-            // Search for key rows in the next 10 rows
-            for (let i = currentRowIndex + 3; i < Math.min(currentRowIndex + 15, rows.length); i++) {
+            for (let i = empDataRowIndex + 1; i < Math.min(empDataRowIndex + 12, rows.length); i++) {
                 const checkRow = rows[i];
                 if (!checkRow) continue;
 
-                const firstCell = checkRow[empCodeIndex + 3]; // Skip EmpCode, Name, Designation columns
+                if (checkRow.some(c => c !== null && c !== undefined && /^(EmpCode|Emp\s*Code)$/i.test(String(c).trim()))) {
+                    break;
+                }
+
+                const labelStr = checkRow.slice(0, 5).filter(Boolean).map(c => String(c).trim()).join(' ').toLowerCase();
+                const hasDays = checkRow.some(c => c === '01' || c === 1 || c === '1') && checkRow.some(c => c === '02' || c === 2 || c === '2');
                 
-                if (firstCell === '01' || firstCell === 1) {
+                if (hasDays && !dayRow) {
                     dayRow = checkRow;
-                } else if (firstCell === 'Arrived Time' || firstCell === 'Arrived Time ') {
+                    nextIndex = Math.max(nextIndex, i + 1);
+                } else if (/arrived\s*t[i|I]me/i.test(labelStr) || labelStr.includes('arrived')) {
                     arrivalRow = checkRow;
-                } else if (firstCell === 'Dept.Time' || firstCell === 'Dept. Time') {
+                    nextIndex = Math.max(nextIndex, i + 1);
+                } else if (/dept\.?\s*time/i.test(labelStr) || labelStr.includes('dept')) {
                     departureRow = checkRow;
-                } else if (firstCell === 'Working Hrs.' || firstCell === 'Working Hrs') {
+                    nextIndex = Math.max(nextIndex, i + 1);
+                } else if (/working\s*hrs?\.?/i.test(labelStr) || (labelStr.includes('working') && labelStr.includes('hr'))) {
                     workingRow = checkRow;
-                } else if (firstCell === 'O.Times Hrs.' || firstCell === 'O.Times Hrs') {
+                    nextIndex = Math.max(nextIndex, i + 1);
+                } else if (/o\.?times?\s*hrs?\.?/i.test(labelStr) || labelStr.includes('o.time') || labelStr.includes('ovtim')) {
                     overtimeRow = checkRow;
-                } else if (firstCell === 'Status') {
+                    nextIndex = Math.max(nextIndex, i + 1);
+                } else if (/^status/i.test(labelStr) || labelStr.includes('status')) {
                     statusRow = checkRow;
+                    nextIndex = Math.max(nextIndex, i + 1);
                 }
             }
 
-            if (!dayRow || !statusRow) {
-                errors.push(`Employee ${empCode} (${employeeName}): Could not find day or status rows`);
-                currentRowIndex += 15;
+            if (!statusRow) {
+                currentRowIndex = nextIndex;
                 continue;
             }
 
-            // Parse daily attendance records
-            const dayOffset = empCodeIndex + 3; // Start of day columns
+            // Find start of day columns
+            let day1Index = -1;
+            if (dayRow) {
+                day1Index = dayRow.findIndex(c => c === '01' || c === 1 || c === '1');
+            }
+            if (day1Index === -1) {
+                day1Index = empCodeIndex + 3;
+            }
             
-            for (let day = 1; day <= 31; day++) {
-                const dayColumnIndex = dayOffset + (day - 1);
-                
-                // Skip if column doesn't exist in row
-                if (dayColumnIndex >= dayRow.length) continue;
+            const daysInMonth = new Date(year, month, 0).getDate();
 
-                const status = statusRow[dayColumnIndex];
-                const arrival = arrivalRow?.[dayColumnIndex] || null;
-                const departure = departureRow?.[dayColumnIndex] || null;
-                const workingHours = workingRow?.[dayColumnIndex] || "00:00";
-                const overtimeHours = overtimeRow?.[dayColumnIndex] || "00:00";
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayColumnIndex = day1Index + (day - 1);
+                if (dayColumnIndex >= statusRow.length) continue;
 
-                // Only create record if status exists
-                if (status && status.trim() !== '') {
-                    // Validate status
-                    const validStatuses = ['P', 'A', 'AL-AL', 'POW', 'WO'];
+                const rawStatus = statusRow[dayColumnIndex];
+                const status = rawStatus ? String(rawStatus).trim() : '';
+                const arrival = arrivalRow?.[dayColumnIndex] ? String(arrivalRow[dayColumnIndex]).trim() : null;
+                const departure = departureRow?.[dayColumnIndex] ? String(departureRow[dayColumnIndex]).trim() : null;
+                const workingHours = workingRow?.[dayColumnIndex] ? String(workingRow[dayColumnIndex]).trim() : "00:00";
+                const overtimeHours = overtimeRow?.[dayColumnIndex] ? String(overtimeRow[dayColumnIndex]).trim() : "00:00";
+
+                if (status && status !== '') {
+                    const validStatuses = ['P', 'A', 'AL-AL', 'POW', 'WO', 'HL', 'L'];
                     if (!validStatuses.includes(status)) {
                         warnings.push(`Employee ${empCode}: Invalid status "${status}" for day ${day}`);
                     }
 
-                    // Create date object
                     const date = new Date(year, month - 1, day);
                     
                     attendanceData.push({
@@ -122,7 +150,7 @@ export const parseMonthlyAttendanceExcel = (filePath, month, year) => {
                 }
             }
 
-            currentRowIndex += 15;
+            currentRowIndex = nextIndex;
         }
 
         return {

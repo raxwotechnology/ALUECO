@@ -39,45 +39,53 @@ export default function BomFormPage() {
     const [status, setStatus] = useState('active');
     const [isDefault, setIsDefault] = useState(true);
 
-    const { data: productsData } = useQuery({
+    const { data: productsData, isLoading: productsLoading, error: productsError } = useQuery({
         queryKey: ['products', 'all'],
         queryFn: () => productsApi.list({ limit: 500 }),
     });
+
+    // Show error if products fail to load
+    useEffect(() => {
+        if (productsError) {
+            console.error('Failed to load products:', productsError);
+            toast.error('Failed to load products. Some features may not work correctly.');
+        }
+    }, [productsError]);
     const [extraProducts, setExtraProducts] = useState([]);
     
     const products = useMemo(() => {
         const fetched = productsData?.data || [];
         return [...fetched, ...extraProducts];
-    }, [productsData, extraProducts]);
+    }, [productsData?.data, extraProducts]);
 
     // Split products
-    const finishedProducts = products.filter((p) =>
-        p.canBeManufactured || p.productType === 'finished_good' || p.productType === 'semi_finished'
+    const finishedProducts = (products || []).filter((p) =>
+        p && (p.canBeManufactured || p.productType === 'finished_good' || p.productType === 'semi_finished')
     );
-    const componentProducts = products.filter((p) =>
-        (p.productType === 'raw_material' || p.productType === 'packaging' ||
+    const componentProducts = (products || []).filter((p) =>
+        p && (p.productType === 'raw_material' || p.productType === 'packaging' ||
         p.productType === 'semi_finished' || p.productType === 'consumable') &&
         (p.businessType !== 'alueco' || p.aluCategory === 'profiles')
     );
-    const glassProducts = products.filter((p) =>
-        p.businessType === 'alueco' && p.aluCategory === 'glass'
+    const glassProducts = (products || []).filter((p) =>
+        p && p.businessType === 'alueco' && p.aluCategory === 'glass'
     );
-    const accessoryProducts = products.filter((p) =>
-        p.businessType === 'alueco' && p.aluCategory === 'accessories'
+    const accessoryProducts = (products || []).filter((p) =>
+        p && p.businessType === 'alueco' && p.aluCategory === 'accessories'
     );
 
-    const finishedOptions = finishedProducts.map((p) => ({
+    const finishedOptions = (finishedProducts || []).map((p) => ({
         value: p._id, label: `${p.name} (${p.productCode})`,
     }));
-    const componentOptions = componentProducts.map((p) => ({
+    const componentOptions = (componentProducts || []).map((p) => ({
         value: p._id,
         label: `${p.name} · ${p.productCode} · ${p.productType}`,
     }));
-    const glassOptions = glassProducts.map((p) => ({
+    const glassOptions = (glassProducts || []).map((p) => ({
         value: p._id,
         label: `${p.name} · ${p.productCode}`,
     }));
-    const accessoryOptions = accessoryProducts.map((p) => ({
+    const accessoryOptions = (accessoryProducts || []).map((p) => ({
         value: p._id,
         label: `${p.name} · ${p.productCode}`,
     }));
@@ -111,35 +119,42 @@ export default function BomFormPage() {
     // Auto-set UOM from finished product
     useEffect(() => {
         if (!outputUnitOfMeasure && finishedProductId) {
-            const p = products.find((x) => x._id === finishedProductId);
+            const p = products.find((x) => x && x._id === finishedProductId);
             if (p?.unitOfMeasure) setOutputUnitOfMeasure(p.unitOfMeasure);
         }
-    }, [finishedProductId, products, outputUnitOfMeasure]);
+    }, [finishedProductId, products]);
 
     const addComponent = () => setComponents([...components, { productId: '', quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', barLength: '21', base21ftPrice: 0 }]);
     const removeComponent = (idx) => setComponents(components.filter((_, i) => i !== idx));
     const updateComponent = (idx, field, value) => {
-        const newComps = [...components];
-        newComps[idx] = { ...newComps[idx], [field]: value };
-        if (field === 'productId' && value) {
-            const p = products.find((pr) => pr._id === value);
-            if (p) {
-                newComps[idx].standardCost = p.costs?.averageCost || p.costs?.lastPurchaseCost || p.basePrice || 0;
-                newComps[idx].componentType = p.productType === 'packaging' ? 'packaging'
-                    : p.productType === 'semi_finished' ? 'semi_finished'
-                        : 'raw_material';
-                newComps[idx].base21ftPrice = p.costs?.averageCost || p.costs?.lastPurchaseCost || p.basePrice || 0;
+        try {
+            const newComps = [...components];
+            newComps[idx] = { ...newComps[idx], [field]: value };
+            if (field === 'productId' && value) {
+                const p = products.find((pr) => pr && pr._id === value);
+                if (p) {
+                    // Safely access nested properties
+                    const costs = p.costs || {};
+                    newComps[idx].standardCost = costs.averageCost || costs.lastPurchaseCost || p.basePrice || 0;
+                    newComps[idx].componentType = p.productType === 'packaging' ? 'packaging'
+                        : p.productType === 'semi_finished' ? 'semi_finished'
+                            : 'raw_material';
+                    newComps[idx].base21ftPrice = costs.averageCost || costs.lastPurchaseCost || p.basePrice || 0;
+                }
             }
+            // Recalculate cost when bar length or base price changes
+            if (field === 'barLength' || field === 'base21ftPrice') {
+                const barLength = Number(newComps[idx].barLength) || 21;
+                const basePrice = Number(newComps[idx].base21ftPrice) || 0;
+                const pricePerFoot = basePrice / 21;
+                const targetCost = pricePerFoot * barLength;
+                newComps[idx].standardCost = targetCost * 1.05; // 105% for wastage
+            }
+            setComponents(newComps);
+        } catch (error) {
+            console.error('Error updating component:', error);
+            toast.error('Failed to update component. Please try again.');
         }
-        // Recalculate cost when bar length or base price changes
-        if (field === 'barLength' || field === 'base21ftPrice') {
-            const barLength = Number(newComps[idx].barLength) || 21;
-            const basePrice = Number(newComps[idx].base21ftPrice) || 0;
-            const pricePerFoot = basePrice / 21;
-            const targetCost = pricePerFoot * barLength;
-            newComps[idx].standardCost = targetCost * 1.05; // 105% for wastage
-        }
-        setComponents(newComps);
     };
 
     const addLabor = () => setLabor([...labor, { laborType: 'general', description: '', hours: 1, hourlyRate: 0 }]);
@@ -151,27 +166,40 @@ export default function BomFormPage() {
     };
 
     const totals = useMemo(() => {
-        let matCost = 0;
-        components.forEach((c) => {
-            const qty = +c.quantity || 0;
-            const cost = +c.standardCost || 0;
-            const wastage = +c.wastagePercent || 0;
-            matCost += qty * (1 + wastage / 100) * cost;
-        });
-        let laborCost = 0;
-        labor.forEach((l) => {
-            laborCost += (+l.hours || 0) * (+l.hourlyRate || 0);
-        });
-        const overhead = (matCost + laborCost) * (+overheadPercent || 0) / 100;
-        const total = matCost + laborCost + overhead;
-        const perUnit = outputQuantity > 0 ? total / outputQuantity : 0;
-        return {
-            material: +matCost.toFixed(2),
-            labor: +laborCost.toFixed(2),
-            overhead: +overhead.toFixed(2),
-            total: +total.toFixed(2),
-            perUnit: +perUnit.toFixed(2),
-        };
+        try {
+            let matCost = 0;
+            (components || []).forEach((c) => {
+                if (!c) return;
+                const qty = +c.quantity || 0;
+                const cost = +c.standardCost || 0;
+                const wastage = +c.wastagePercent || 0;
+                matCost += qty * (1 + wastage / 100) * cost;
+            });
+            let laborCost = 0;
+            (labor || []).forEach((l) => {
+                if (!l) return;
+                laborCost += (+l.hours || 0) * (+l.hourlyRate || 0);
+            });
+            const overhead = (matCost + laborCost) * (+overheadPercent || 0) / 100;
+            const total = matCost + laborCost + overhead;
+            const perUnit = outputQuantity > 0 ? total / outputQuantity : 0;
+            return {
+                material: +matCost.toFixed(2),
+                labor: +laborCost.toFixed(2),
+                overhead: +overhead.toFixed(2),
+                total: +total.toFixed(2),
+                perUnit: +perUnit.toFixed(2),
+            };
+        } catch (error) {
+            console.error('Error calculating totals:', error);
+            return {
+                material: 0,
+                labor: 0,
+                overhead: 0,
+                total: 0,
+                perUnit: 0,
+            };
+        }
     }, [components, labor, overheadPercent, outputQuantity]);
 
     const fmt = (n) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(n || 0);
@@ -224,9 +252,14 @@ export default function BomFormPage() {
                 </Button>}
             />
 
-            <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2 space-y-6">
-                    <Card className="p-6">
+            {productsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-gray-500">Loading products...</div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-3 gap-6">
+                    <div className="col-span-2 space-y-6">
+                        <Card className="p-6">
                         <h3 className="text-sm font-semibold text-gray-700 mb-4">Basic Info</h3>
                         <div className="space-y-4">
                             <div className="grid grid-cols-3 gap-4">
@@ -241,6 +274,7 @@ export default function BomFormPage() {
                                 products={finishedProducts}
                                 value={finishedProductId}
                                 productType="finished_good"
+                                allowAutoCreate={false}
                                 onChange={(val, newProd) => {
                                     if (newProd) {
                                         setExtraProducts(prev => [...prev, newProd]);
@@ -254,11 +288,16 @@ export default function BomFormPage() {
                                     <select
                                         value={components.find(c => c.aluComponentType === 'profile')?.productId || ''}
                                         onChange={(e) => {
-                                            const idx = components.findIndex(c => c.aluComponentType === 'profile');
-                                            if (idx >= 0) {
-                                                updateComponent(idx, 'productId', e.target.value);
-                                            } else {
-                                                setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'profile' }]);
+                                            try {
+                                                const idx = components.findIndex(c => c.aluComponentType === 'profile');
+                                                if (idx >= 0) {
+                                                    updateComponent(idx, 'productId', e.target.value);
+                                                } else {
+                                                    setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'profile' }]);
+                                                }
+                                            } catch (error) {
+                                                console.error('Error selecting profile code:', error);
+                                                toast.error('Failed to select profile code. Please try again.');
                                             }
                                         }}
                                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
@@ -274,11 +313,16 @@ export default function BomFormPage() {
                                     <select
                                         value={components.find(c => c.aluComponentType === 'glass')?.productId || ''}
                                         onChange={(e) => {
-                                            const idx = components.findIndex(c => c.aluComponentType === 'glass');
-                                            if (idx >= 0) {
-                                                updateComponent(idx, 'productId', e.target.value);
-                                            } else {
-                                                setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'glass' }]);
+                                            try {
+                                                const idx = components.findIndex(c => c.aluComponentType === 'glass');
+                                                if (idx >= 0) {
+                                                    updateComponent(idx, 'productId', e.target.value);
+                                                } else {
+                                                    setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'glass' }]);
+                                                }
+                                            } catch (error) {
+                                                console.error('Error selecting glass code:', error);
+                                                toast.error('Failed to select glass code. Please try again.');
                                             }
                                         }}
                                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
@@ -294,11 +338,16 @@ export default function BomFormPage() {
                                     <select
                                         value={components.find(c => c.aluComponentType === 'accessory')?.productId || ''}
                                         onChange={(e) => {
-                                            const idx = components.findIndex(c => c.aluComponentType === 'accessory');
-                                            if (idx >= 0) {
-                                                updateComponent(idx, 'productId', e.target.value);
-                                            } else {
-                                                setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'accessory' }]);
+                                            try {
+                                                const idx = components.findIndex(c => c.aluComponentType === 'accessory');
+                                                if (idx >= 0) {
+                                                    updateComponent(idx, 'productId', e.target.value);
+                                                } else {
+                                                    setComponents([...components, { productId: e.target.value, quantity: 1, wastagePercent: 0, standardCost: 0, componentType: 'raw_material', aluComponentType: 'accessory' }]);
+                                                }
+                                            } catch (error) {
+                                                console.error('Error selecting accessory code:', error);
+                                                toast.error('Failed to select accessory code. Please try again.');
                                             }
                                         }}
                                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
@@ -327,7 +376,8 @@ export default function BomFormPage() {
                             </Button>
                         </div>
                         <div className="space-y-3">
-                            {components.map((c, idx) => {
+                            {(components || []).map((c, idx) => {
+                                if (!c) return null;
                                 const effective = (+c.quantity || 0) * (1 + (+c.wastagePercent || 0) / 100);
                                 const lineTotal = effective * (+c.standardCost || 0);
                                 return (
@@ -340,6 +390,7 @@ export default function BomFormPage() {
                                                     products={componentProducts}
                                                     value={c.productId}
                                                     productType="raw_material"
+                                                    allowAutoCreate={false}
                                                     onChange={(val, newProd) => {
                                                         if (newProd) {
                                                             setExtraProducts(prev => [...prev, newProd]);
@@ -401,35 +452,38 @@ export default function BomFormPage() {
                             <p className="text-sm text-gray-500 text-center py-4">No labor tracked for this formula</p>
                         ) : (
                             <div className="space-y-2">
-                                {labor.map((l, idx) => (
-                                    <div key={idx} className="flex gap-2 items-start border rounded-lg p-2">
-                                        <div className="w-32">
-                                            <Select options={[
-                                                { value: 'skilled', label: 'Skilled' },
-                                                { value: 'unskilled', label: 'Unskilled' },
-                                                { value: 'supervisor', label: 'Supervisor' },
-                                                { value: 'machinist', label: 'Machinist' },
-                                                { value: 'general', label: 'General' },
-                                            ]} value={l.laborType} onChange={(e) => updateLabor(idx, 'laborType', e.target.value)} />
+                                {(labor || []).map((l, idx) => {
+                                    if (!l) return null;
+                                    return (
+                                        <div key={idx} className="flex gap-2 items-start border rounded-lg p-2">
+                                            <div className="w-32">
+                                                <Select options={[
+                                                    { value: 'skilled', label: 'Skilled' },
+                                                    { value: 'unskilled', label: 'Unskilled' },
+                                                    { value: 'supervisor', label: 'Supervisor' },
+                                                    { value: 'machinist', label: 'Machinist' },
+                                                    { value: 'general', label: 'General' },
+                                                ]} value={l.laborType} onChange={(e) => updateLabor(idx, 'laborType', e.target.value)} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <Input placeholder="Description (e.g., 'Mixing step')"
+                                                    value={l.description} onChange={(e) => updateLabor(idx, 'description', e.target.value)} />
+                                            </div>
+                                            <div className="w-24">
+                                                <Input type="number" step="0.01" min="0" placeholder="Hours"
+                                                    value={l.hours} onChange={(e) => updateLabor(idx, 'hours', e.target.value)} />
+                                            </div>
+                                            <div className="w-28">
+                                                <Input type="number" step="0.01" min="0" placeholder="Rate/hr"
+                                                    value={l.hourlyRate} onChange={(e) => updateLabor(idx, 'hourlyRate', e.target.value)} />
+                                            </div>
+                                            <button type="button" onClick={() => removeLabor(idx)}
+                                                className="text-red-600 hover:bg-red-50 p-2 rounded">
+                                                <Trash2 size={14} />
+                                            </button>
                                         </div>
-                                        <div className="flex-1">
-                                            <Input placeholder="Description (e.g., 'Mixing step')"
-                                                value={l.description} onChange={(e) => updateLabor(idx, 'description', e.target.value)} />
-                                        </div>
-                                        <div className="w-24">
-                                            <Input type="number" step="0.01" min="0" placeholder="Hours"
-                                                value={l.hours} onChange={(e) => updateLabor(idx, 'hours', e.target.value)} />
-                                        </div>
-                                        <div className="w-28">
-                                            <Input type="number" step="0.01" min="0" placeholder="Rate/hr"
-                                                value={l.hourlyRate} onChange={(e) => updateLabor(idx, 'hourlyRate', e.target.value)} />
-                                        </div>
-                                        <button type="button" onClick={() => removeLabor(idx)}
-                                            className="text-red-600 hover:bg-red-50 p-2 rounded">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </Card>
@@ -485,6 +539,7 @@ export default function BomFormPage() {
                     </Card>
                 </div>
             </div>
+            )}
         </div>
     );
 }

@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 export default function PaymentsPage() {
     const navigate = useNavigate();
     const [filters, setFilters] = useState({ direction: '', method: '', page: 1, limit: 15 });
+    const [deletingId, setDeletingId] = useState(null);
     const { data, isLoading, refetch } = usePayments(filters);
 
     const payments = data?.data || [];
@@ -42,10 +43,12 @@ export default function PaymentsPage() {
     };
 
     const handleDelete = async (payment) => {
+        if (deletingId) return;
         if (!window.confirm(`Are you sure you want to delete payment ${payment.paymentNumber}? This action cannot be undone.`)) {
             return;
         }
         try {
+            setDeletingId(payment._id);
             console.log('Deleting payment:', payment._id);
             await paymentsApi.delete(payment._id);
             console.log('Delete successful');
@@ -55,6 +58,8 @@ export default function PaymentsPage() {
             console.error('Delete error:', error);
             console.error('Error response:', error.response);
             toast.error(error.response?.data?.message || 'Failed to delete payment');
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -94,10 +99,19 @@ export default function PaymentsPage() {
                         className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded">
                         <Eye size={16} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(r); }}
-                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                        title="Delete payment">
-                        <Trash2 size={16} />
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(r); }}
+                        disabled={deletingId === r._id}
+                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                        title={deletingId === r._id ? "Deleting payment..." : "Delete payment"}>
+                        {deletingId === r._id ? (
+                            <svg className="animate-spin w-4 h-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                        ) : (
+                            <Trash2 size={16} />
+                        )}
                     </button>
                 </div>
             ),

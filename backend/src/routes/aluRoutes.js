@@ -17,7 +17,7 @@ import {
     updateAluQuotation, deleteAluQuotation, reviseAluQuotation, duplicateAluQuotation,
     convertAluQuotationToOrder, exportAluQuotationToCNC,
     approveAluQuotationDiscount, getWastageVarianceReport,
-    getProjectCostingSheet
+    getProjectCostingSheet, recalculateAluQuotation
 } from '../controllers/aluQuotationController.js';
 import {
     getAgreements, getAgreementById, createAgreement,
@@ -103,6 +103,7 @@ router.post('/quotations/:id/duplicate', duplicateAluQuotation);
 router.put('/quotations/:id/approve-discount', approveAluQuotationDiscount);
 router.post('/quotations/:id/convert-to-order', convertAluQuotationToOrder);
 router.post('/quotations/:id/cnc-export', exportAluQuotationToCNC);
+router.post('/quotations/:id/recalculate', recalculateAluQuotation);
 
 // Scrap Inventory CRUD
 router.route('/scrap')
