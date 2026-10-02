@@ -35,6 +35,15 @@ export const useDeleteShift = () => { const qc = useQueryClient(); return useMut
 
 // Attendance
 export const useAttendance = (filters = {}) => useQuery({ queryKey: ['attendance', filters], queryFn: () => attendanceApi.list(filters), keepPreviousData: true });
+export const useMonthlyAttendanceSummary = (filters = {}) => useQuery({
+    queryKey: ['attendance', 'monthly-summary', filters],
+    queryFn: () => attendanceApi.getMonthlySummary(filters),
+    keepPreviousData: true,
+});
+export const useUploadedAttendanceMonths = () => useQuery({
+    queryKey: ['attendance', 'uploaded-months'],
+    queryFn: () => attendanceApi.getUploadedMonths(),
+});
 export const useMarkAttendance = () => { const qc = useQueryClient(); return useMutation({ mutationFn: attendanceApi.mark, onSuccess: () => { invalidate(qc, ['attendance'])(); toast.success('Marked'); }, onError: onErr }); };
 export const useBulkMarkAttendance = () => { const qc = useQueryClient(); return useMutation({ mutationFn: attendanceApi.bulkMark, onSuccess: (r) => { invalidate(qc, ['attendance'])(); toast.success(`Marked ${r.count} records`); }, onError: onErr }); };
 

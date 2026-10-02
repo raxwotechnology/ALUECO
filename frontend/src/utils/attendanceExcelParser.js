@@ -43,22 +43,26 @@ const formatMins = (mins) => {
 /**
  * Parse monthly performance report (Luxo format)
  */
-export const parseMonthlyPerformanceSheet = (rawRows) => {
+export const parseMonthlyPerformanceSheet = (rawRows, options = {}) => {
     const records = [];
     const parsedEmployeesList = [];
     const errors = [];
     let period = null;
 
-    // Detect Month & Year from top header rows
-    for (let r = 0; r < Math.min(10, rawRows.length); r++) {
-        const rowStr = (rawRows[r] || []).join(' ');
-        const dateMatch = rowStr.match(/(?:Report\s*Date\s*From\s*:?\s*)?(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/i);
-        if (dateMatch) {
-            const m = parseInt(dateMatch[2], 10);
-            const y = parseInt(dateMatch[3], 10);
-            if (m >= 1 && m <= 12 && y >= 2000 && y <= 2100) {
-                period = { month: m, year: y };
-                break;
+    if (options.targetMonth && options.targetYear) {
+        period = { month: parseInt(options.targetMonth, 10), year: parseInt(options.targetYear, 10) };
+    } else {
+        // Detect Month & Year from top header rows
+        for (let r = 0; r < Math.min(10, rawRows.length); r++) {
+            const rowStr = (rawRows[r] || []).join(' ');
+            const dateMatch = rowStr.match(/(?:Report\s*Date\s*From\s*:?\s*)?(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/i);
+            if (dateMatch) {
+                const m = parseInt(dateMatch[2], 10);
+                const y = parseInt(dateMatch[3], 10);
+                if (m >= 1 && m <= 12 && y >= 2000 && y <= 2100) {
+                    period = { month: m, year: y };
+                    break;
+                }
             }
         }
     }
@@ -294,7 +298,7 @@ export const parseMonthlyPerformanceSheet = (rawRows) => {
 /**
  * Client-side parse Excel file directly in browser
  */
-export const parseAttendanceFileInBrowser = async (file, existingEmployees = []) => {
+export const parseAttendanceFileInBrowser = async (file, existingEmployees = [], options = {}) => {
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
     const sheetName = workbook.SheetNames[0];
@@ -307,7 +311,7 @@ export const parseAttendanceFileInBrowser = async (file, existingEmployees = [])
     ];
 
     if (isMonthlyPerformanceReport(rawRows)) {
-        const { period, records, employees: parsedEmployees, errors } = parseMonthlyPerformanceSheet(rawRows);
+        const { period, records, employees: parsedEmployees, errors } = parseMonthlyPerformanceSheet(rawRows, options);
         const monthName = period?.month ? `${monthNames[period.month - 1]} ${period.year}` : 'Detected Period';
 
         let matchedCount = 0;

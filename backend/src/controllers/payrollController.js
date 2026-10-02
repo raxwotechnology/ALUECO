@@ -34,12 +34,17 @@ const countWorkingDays = async (year, month) => {
  * Get attendance summary for employee in a month
  */
 const getEmployeeMonthAttendance = async (employeeId, year, month) => {
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999);
 
     const records = await Attendance.find({
         employeeId,
-        date: { $gte: start, $lte: end },
+        $or: [
+            { month: m, year: y },
+            { date: { $gte: start, $lte: end } },
+        ],
     });
 
     let daysPresent = 0;
@@ -157,9 +162,18 @@ export const processPayroll = asyncHandler(async (req, res) => {
                         amount,
                         type: 'allowance',
                         isTaxable: c.isTaxable !== false,
-                        isEpfable: true, // default; can be overridden in structure design
+                        isEpfable: true, 
                     });
                 });
+        }
+
+        let empOtRate = overtimeRatePerHour;
+        if (!empOtRate && emp.basicWageRate) {
+            empOtRate = +(emp.basicWageRate * 1.5).toFixed(2);
+        }
+        if (!empOtRate && emp.basicSalary) {
+            // Standard Sri Lanka formula: hourly rate = basicSalary / 200; OT = 1.5 * hourly rate
+            empOtRate = +((emp.basicSalary / 200) * 1.5).toFixed(2);
         }
 
         const calc = calculatePayslip({
@@ -172,7 +186,7 @@ export const processPayroll = asyncHandler(async (req, res) => {
                 unpaidLeaveDays: isDaily ? 0 : attendance.unpaidLeaveDays, // Daily wage earners don't have double unpaid leave deductions
                 overtimeHours: attendance.overtimeHours,
             },
-            overtimeRate: overtimeRatePerHour,
+            overtimeRate: empOtRate,
         });
 
         payslips.push({

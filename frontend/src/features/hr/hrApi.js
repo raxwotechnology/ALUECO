@@ -32,6 +32,8 @@ export const shiftsApi = {
 
 export const attendanceApi = {
     list: async (params = {}) => (await api.get('/hr/attendance', { params })).data,
+    getMonthlySummary: async (params = {}) => (await api.get('/hr/attendance/monthly-summary', { params })).data,
+    getUploadedMonths: async () => (await api.get('/hr/attendance/uploaded-months')).data,
     mark: async (data) => (await api.post('/hr/attendance', data)).data,
     bulkMark: async (data) => (await api.post('/hr/attendance/bulk', data)).data,
     previewExcel: async (formData) => (await api.post('/hr/attendance/preview', formData, {

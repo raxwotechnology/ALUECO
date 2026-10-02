@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Play, Eye, DollarSign } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Plus, Play, Eye, DollarSign, CalendarCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '../components/ui/PageHeader';
@@ -27,6 +27,8 @@ const statusVariant = {
 
 export default function PayrollsPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
     const [year, setYear] = useState(new Date().getFullYear());
     const { data } = usePayrolls({ year });
     const processM = useProcessPayroll();
@@ -35,6 +37,20 @@ export default function PayrollsPage() {
     const [processMonth, setProcessMonth] = useState(new Date().getMonth() + 1);
     const [processYear, setProcessYear] = useState(new Date().getFullYear());
     const [overtimeRate, setOvertimeRate] = useState(0);
+
+    // Read URL query params (?month=7&year=2026) e.g. from Attendance Page
+    useEffect(() => {
+        const qMonth = searchParams.get('month');
+        const qYear = searchParams.get('year');
+        if (qMonth) setProcessMonth(Number(qMonth));
+        if (qYear) {
+            setProcessYear(Number(qYear));
+            setYear(Number(qYear));
+        }
+        if (qMonth || qYear) {
+            setIsProcessOpen(true);
+        }
+    }, [searchParams]);
 
     const payrolls = data?.data || [];
 
@@ -88,9 +104,20 @@ export default function PayrollsPage() {
 
             <Modal isOpen={isProcessOpen} onClose={() => setIsProcessOpen(false)} title="Process Monthly Payroll" size="md">
                 <div className="p-6 space-y-4">
-                    <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
-                        <strong>Before processing:</strong> ensure attendance for this month is marked and leaves are approved.
-                        EPF 8% employee + 12% employer, ETF 3%, and APIT income tax will be auto-calculated.
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+                        <p className="font-semibold flex items-center gap-1.5 text-amber-950">
+                            <CalendarCheck size={14} className="text-amber-700" />
+                            Biometric Attendance & Statutory Integration:
+                        </p>
+                        <p>
+                            All attendance logs, present days, unpaid absences, and overtime hours recorded for this month will be automatically fetched and applied to payslips.
+                        </p>
+                        <p className="text-[11px] text-amber-800">
+                            Need to inspect or import biometric sheets first?
+                            <Link to="/attendance" className="underline font-semibold text-amber-900 ml-1 hover:text-black">
+                                Go to Attendance Reports →
+                            </Link>
+                        </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Select label="Month" required options={months}
@@ -98,12 +125,14 @@ export default function PayrollsPage() {
                         <Input label="Year" required type="number" value={processYear}
                             onChange={(e) => setProcessYear(e.target.value)} />
                     </div>
-                    <Input label="Overtime Rate (LKR per hour)" type="number" step="0.01" min="0"
-                        value={overtimeRate} onChange={(e) => setOvertimeRate(e.target.value)}
-                        placeholder="0 = no overtime calculation" />
-                    <p className="text-xs text-gray-500">
-                        Tip: Common rates are 1.5× hourly basic. For a LKR 50,000/month basic, hourly is ~240, so OT at 1.5× = ~360.
-                    </p>
+                    <div>
+                        <Input label="Overtime Rate (LKR per hour)" type="number" step="0.01" min="0"
+                            value={overtimeRate} onChange={(e) => setOvertimeRate(e.target.value)}
+                            placeholder="0 = Auto-calculate from basic salary" />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            <strong>Leave at 0 for automatic OT calculation:</strong> The system will automatically use the statutory Sri Lanka labor rate of <code>1.5 × (Basic Salary / 200)</code> for each employee. Or enter a fixed LKR/hr rate to apply to everyone.
+                        </p>
+                    </div>
                 </div>
                 <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
                     <Button variant="outline" onClick={() => setIsProcessOpen(false)}>Cancel</Button>

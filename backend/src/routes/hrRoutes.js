@@ -5,6 +5,7 @@ import {
     createEmployee, getEmployees, getEmployeeById, updateEmployee, deleteEmployee,
     createShift, getShifts, updateShift, deleteShift,
     markAttendance, getAttendance, bulkMarkAttendance, previewAttendanceFromExcel, importAttendanceFromExcel,
+    getMonthlyAttendanceSummary, getUploadedAttendanceMonths,
     createLeaveRequest, getLeaveRequests, approveLeaveRequest, rejectLeaveRequest, cancelLeaveRequest,
     createHoliday, getHolidays, updateHoliday, deleteHoliday,
     createSalaryStructure, getSalaryStructures, updateSalaryStructure, deleteSalaryStructure,
@@ -64,6 +65,8 @@ router.route('/attendance')
     .get(requirePermission('hr.attendance.view'), getAttendance)
     .post(requirePermission('hr.attendance.manage'), markAttendance);
 
+router.get('/attendance/monthly-summary', requirePermission('hr.attendance.view'), getMonthlyAttendanceSummary);
+router.get('/attendance/uploaded-months', requirePermission('hr.attendance.view'), getUploadedAttendanceMonths);
 router.post('/attendance/bulk', requirePermission('hr.attendance.manage'), bulkMarkAttendance);
 router.post('/attendance/preview', requirePermission('hr.attendance.manage'), uploadMemory.single('file'), previewAttendanceFromExcel);
 router.post('/attendance/import', requirePermission('hr.attendance.manage'), uploadMemory.single('file'), importAttendanceFromExcel);

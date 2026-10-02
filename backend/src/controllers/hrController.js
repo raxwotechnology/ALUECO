@@ -301,7 +301,7 @@ export const markAttendance = asyncHandler(async (req, res) => {
 export const getAttendance = asyncHandler(async (req, res) => {
     const {
         employeeId, departmentId, status,
-        startDate, endDate, date,
+        startDate, endDate, date, month, year,
         page = 1, limit = 50,
     } = req.query;
 
@@ -317,7 +317,17 @@ export const getAttendance = asyncHandler(async (req, res) => {
         if (employeeId) filter.employeeId = employeeId;
         if (status) filter.status = status;
     }
-    if (date) {
+
+    if (month && year) {
+        const m = parseInt(month, 10);
+        const y = parseInt(year, 10);
+        const start = new Date(y, m - 1, 1);
+        const end = new Date(y, m, 0, 23, 59, 59, 999);
+        filter.$or = [
+            { month: m, year: y },
+            { date: { $gte: start, $lte: end } },
+        ];
+    } else if (date) {
         const d = new Date(date); d.setHours(0, 0, 0, 0);
         const next = new Date(d); next.setDate(next.getDate() + 1);
         filter.date = { $gte: d, $lt: next };
@@ -348,6 +358,225 @@ export const getAttendance = asyncHandler(async (req, res) => {
         success: true, count: records.length, total,
         page: Number(page), totalPages: Math.ceil(total / Number(limit)),
         data: records,
+    });
+});
+
+/**
+ * GET /api/hr/attendance/monthly-summary
+ * Grouped monthly attendance totals by employee
+ */
+export const getMonthlyAttendanceSummary = asyncHandler(async (req, res) => {
+    const { month, year, departmentId } = req.query;
+
+    const m = month ? parseInt(month, 10) : new Date().getMonth() + 1;
+    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999);
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = `${monthNames[m - 1]} ${y}`;
+
+    const query = {
+        $or: [
+            { month: m, year: y },
+            { date: { $gte: start, $lte: end } },
+        ],
+    };
+
+    if (departmentId) {
+        const empIds = await Employee.find({ departmentId }).distinct('_id');
+        query.employeeId = { $in: empIds };
+    }
+
+    const attendanceRecords = await Attendance.find(query)
+        .populate({
+            path: 'employeeId',
+            select: 'employeeCode firstName lastName fullName designation departmentId basicSalary basicWageRate status',
+            populate: [
+                { path: 'designationId', select: 'name' },
+                { path: 'departmentId', select: 'name' },
+            ],
+        })
+        .sort({ date: 1 });
+
+    const empMap = new Map();
+
+    for (const rec of attendanceRecords) {
+        const emp = rec.employeeId;
+        const empCode = rec.employeeCode || emp?.employeeCode || 'Unknown';
+        const empKey = emp?._id ? emp._id.toString() : empCode;
+
+        if (!empMap.has(empKey)) {
+            const fullName = emp?.fullName || (emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : (rec.employeeName || 'Staff'));
+            const desig = emp?.designationId?.name || emp?.designation || 'Staff';
+            const dept = emp?.departmentId?.name || 'General';
+
+            empMap.set(empKey, {
+                employeeId: emp?._id || null,
+                employeeCode: empCode,
+                employeeName: fullName,
+                designation: desig,
+                department: dept,
+                basicSalary: emp?.basicSalary || 0,
+                hasSalaryConfigured: (emp?.basicSalary || 0) > 0,
+                daysPresent: 0,
+                daysAbsent: 0,
+                halfDays: 0,
+                leaveDays: 0,
+                weeklyOffs: 0,
+                totalWorkedMinutes: 0,
+                overtimeMinutes: 0,
+                lateMinutes: 0,
+                workingHours: '00:00',
+                overtimeHours: '00:00',
+                lateHours: '00:00',
+                dailyRecords: [],
+            });
+        }
+
+        const data = empMap.get(empKey);
+        const s = String(rec.status || '').trim().toLowerCase();
+
+        if (['p', 'pow', 'present', 'late'].includes(s)) {
+            data.daysPresent++;
+        } else if (['a', 'absent'].includes(s)) {
+            data.daysAbsent++;
+        } else if (['hl', 'half_day'].includes(s)) {
+            data.halfDays++;
+        } else if (['wo', 'weekly_off', 'weekend'].includes(s)) {
+            data.weeklyOffs++;
+        } else if (['al-al', 'leave', 'l'].includes(s)) {
+            data.leaveDays++;
+        }
+
+        data.totalWorkedMinutes += rec.totalWorkedMinutes || 0;
+        data.overtimeMinutes += rec.overtimeMinutes || 0;
+        data.lateMinutes += rec.lateMinutes || 0;
+
+        const dayNum = rec.date ? new Date(rec.date).getDate() : null;
+        data.dailyRecords.push({
+            day: dayNum,
+            date: rec.date ? (typeof rec.date.toISOString === 'function' ? rec.date.toISOString().slice(0, 10) : String(rec.date)) : null,
+            status: rec.status,
+            arrivalTime: rec.arrivalTime,
+            departureTime: rec.departureTime,
+            workingHours: rec.workingHours || '00:00',
+            overtimeHours: rec.overtimeHours || '00:00',
+            totalWorkedMinutes: rec.totalWorkedMinutes || 0,
+            overtimeMinutes: rec.overtimeMinutes || 0,
+        });
+    }
+
+    const formatMins = (mins) => {
+        if (!mins || mins <= 0) return '00:00';
+        const h = Math.floor(mins / 60);
+        const min = mins % 60;
+        return `${h}:${String(min).padStart(2, '0')}`;
+    };
+
+    const employees = Array.from(empMap.values()).map(emp => {
+        emp.workingHours = formatMins(emp.totalWorkedMinutes);
+        emp.overtimeHours = formatMins(emp.overtimeMinutes);
+        emp.lateHours = formatMins(emp.lateMinutes);
+        return emp;
+    });
+
+    let totalPresent = 0;
+    let totalAbsent = 0;
+    let totalLeaves = 0;
+    let totalOvertimeMins = 0;
+    let totalWorkedMins = 0;
+
+    employees.forEach(e => {
+        totalPresent += e.daysPresent;
+        totalAbsent += e.daysAbsent;
+        totalLeaves += e.leaveDays;
+        totalOvertimeMins += e.overtimeMinutes;
+        totalWorkedMins += e.totalWorkedMinutes;
+    });
+
+    res.json({
+        success: true,
+        period: {
+            month: m,
+            year: y,
+            monthName,
+            daysInMonth,
+        },
+        overallSummary: {
+            totalEmployees: employees.length,
+            totalRecords: attendanceRecords.length,
+            totalPresent,
+            totalAbsent,
+            totalLeaves,
+            totalOvertimeHours: formatMins(totalOvertimeMins),
+            totalWorkingHours: formatMins(totalWorkedMins),
+        },
+        employees,
+    });
+});
+
+/**
+ * GET /api/hr/attendance/uploaded-months
+ * List of months that have attendance recorded
+ */
+export const getUploadedAttendanceMonths = asyncHandler(async (req, res) => {
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const aggregated = await Attendance.aggregate([
+        {
+            $project: {
+                month: { $ifNull: ['$month', { $month: '$date' }] },
+                year: { $ifNull: ['$year', { $year: '$date' }] },
+                employeeId: '$employeeId',
+                createdAt: '$createdAt',
+            }
+        },
+        {
+            $match: {
+                month: { $ne: null, $gte: 1, $lte: 12 },
+                year: { $ne: null, $gte: 2000, $lte: 2100 },
+            }
+        },
+        {
+            $group: {
+                _id: { month: '$month', year: '$year' },
+                totalRecords: { $sum: 1 },
+                uniqueEmployees: { $addToSet: '$employeeId' },
+                lastUpdated: { $max: '$createdAt' },
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                month: '$_id.month',
+                year: '$_id.year',
+                totalRecords: 1,
+                employeeCount: { $size: '$uniqueEmployees' },
+                lastUpdated: 1,
+            }
+        },
+        {
+            $sort: { year: -1, month: -1 }
+        }
+    ]);
+
+    const formatted = aggregated.map(item => ({
+        ...item,
+        monthName: `${monthNames[item.month - 1]} ${item.year}`,
+    }));
+
+    res.json({
+        success: true,
+        data: formatted,
     });
 });
 
@@ -621,6 +850,8 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
     }
 
     const autoCreateEmployees = req.body.autoCreateEmployees === 'true' || req.body.autoCreateEmployees === true;
+    const targetMonth = req.body.targetMonth ? parseInt(req.body.targetMonth, 10) : null;
+    const targetYear = req.body.targetYear ? parseInt(req.body.targetYear, 10) : null;
 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
@@ -642,7 +873,17 @@ export const importAttendanceFromExcel = asyncHandler(async (req, res) => {
             throw new Error('Could not detect report month from Excel file');
         }
 
+        const effectiveMonth = (targetMonth >= 1 && targetMonth <= 12) ? targetMonth : period.month;
+        const effectiveYear = (targetYear >= 2000 && targetYear <= 2100) ? targetYear : period.year;
+
         for (const record of records) {
+            if (targetMonth && targetYear) {
+                record.month = effectiveMonth;
+                record.year = effectiveYear;
+                const d = new Date(record.date);
+                record.date = new Date(effectiveYear, effectiveMonth - 1, d.getDate());
+            }
+
             try {
                 let emp = null;
                 const cacheKey = `${record.employeeCode || ''}_${record.employeeName || ''}`;

@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     Plus, Calendar as CalendarIcon, Upload, CheckCircle2,
     AlertCircle, FileSpreadsheet, Eye, ChevronDown, ChevronUp,
-    Search, UserPlus, Users, ArrowLeft, RefreshCw, FileCheck
+    Search, UserPlus, Users, ArrowLeft, RefreshCw, FileCheck,
+    DollarSign, Play, Clock, CalendarDays, History, Sparkles,
+    Check, Filter, ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -16,9 +19,23 @@ import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
-import { useAttendance, useBulkMarkAttendance, useEmployees, useDepartments } from '../features/hr/useHr';
+import {
+    useAttendance,
+    useBulkMarkAttendance,
+    useEmployees,
+    useDepartments,
+    useMonthlyAttendanceSummary,
+    useUploadedAttendanceMonths
+} from '../features/hr/useHr';
 import { attendanceApi, employeesApi } from '../features/hr/hrApi';
 import { parseAttendanceFileInBrowser } from '../utils/attendanceExcelParser';
+
+const monthsList = [
+    { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
+    { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
+    { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
+    { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' },
+];
 
 const statusVariant = {
     present: 'success', absent: 'danger', half_day: 'warning',
@@ -40,17 +57,41 @@ const formatStatusLabel = (status) => {
 };
 
 export default function AttendancePage() {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
+
+    // View Mode: 'monthly' (Monthly Reports & Summary) or 'daily' (Day-by-Day Attendance)
+    const [viewMode, setViewMode] = useState('monthly');
+
+    // Date filters for Daily View
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
     const [departmentId, setDepartmentId] = useState('');
-    const [isBulkOpen, setIsBulkOpen] = useState(false);
-    const [isImportOpen, setIsImportOpen] = useState(false);
-    const [importFile, setImportFile] = useState(null);
-    const [isImporting, setIsImporting] = useState(false);
 
+    // Period filters for Monthly View
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [monthlySearch, setMonthlySearch] = useState('');
+    const [monthlyFilter, setMonthlyFilter] = useState('all'); // 'all' | 'ot' | 'no-salary'
+    const [expandedMonthlyCode, setExpandedMonthlyCode] = useState(null);
+
+    // Queries
     const { data: attData } = useAttendance({ date: selectedDate, departmentId: departmentId || undefined, limit: 200 });
     const { data: empData } = useEmployees({ departmentId: departmentId || undefined, status: 'active', limit: 500 });
     const { data: deptsData } = useDepartments();
+    const { data: uploadedMonthsData, isLoading: isMonthsLoading } = useUploadedAttendanceMonths();
+    const { data: monthlySummaryData, isLoading: isMonthlyLoading } = useMonthlyAttendanceSummary({
+        month: selectedMonth,
+        year: selectedYear,
+        departmentId: departmentId || undefined,
+    });
+    const { data: rawMonthAttData } = useAttendance({
+        month: selectedMonth,
+        year: selectedYear,
+        departmentId: departmentId || undefined,
+        limit: 2000,
+    });
+    const { data: allAttendanceData } = useAttendance({ limit: 5000 });
+
     const bulkMark = useBulkMarkAttendance();
 
     const attendance = attData?.data || [];
@@ -58,6 +99,182 @@ export default function AttendancePage() {
     const depts = deptsData?.data || [];
     const deptOptions = depts.map((d) => ({ value: d._id, label: d.name }));
 
+    const formatMins = (mins) => {
+        if (!mins || mins <= 0) return '00:00';
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${h}:${String(m).padStart(2, '0')}`;
+    };
+
+    // Robust fallback uploaded months from attendance collection
+    const fallbackUploadedMonths = React.useMemo(() => {
+        const records = allAttendanceData?.data || [];
+        if (records.length === 0) return [];
+        const map = new Map();
+        for (const r of records) {
+            let m = r.month;
+            let y = r.year;
+            if (!m && r.date) {
+                const d = new Date(r.date);
+                m = d.getMonth() + 1;
+                y = d.getFullYear();
+            }
+            if (m && y) {
+                const key = `${y}-${m}`;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        month: m,
+                        year: y,
+                        totalRecords: 0,
+                        employeeSet: new Set(),
+                        monthName: `${monthsList.find(ml => ml.value === m)?.label || ''} ${y}`,
+                    });
+                }
+                const item = map.get(key);
+                item.totalRecords++;
+                if (r.employeeId) item.employeeSet.add(typeof r.employeeId === 'object' ? r.employeeId._id : r.employeeId);
+                else if (r.employeeCode) item.employeeSet.add(r.employeeCode);
+            }
+        }
+        return Array.from(map.values()).map(v => ({
+            month: v.month,
+            year: v.year,
+            totalRecords: v.totalRecords,
+            employeeCount: v.employeeSet.size,
+            monthName: v.monthName,
+        })).sort((a, b) => b.year - a.year || b.month - a.month);
+    }, [allAttendanceData]);
+
+    const uploadedMonths = (uploadedMonthsData?.data && uploadedMonthsData.data.length > 0)
+        ? uploadedMonthsData.data
+        : fallbackUploadedMonths;
+
+    // Robust fallback monthly summary from raw month attendance
+    const fallbackSummary = React.useMemo(() => {
+        const records = rawMonthAttData?.data || [];
+        if (records.length === 0) return { employees: [], overallSummary: {} };
+
+        const empMap = new Map();
+        for (const rec of records) {
+            const emp = typeof rec.employeeId === 'object' ? rec.employeeId : employees.find(e => e._id === rec.employeeId);
+            const empCode = rec.employeeCode || emp?.employeeCode || 'Unknown';
+            const empKey = emp?._id ? emp._id.toString() : empCode;
+
+            if (!empMap.has(empKey)) {
+                const fullName = emp?.fullName || (emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : (rec.employeeName || 'Staff'));
+                const desig = emp?.designationId?.name || emp?.designation || 'Staff';
+                const dept = emp?.departmentId?.name || 'General';
+                const basic = emp?.basicSalary || 0;
+
+                empMap.set(empKey, {
+                    employeeId: emp?._id || null,
+                    employeeCode: empCode,
+                    employeeName: fullName,
+                    designation: desig,
+                    department: dept,
+                    basicSalary: basic,
+                    hasSalaryConfigured: basic > 0,
+                    daysPresent: 0,
+                    daysAbsent: 0,
+                    halfDays: 0,
+                    leaveDays: 0,
+                    weeklyOffs: 0,
+                    totalWorkedMinutes: 0,
+                    overtimeMinutes: 0,
+                    lateMinutes: 0,
+                    dailyRecords: [],
+                });
+            }
+
+            const data = empMap.get(empKey);
+            const s = String(rec.status || '').trim().toLowerCase();
+
+            if (['p', 'pow', 'present', 'late'].includes(s)) {
+                data.daysPresent++;
+            } else if (['a', 'absent'].includes(s)) {
+                data.daysAbsent++;
+            } else if (['hl', 'half_day'].includes(s)) {
+                data.halfDays++;
+            } else if (['wo', 'weekly_off', 'weekend'].includes(s)) {
+                data.weeklyOffs++;
+            } else if (['al-al', 'leave', 'l'].includes(s)) {
+                data.leaveDays++;
+            }
+
+            data.totalWorkedMinutes += rec.totalWorkedMinutes || 0;
+            data.overtimeMinutes += rec.overtimeMinutes || 0;
+            data.lateMinutes += rec.lateMinutes || 0;
+
+            const dayNum = rec.date ? new Date(rec.date).getDate() : null;
+            data.dailyRecords.push({
+                day: dayNum,
+                date: rec.date,
+                status: rec.status,
+                arrivalTime: rec.arrivalTime,
+                departureTime: rec.departureTime,
+                workingHours: rec.workingHours || formatMins(rec.totalWorkedMinutes),
+                overtimeHours: rec.overtimeHours || formatMins(rec.overtimeMinutes),
+                totalWorkedMinutes: rec.totalWorkedMinutes || 0,
+                overtimeMinutes: rec.overtimeMinutes || 0,
+            });
+        }
+
+        const emps = Array.from(empMap.values()).map(e => ({
+            ...e,
+            workingHours: formatMins(e.totalWorkedMinutes),
+            overtimeHours: formatMins(e.overtimeMinutes),
+            lateHours: formatMins(e.lateMinutes),
+        }));
+
+        let totalPresent = 0;
+        let totalAbsent = 0;
+        let totalWorkedMins = 0;
+        let totalOvertimeMins = 0;
+        emps.forEach(e => {
+            totalPresent += e.daysPresent;
+            totalAbsent += e.daysAbsent;
+            totalWorkedMins += e.totalWorkedMinutes;
+            totalOvertimeMins += e.overtimeMinutes;
+        });
+
+        return {
+            employees: emps,
+            period: {
+                month: selectedMonth,
+                year: selectedYear,
+                monthName: `${monthsList.find(m => m.value === Number(selectedMonth))?.label} ${selectedYear}`,
+                daysInMonth: new Date(selectedYear, selectedMonth, 0).getDate(),
+            },
+            overallSummary: {
+                totalEmployees: emps.length,
+                totalRecords: records.length,
+                totalPresent,
+                totalAbsent,
+                totalWorkingHours: formatMins(totalWorkedMins),
+                totalOvertimeHours: formatMins(totalOvertimeMins),
+            }
+        };
+    }, [rawMonthAttData, employees, selectedMonth, selectedYear]);
+
+    const monthlySummary = (monthlySummaryData?.employees && monthlySummaryData.employees.length > 0)
+        ? monthlySummaryData
+        : fallbackSummary;
+    const monthlyEmployees = monthlySummary.employees || [];
+
+    // Automatically synchronize selectedMonth & selectedYear with latest uploaded report if current selection has 0 records
+    useEffect(() => {
+        if (uploadedMonths.length > 0) {
+            const hasDataInCurrent = uploadedMonths.some(m => m.month === Number(selectedMonth) && m.year === Number(selectedYear));
+            if (!hasDataInCurrent) {
+                const latest = uploadedMonths[0];
+                setSelectedMonth(latest.month);
+                setSelectedYear(latest.year);
+            }
+        }
+    }, [uploadedMonths]);
+
+    // Bulk mark state
+    const [isBulkOpen, setIsBulkOpen] = useState(false);
     const [bulkRecords, setBulkRecords] = useState([]);
 
     const formatDateTimeLocal = (dateString) => {
@@ -73,7 +290,6 @@ export default function AttendancePage() {
     };
 
     const openBulk = () => {
-        // Seed with all employees, default present
         const attMap = new Map();
         attendance.forEach((a) => {
             if (a.employeeId) {
@@ -111,12 +327,20 @@ export default function AttendancePage() {
         } catch { }
     };
 
+    // Excel Import & Preview State
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const [isImporting, setIsImporting] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
     const [autoCreateEmployees, setAutoCreateEmployees] = useState(true);
     const [previewSearch, setPreviewSearch] = useState('');
-    const [previewFilter, setPreviewFilter] = useState('all'); // 'all' | 'unregistered' | 'registered'
+    const [previewFilter, setPreviewFilter] = useState('all');
     const [expandedEmployeeCode, setExpandedEmployeeCode] = useState(null);
+
+    // Target Month and Year Selection for Import
+    const [targetImportMonth, setTargetImportMonth] = useState(selectedMonth || new Date().getMonth() + 1);
+    const [targetImportYear, setTargetImportYear] = useState(selectedYear || new Date().getFullYear());
 
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
@@ -137,13 +361,17 @@ export default function AttendancePage() {
                 if (selectedDate) formData.append('date', selectedDate);
                 res = await attendanceApi.previewExcel(formData);
             } catch (backendErr) {
-                // If backend route returned 404 or backend server hasn't been restarted, parse directly in browser
                 console.warn('Backend preview not reachable or returned error, parsing in browser:', backendErr);
-                res = await parseAttendanceFileInBrowser(file, employees);
+                res = await parseAttendanceFileInBrowser(file, employees, {
+                    targetMonth: targetImportMonth,
+                    targetYear: targetImportYear,
+                });
             }
 
             if (res && res.success) {
                 setPreviewData(res);
+                if (res.period?.month) setTargetImportMonth(res.period.month);
+                if (res.period?.year) setTargetImportYear(res.period.year);
                 setExpandedEmployeeCode(null);
                 setPreviewSearch('');
                 setPreviewFilter('all');
@@ -167,8 +395,6 @@ export default function AttendancePage() {
         setIsImporting(true);
         try {
             let preCreatedCount = 0;
-            // If user checked auto-create and there are unregistered employees,
-            // register them in the employee database so they are recognized even if the backend process hasn't been restarted:
             if (autoCreateEmployees && previewData?.employees) {
                 const missing = previewData.employees.filter((e) => !e.isRegistered);
                 for (const emp of missing) {
@@ -198,41 +424,38 @@ export default function AttendancePage() {
             const formData = new FormData();
             formData.append('file', importFile);
             formData.append('autoCreateEmployees', autoCreateEmployees);
+            formData.append('targetMonth', targetImportMonth);
+            formData.append('targetYear', targetImportYear);
             if (selectedDate) {
                 formData.append('date', selectedDate);
             }
 
             const result = await attendanceApi.importFromExcel(formData);
-            
+
             if (result.success) {
                 const totalCreated = Math.max(result.createdEmployees || 0, preCreatedCount);
-                if (result.format === 'monthly' && result.period) {
-                    const monthLabel = new Date(result.period.year, result.period.month - 1)
-                        .toLocaleDateString('en-LK', { month: 'long', year: 'numeric' });
-                    
-                    let msg = `Successfully imported ${result.imported} records for ${monthLabel}!`;
-                    if (totalCreated > 0) {
-                        msg += ` (${totalCreated} new employees registered)`;
-                    }
-                    toast.success(msg);
+                const finalMonth = targetImportMonth;
+                const finalYear = targetImportYear;
+                const monthName = monthsList.find(m => m.value === Number(finalMonth))?.label || '';
 
-                    // Switch active view to the imported month
-                    const monthPadded = String(result.period.month).padStart(2, '0');
-                    setSelectedDate(`${result.period.year}-${monthPadded}-01`);
-                } else {
-                    let msg = `Successfully imported ${result.imported} attendance records`;
-                    if (totalCreated > 0) {
-                        msg += ` (${totalCreated} new employees registered)`;
-                    }
-                    toast.success(msg);
+                let msg = `Successfully imported ${result.imported} records for ${monthName} ${finalYear}!`;
+                if (totalCreated > 0) {
+                    msg += ` (${totalCreated} new staff registered)`;
                 }
+                toast.success(msg);
 
                 if (result.errors > 0) {
-                    toast.warning(`${result.errors} records were skipped due to discrepancies`);
+                    toast.warning(`${result.errors} records skipped`);
                 }
 
-                queryClient.invalidateQueries({ queryKey: ['attendance'] });
-                queryClient.invalidateQueries({ queryKey: ['employees'] });
+                // Switch view to monthly and set to imported month
+                setSelectedMonth(Number(finalMonth));
+                setSelectedYear(Number(finalYear));
+                setViewMode('monthly');
+
+                await queryClient.invalidateQueries({ queryKey: ['attendance'] });
+                await queryClient.invalidateQueries({ queryKey: ['employees'] });
+
                 setIsImportOpen(false);
                 setImportFile(null);
                 setPreviewData(null);
@@ -246,10 +469,10 @@ export default function AttendancePage() {
         }
     };
 
-    const filteredMonthlyEmployees = (previewData?.employees || []).filter((emp) => {
+    // Filter preview employees
+    const filteredPreviewMonthly = (previewData?.employees || []).filter((emp) => {
         if (previewFilter === 'unregistered' && emp.isRegistered) return false;
         if (previewFilter === 'registered' && !emp.isRegistered) return false;
-
         if (!previewSearch) return true;
         const q = previewSearch.toLowerCase();
         const code = String(emp.employeeCode || '').toLowerCase();
@@ -258,10 +481,9 @@ export default function AttendancePage() {
         return code.includes(q) || name.includes(q) || desig.includes(q);
     });
 
-    const filteredDailyRecords = (previewData?.records || []).filter((r) => {
+    const filteredPreviewDaily = (previewData?.records || []).filter((r) => {
         if (previewFilter === 'unregistered' && r.isRegistered) return false;
         if (previewFilter === 'registered' && !r.isRegistered) return false;
-
         if (!previewSearch) return true;
         const q = previewSearch.toLowerCase();
         const code = String(r.employeeCode || '').toLowerCase();
@@ -269,7 +491,20 @@ export default function AttendancePage() {
         return code.includes(q) || name.includes(q);
     });
 
-    const columns = [
+    // Filter for Monthly Summary Table
+    const filteredMonthlyList = monthlyEmployees.filter((emp) => {
+        if (monthlyFilter === 'ot' && (!emp.overtimeMinutes || emp.overtimeMinutes <= 0)) return false;
+        if (monthlyFilter === 'no-salary' && emp.hasSalaryConfigured) return false;
+        if (!monthlySearch) return true;
+        const q = monthlySearch.toLowerCase();
+        const code = String(emp.employeeCode || '').toLowerCase();
+        const name = String(emp.employeeName || '').toLowerCase();
+        const desig = String(emp.designation || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || desig.includes(q);
+    });
+
+    // Daily Table Columns
+    const dailyColumns = [
         {
             key: 'employee', label: 'Employee', render: (r) => (
                 <div>
@@ -286,41 +521,499 @@ export default function AttendancePage() {
         { key: 'ot', label: 'OT', render: (r) => r.overtimeHours && r.overtimeHours !== '00:00' ? `${r.overtimeHours} hrs` : (r.overtimeMinutes > 0 ? `${(r.overtimeMinutes / 60).toFixed(1)} hrs` : '—') },
     ];
 
+    const currentMonthLabel = monthsList.find(m => m.value === Number(selectedMonth))?.label || 'Selected Month';
+
     return (
-        <div>
-            <PageHeader title="Attendance" description="Daily staff attendance records"
+        <div className="space-y-4">
+            {/* Page Header */}
+            <PageHeader
+                title="Attendance & Biometric Reports"
+                description="Manage daily check-ins, monthly biometric performance sheets, and sync attendance with payroll."
                 actions={
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => {
-                            setIsImportOpen(true);
-                            setPreviewData(null);
-                            setImportFile(null);
-                            setExpandedEmployeeCode(null);
-                        }}>
-                            <Upload size={16} className="mr-1.5" /> Import Excel
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsImportOpen(true);
+                                setPreviewData(null);
+                                setImportFile(null);
+                                setExpandedEmployeeCode(null);
+                                setTargetImportMonth(selectedMonth);
+                                setTargetImportYear(selectedYear);
+                            }}
+                        >
+                            <Upload size={16} className="mr-1.5" /> Import Excel Sheet
                         </Button>
                         <Button variant="primary" onClick={openBulk}>
-                            <Plus size={16} className="mr-1.5" /> Bulk Mark Attendance
+                            <Plus size={16} className="mr-1.5" /> Bulk Mark Daily
                         </Button>
                     </div>
-                } />
+                }
+            />
 
-            <Card>
-                <div className="p-4 border-b flex gap-3">
-                    <div className="w-48">
-                        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-                    </div>
-                    <div className="w-56">
-                        <Select placeholder="All Departments" options={deptOptions}
-                            value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} />
-                    </div>
+            {/* View Mode Switcher Tabs */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-gray-200 shadow-xs">
+                <div className="inline-flex p-1 bg-gray-100 rounded-lg text-xs font-semibold">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('monthly')}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-md transition ${viewMode === 'monthly' ? 'bg-white text-primary-950 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        <CalendarDays size={15} className={viewMode === 'monthly' ? 'text-primary-600' : 'text-gray-400'} />
+                        Monthly Summary & Reports
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${viewMode === 'monthly' ? 'bg-primary-100 text-primary-800' : 'bg-gray-200 text-gray-700'}`}>
+                            {uploadedMonths.length}
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('daily')}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-md transition ${viewMode === 'daily' ? 'bg-white text-primary-950 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        <Clock size={15} className={viewMode === 'daily' ? 'text-primary-600' : 'text-gray-400'} />
+                        Daily Attendance View
+                    </button>
                 </div>
-                {attendance.length === 0
-                    ? <EmptyState icon={CalendarIcon} title="No attendance recorded" description="Click 'Bulk Mark Attendance' to record for today"
-                        action={<Button variant="primary" onClick={openBulk}>Mark Attendance</Button>} />
-                    : <Table columns={columns} data={attendance} />}
-            </Card>
 
+                {/* Quick Process Payroll Button */}
+                {viewMode === 'monthly' && (
+                    <Button
+                        variant="primary"
+                        onClick={() => navigate(`/payroll?month=${selectedMonth}&year=${selectedYear}`)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    >
+                        <DollarSign size={15} className="mr-1" />
+                        Process {currentMonthLabel} {selectedYear} Payroll
+                    </Button>
+                )}
+            </div>
+
+            {/* ════════════════════════════════════════════════════════════════════
+                VIEW MODE 1: MONTHLY ATTENDANCE & PAYROLL INTEGRATION
+            ════════════════════════════════════════════════════════════════════ */}
+            {viewMode === 'monthly' && (
+                <div className="space-y-4">
+                    {/* Month, Year, and Department Controls */}
+                    <Card>
+                        <div className="p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border-b bg-gray-50/50">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                    Period:
+                                </span>
+                                <div className="w-36">
+                                    <Select
+                                        options={monthsList}
+                                        value={selectedMonth}
+                                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="w-24">
+                                    <Input
+                                        type="number"
+                                        value={selectedYear}
+                                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="w-48">
+                                    <Select
+                                        placeholder="All Departments"
+                                        options={deptOptions}
+                                        value={departmentId}
+                                        onChange={(e) => setDepartmentId(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsImportOpen(true);
+                                        setTargetImportMonth(selectedMonth);
+                                        setTargetImportYear(selectedYear);
+                                    }}
+                                >
+                                    <Upload size={14} className="mr-1" /> Upload Sheet for this Month
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* History Chips of Uploaded Monthly Reports */}
+                        <div className="p-3.5 bg-white border-b flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs">
+                            <span className="font-semibold text-gray-500 flex items-center gap-1.5 flex-shrink-0">
+                                <History size={14} className="text-primary-600" />
+                                Uploaded Monthly Reports:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                                {uploadedMonths.length === 0 ? (
+                                    <span className="text-gray-400 italic text-[11px]">
+                                        No monthly reports uploaded yet. Click 'Upload Sheet' to import your biometric Excel report.
+                                    </span>
+                                ) : (
+                                    uploadedMonths.map((m) => {
+                                        const isCurrent = Number(selectedMonth) === m.month && Number(selectedYear) === m.year;
+                                        return (
+                                            <button
+                                                key={`${m.year}-${m.month}`}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedMonth(m.month);
+                                                    setSelectedYear(m.year);
+                                                }}
+                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition ${
+                                                    isCurrent
+                                                        ? 'bg-primary-600 text-white font-bold shadow-xs ring-2 ring-primary-300'
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium'
+                                                }`}
+                                            >
+                                                <span>{m.monthName}</span>
+                                                <span className={`text-[10px] px-1 py-0.2 rounded-full ${isCurrent ? 'bg-primary-700 text-primary-100' : 'bg-white text-gray-600'}`}>
+                                                    {m.employeeCount} Staff ({m.totalRecords} logs)
+                                                </span>
+                                            </button>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Summary KPI Cards for Selected Month */}
+                        <div className="p-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 bg-gray-50/30">
+                            <div className="p-3 bg-white border rounded-xl shadow-xs">
+                                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Report Month</p>
+                                <p className="text-base font-bold text-gray-900 mt-0.5 truncate">
+                                    {currentMonthLabel} {selectedYear}
+                                </p>
+                                <p className="text-[11px] text-gray-400">
+                                    {monthlySummary.period?.daysInMonth || 31} Days in month
+                                </p>
+                            </div>
+
+                            <div className="p-3 bg-white border rounded-xl shadow-xs">
+                                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Staff</p>
+                                <p className="text-base font-bold text-gray-900 mt-0.5">
+                                    {monthlySummary.overallSummary?.totalEmployees || 0} Staff
+                                </p>
+                                <p className="text-[11px] text-gray-400">
+                                    {monthlySummary.overallSummary?.totalRecords || 0} Total logs
+                                </p>
+                            </div>
+
+                            <div className="p-3 bg-white border rounded-xl shadow-xs">
+                                <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Present Days</p>
+                                <p className="text-base font-bold text-emerald-900 mt-0.5">
+                                    {monthlySummary.overallSummary?.totalPresent || 0} Days
+                                </p>
+                                <p className="text-[11px] text-rose-600">
+                                    {monthlySummary.overallSummary?.totalAbsent || 0} Absent days
+                                </p>
+                            </div>
+
+                            <div className="p-3 bg-white border rounded-xl shadow-xs">
+                                <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Total Overtime (OT)</p>
+                                <p className="text-base font-bold text-amber-900 mt-0.5 font-mono">
+                                    {monthlySummary.overallSummary?.totalOvertimeHours || '00:00'} hrs
+                                </p>
+                                <p className="text-[11px] text-gray-500">
+                                    Work: {monthlySummary.overallSummary?.totalWorkingHours || '00:00'} hrs
+                                </p>
+                            </div>
+
+                            <div className="col-span-2 sm:col-span-4 lg:col-span-1 p-3 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl shadow-xs flex flex-col justify-between">
+                                <div>
+                                    <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                                        <Sparkles size={12} className="text-emerald-600" />
+                                        Payroll Ready
+                                    </p>
+                                    <p className="text-xs font-semibold text-emerald-800 mt-1">
+                                        {monthlyEmployees.filter(e => e.hasSalaryConfigured).length} of {monthlyEmployees.length} staff configured
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/payroll?month=${selectedMonth}&year=${selectedYear}`)}
+                                    className="mt-2 text-left text-[11px] font-bold text-emerald-950 underline hover:text-emerald-800 flex items-center gap-1"
+                                >
+                                    Open in Payroll <ArrowRight size={12} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Search and Filters Bar */}
+                        <div className="p-3 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                            <div className="inline-flex p-1 bg-gray-100 rounded-lg text-xs font-medium">
+                                <button
+                                    type="button"
+                                    onClick={() => setMonthlyFilter('all')}
+                                    className={`px-3 py-1 rounded-md transition ${monthlyFilter === 'all' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    All Staff ({monthlyEmployees.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMonthlyFilter('ot')}
+                                    className={`px-3 py-1 rounded-md transition ${monthlyFilter === 'ot' ? 'bg-white text-amber-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    With Overtime ({monthlyEmployees.filter(e => e.overtimeMinutes > 0).length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMonthlyFilter('no-salary')}
+                                    className={`px-3 py-1 rounded-md transition ${monthlyFilter === 'no-salary' ? 'bg-white text-rose-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    No Salary Configured ({monthlyEmployees.filter(e => !e.hasSalaryConfigured).length})
+                                </button>
+                            </div>
+
+                            <div className="relative w-full sm:w-64">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by code, name, designation..."
+                                    value={monthlySearch}
+                                    onChange={(e) => setMonthlySearch(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Monthly Summary Table */}
+                        {isMonthlyLoading ? (
+                            <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-2">
+                                <RefreshCw className="animate-spin text-primary-600" size={24} />
+                                <p className="text-xs font-medium">Loading monthly attendance records...</p>
+                            </div>
+                        ) : filteredMonthlyList.length === 0 ? (
+                            <div className="p-12 text-center">
+                                <EmptyState
+                                    icon={CalendarIcon}
+                                    title={`No attendance logs for ${currentMonthLabel} ${selectedYear}`}
+                                    description={
+                                        uploadedMonths.length > 0
+                                            ? `There are no logs for ${currentMonthLabel} ${selectedYear}. However, attendance records exist for ${uploadedMonths.map(m => m.monthName).join(', ')}.`
+                                            : "Upload your biometric Monthly Performance Report to view 31-day records and calculate salaries."
+                                    }
+                                    action={
+                                        <div className="flex flex-wrap items-center justify-center gap-2">
+                                            {uploadedMonths.length > 0 && (
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setSelectedMonth(uploadedMonths[0].month);
+                                                        setSelectedYear(uploadedMonths[0].year);
+                                                    }}
+                                                    className="border-primary-300 text-primary-700 bg-primary-50 hover:bg-primary-100 font-semibold"
+                                                >
+                                                    <CalendarCheck size={15} className="mr-1.5 text-primary-600" />
+                                                    View {uploadedMonths[0].monthName} ({uploadedMonths[0].totalRecords} logs)
+                                                </Button>
+                                            )}
+                                            <Button
+                                                variant="primary"
+                                                onClick={() => {
+                                                    setIsImportOpen(true);
+                                                    setTargetImportMonth(selectedMonth);
+                                                    setTargetImportYear(selectedYear);
+                                                }}
+                                            >
+                                                <Upload size={15} className="mr-1.5" />
+                                                Import Excel for {currentMonthLabel}
+                                            </Button>
+                                        </div>
+                                    }
+                                />
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-gray-100 text-gray-600 font-semibold uppercase tracking-wider border-b">
+                                        <tr>
+                                            <th className="py-2.5 px-3">Code</th>
+                                            <th className="py-2.5 px-3">Employee Name</th>
+                                            <th className="py-2.5 px-3">Designation</th>
+                                            <th className="py-2.5 px-3 text-center">Present</th>
+                                            <th className="py-2.5 px-3 text-center">Absent</th>
+                                            <th className="py-2.5 px-3 text-center">Leave / WO</th>
+                                            <th className="py-2.5 px-3 text-right">Worked Hrs</th>
+                                            <th className="py-2.5 px-3 text-right">OT Hrs</th>
+                                            <th className="py-2.5 px-3">Payroll & Salary Status</th>
+                                            <th className="py-2.5 px-3 text-center">31-Day Log</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 bg-white">
+                                        {filteredMonthlyList.map((emp) => {
+                                            const isExpanded = expandedMonthlyCode === emp.employeeCode;
+                                            return (
+                                                <React.Fragment key={emp.employeeCode}>
+                                                    <tr className="hover:bg-gray-50/80 transition">
+                                                        <td className="py-2.5 px-3 font-mono font-bold text-gray-800">
+                                                            #{emp.employeeCode}
+                                                        </td>
+                                                        <td className="py-2.5 px-3">
+                                                            <div className="font-semibold text-gray-900">{emp.employeeName}</div>
+                                                            <div className="text-[10px] text-gray-400">{emp.department || 'General'}</div>
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-gray-600">
+                                                            {emp.designation || 'Staff'}
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-center">
+                                                            <Badge variant="success">{emp.daysPresent} days</Badge>
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-center">
+                                                            {emp.daysAbsent > 0 ? (
+                                                                <Badge variant="danger">{emp.daysAbsent} days</Badge>
+                                                            ) : (
+                                                                <span className="text-gray-400">0</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-center text-gray-600">
+                                                            <span>{emp.leaveDays || 0} L</span> / <span className="text-gray-400">{emp.weeklyOffs || 0} WO</span>
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-900">
+                                                            {emp.workingHours || '00:00'}
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">
+                                                            {emp.overtimeHours && emp.overtimeHours !== '00:00' ? (
+                                                                <span className="bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                                                    +{emp.overtimeHours}
+                                                                </span>
+                                                            ) : '—'}
+                                                        </td>
+                                                        <td className="py-2.5 px-3">
+                                                            {emp.hasSalaryConfigured ? (
+                                                                <div>
+                                                                    <div className="text-[11px] font-semibold text-gray-800">
+                                                                        Basic: LKR {Number(emp.basicSalary).toLocaleString()}
+                                                                    </div>
+                                                                    {emp.overtimeMinutes > 0 && (
+                                                                        <div className="text-[10px] font-semibold text-emerald-700">
+                                                                            + Est. OT: LKR {Math.round((emp.basicSalary / 200) * 1.5 * (emp.overtimeMinutes / 60)).toLocaleString()}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800">
+                                                                    <AlertCircle size={12} />
+                                                                    No Basic Salary
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedMonthlyCode(isExpanded ? null : emp.employeeCode)}
+                                                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition ${isExpanded ? 'bg-primary-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                                            >
+                                                                <Eye size={12} />
+                                                                <span>{isExpanded ? 'Hide' : '31 Days'}</span>
+                                                                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Expanded 31-Day Biometric Log Matrix */}
+                                                    {isExpanded && (
+                                                        <tr>
+                                                            <td colSpan={10} className="p-3 bg-gray-50/90 border-b border-t border-gray-200">
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                                                            <CalendarIcon size={14} className="text-primary-600" />
+                                                                            {currentMonthLabel} {selectedYear} Daily Biometric Log — {emp.employeeName} (#{emp.employeeCode})
+                                                                        </p>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => navigate(`/payroll?month=${selectedMonth}&year=${selectedYear}`)}
+                                                                            className="text-xs font-semibold text-primary-700 hover:underline flex items-center gap-1"
+                                                                        >
+                                                                            Calculate in Payroll →
+                                                                        </button>
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-10 gap-2 max-h-60 overflow-y-auto p-1">
+                                                                        {(emp.dailyRecords || []).map((d) => (
+                                                                            <div
+                                                                                key={d.day || d.date}
+                                                                                className={`p-2 rounded-lg border text-xs flex flex-col justify-between ${
+                                                                                    d.status === 'P' || d.status === 'present' ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' :
+                                                                                    d.status === 'A' || d.status === 'absent' ? 'bg-rose-50/70 border-rose-200 text-rose-900' :
+                                                                                    d.status === 'WO' || d.status === 'weekend' ? 'bg-gray-100 border-gray-300 text-gray-400' :
+                                                                                    d.status === 'POW' ? 'bg-amber-50/70 border-amber-200 text-amber-900' :
+                                                                                    'bg-blue-50/70 border-blue-200 text-blue-900'
+                                                                                }`}
+                                                                            >
+                                                                                <div className="flex items-center justify-between font-mono font-bold text-[11px]">
+                                                                                    <span>Day {String(d.day || '').padStart(2, '0')}</span>
+                                                                                    <span className={`px-1 py-0.2 rounded text-[10px] font-bold ${
+                                                                                        d.status === 'P' ? 'bg-emerald-200 text-emerald-800' :
+                                                                                        d.status === 'A' ? 'bg-rose-200 text-rose-800' :
+                                                                                        d.status === 'WO' ? 'bg-gray-200 text-gray-600' :
+                                                                                        'bg-amber-200 text-amber-800'
+                                                                                    }`}>
+                                                                                        {d.status}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="mt-1.5 space-y-0.5 text-[10px] leading-tight">
+                                                                                    {d.arrivalTime ? (
+                                                                                        <div className="text-gray-700">In: <span className="font-mono font-semibold">{d.arrivalTime}</span></div>
+                                                                                    ) : (
+                                                                                        <div className="text-gray-400">In: —</div>
+                                                                                    )}
+                                                                                    {d.departureTime ? (
+                                                                                        <div className="text-gray-700">Out: <span className="font-mono font-semibold">{d.departureTime}</span></div>
+                                                                                    ) : (
+                                                                                        <div className="text-gray-400">Out: —</div>
+                                                                                    )}
+                                                                                    {d.workingHours && d.workingHours !== '00:00' && (
+                                                                                        <div className="text-gray-600 font-mono">Hrs: {d.workingHours}</div>
+                                                                                    )}
+                                                                                    {d.overtimeHours && d.overtimeHours !== '00:00' && (
+                                                                                        <div className="text-amber-800 font-mono font-bold">OT: {d.overtimeHours}</div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════════════════════
+                VIEW MODE 2: DAILY ATTENDANCE
+            ════════════════════════════════════════════════════════════════════ */}
+            {viewMode === 'daily' && (
+                <Card>
+                    <div className="p-4 border-b flex flex-wrap items-center gap-3 bg-gray-50/50">
+                        <div className="w-48">
+                            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                        </div>
+                        <div className="w-56">
+                            <Select placeholder="All Departments" options={deptOptions}
+                                value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} />
+                        </div>
+                        <span className="text-xs text-gray-500">
+                            Showing daily logs for {new Date(selectedDate).toLocaleDateString('en-LK', { dateStyle: 'long' })}
+                        </span>
+                    </div>
+                    {attendance.length === 0
+                        ? <EmptyState icon={CalendarIcon} title="No attendance recorded for this day" description="Click 'Bulk Mark Daily' to record for today"
+                            action={<Button variant="primary" onClick={openBulk}>Mark Attendance</Button>} />
+                        : <Table columns={dailyColumns} data={attendance} />}
+                </Card>
+            )}
+
+            {/* ── Bulk Mark Daily Attendance Modal ── */}
             <Modal isOpen={isBulkOpen} onClose={() => setIsBulkOpen(false)} title={`Mark Attendance — ${selectedDate}`} size="lg">
                 <div className="p-6 max-h-96 overflow-y-auto">
                     <table className="w-full text-sm">
@@ -393,7 +1086,48 @@ export default function AttendancePage() {
                 size={previewData ? '2xl' : 'lg'}
             >
                 <div className="p-4 sm:p-6 space-y-4">
-                    {/* STEP 1: Upload Dropzone if no preview yet */}
+                    {/* Target Month & Year Selector Banner */}
+                    <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                                <CalendarIcon size={14} className="text-blue-600" />
+                                Confirm Target Month for this Report:
+                            </label>
+                            {previewData?.period?.monthName && (
+                                <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
+                                    Detected: {previewData.period.monthName}
+                                </span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-700 mb-1">Target Month</label>
+                                <select
+                                    value={targetImportMonth}
+                                    onChange={(e) => setTargetImportMonth(Number(e.target.value))}
+                                    className="w-full text-xs font-medium px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                >
+                                    {monthsList.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-700 mb-1">Target Year</label>
+                                <input
+                                    type="number"
+                                    value={targetImportYear}
+                                    onChange={(e) => setTargetImportYear(Number(e.target.value))}
+                                    className="w-full text-xs font-medium px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-blue-800">
+                            Attendance logs from this sheet will be saved to <strong>{monthsList.find(m => m.value === Number(targetImportMonth))?.label} {targetImportYear}</strong> and made available for employee payslip calculations.
+                        </p>
+                    </div>
+
+                    {/* Dropzone if no preview yet */}
                     {!previewData && (
                         <div>
                             <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary-400 transition bg-gray-50/50">
@@ -404,7 +1138,7 @@ export default function AttendancePage() {
                                     Upload Attendance Spreadsheet
                                 </h3>
                                 <p className="text-xs text-gray-500 max-w-md mx-auto mb-4">
-                                    Supports biometric <strong>Monthly Performance Report</strong> (auto-detects month, daily check-ins/outs, OT) or simple daily attendance files.
+                                    Supports biometric <strong>Monthly Performance Report</strong> (detects monthly logs, daily check-ins/outs, OT) or simple daily attendance files.
                                 </p>
 
                                 <input
@@ -441,24 +1175,10 @@ export default function AttendancePage() {
                                     </p>
                                 </div>
                             )}
-
-                            <div className="mt-4">
-                                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                    Date for Daily Import (optional)
-                                </label>
-                                <Input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={(e) => setSelectedDate(e.target.value)}
-                                />
-                                <p className="text-xs text-gray-400 mt-1">
-                                    Only needed for simple single-day Excel files. Biometric monthly reports automatically detect their own month and date range.
-                                </p>
-                            </div>
                         </div>
                     )}
 
-                    {/* STEP 2: Rich Preview Table */}
+                    {/* Preview Table */}
                     {previewData && (
                         <div className="space-y-4">
                             {/* Top Stats Cards */}
@@ -466,7 +1186,7 @@ export default function AttendancePage() {
                                 <div className="p-3 bg-gray-50 border rounded-xl">
                                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Report Period</p>
                                     <p className="text-sm sm:text-base font-bold text-gray-900 mt-0.5 truncate">
-                                        {previewData.period?.monthName || 'Detected'}
+                                        {monthsList.find(m => m.value === Number(targetImportMonth))?.label} {targetImportYear}
                                     </p>
                                     <p className="text-[11px] text-gray-400">
                                         {previewData.period?.daysInMonth || 31} Days in Month
@@ -484,7 +1204,7 @@ export default function AttendancePage() {
                                 </div>
 
                                 <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl">
-                                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider">Registered in System</p>
+                                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider">In System</p>
                                     <p className="text-sm sm:text-base font-bold text-emerald-900 mt-0.5">
                                         {previewData.summary?.matchedCount || 0} Staff
                                     </p>
@@ -492,7 +1212,7 @@ export default function AttendancePage() {
                                 </div>
 
                                 <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
-                                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wider">Not Yet in System</p>
+                                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wider">Not in System</p>
                                     <p className="text-sm sm:text-base font-bold text-amber-900 mt-0.5">
                                         {previewData.summary?.unmatchedCount || 0} Staff
                                     </p>
@@ -541,7 +1261,7 @@ export default function AttendancePage() {
                                     <button
                                         type="button"
                                         onClick={() => setPreviewFilter('all')}
-                                        className={`px-3 py-1.5 rounded-md transition ${previewFilter === 'all' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                        className={`px-3 py-1.5 rounded-md transition ${previewFilter === 'all' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
                                     >
                                         All ({previewData.summary?.totalEmployees || 0})
                                     </button>
@@ -595,14 +1315,14 @@ export default function AttendancePage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 bg-white">
-                                            {filteredMonthlyEmployees.length === 0 ? (
+                                            {filteredPreviewMonthly.length === 0 ? (
                                                 <tr>
                                                     <td colSpan={11} className="py-8 text-center text-gray-500">
                                                         No employees found matching filter criteria
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                filteredMonthlyEmployees.map((emp) => {
+                                                filteredPreviewMonthly.map((emp) => {
                                                     const isExpanded = expandedEmployeeCode === emp.employeeCode;
                                                     return (
                                                         <React.Fragment key={emp.employeeCode}>
@@ -752,7 +1472,7 @@ export default function AttendancePage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 bg-white">
-                                            {filteredDailyRecords.map((r, idx) => (
+                                            {filteredPreviewDaily.map((r, idx) => (
                                                 <tr key={idx} className="hover:bg-gray-50 transition">
                                                     <td className="py-2 px-3 font-mono font-bold text-gray-800">
                                                         {r.employeeCode}
@@ -762,7 +1482,7 @@ export default function AttendancePage() {
                                                     </td>
                                                     <td className="py-2 px-3">
                                                         {r.isRegistered ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800">
+                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800">
                                                                 Registered
                                                             </span>
                                                         ) : (
@@ -825,7 +1545,7 @@ export default function AttendancePage() {
                                     loading={isImporting}
                                 >
                                     <FileCheck size={16} className="mr-1.5" />
-                                    Confirm & Import ({previewData.summary?.totalEmployees || 0} Staff, {previewData.summary?.totalAttendanceDays || 0} Days)
+                                    Import into {monthsList.find(m => m.value === Number(targetImportMonth))?.label} {targetImportYear} ({previewData.summary?.totalEmployees || 0} Staff)
                                 </Button>
                             </div>
                         </>

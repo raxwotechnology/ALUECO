@@ -188,7 +188,6 @@ const AluQuotationsPage = () => {
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Client Name</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Quote Date</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Selling Price</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -213,7 +212,6 @@ const AluQuotationsPage = () => {
                                                 {q.status}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-800">LKR {q.finalSellingPrice.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1.5">
                                             <button onClick={() => navigate(`/alu/quotations/${q._id}`)} title="View Costing & Quotation Details" className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Eye size={16} /></button>
                                             
