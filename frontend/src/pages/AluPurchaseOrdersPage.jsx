@@ -602,17 +602,18 @@ export default function AluPurchaseOrdersPage() {
                                             </Button>
 
                                             {(po.status === 'pending' || po.status === 'partially_received') && (
-                                                <Button
-                                                    variant="success"
-                                                    size="sm"
+                                                <button
+                                                    type="button"
                                                     onClick={() => {
                                                         setSelectedPoForGrn(po);
                                                         setIsGrnModalOpen(true);
                                                     }}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition"
+                                                    title="Receive Entire PO (All shortage items via GRN)"
                                                 >
-                                                    <PackageCheck size={14} className="mr-1" />
-                                                    Add GRN
-                                                </Button>
+                                                    <PackageCheck size={14} />
+                                                    Receive PO
+                                                </button>
                                             )}
 
                                             <Button
@@ -679,15 +680,19 @@ export default function AluPurchaseOrdersPage() {
                                                                     {getStatusBadge(item.status)}
                                                                 </td>
                                                                 <td className="py-2.5 px-3 text-center">
-                                                                    {(item.pendingQuantity > 0) && (
-                                                                        <Button
-                                                                            variant="success"
-                                                                            size="sm"
+                                                                    {isItemFulfilled ? (
+                                                                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-100/80 font-bold text-[11px] px-2 py-0.5 rounded-md">
+                                                                            <CheckCircle2 size={12} /> Received
+                                                                        </span>
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
                                                                             onClick={() => handleOpenItemGrnModal(po, item)}
+                                                                            className="text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-bold text-[11px] px-2 py-0.5 rounded-md inline-flex items-center gap-1 transition"
+                                                                            title="Receive this specific item"
                                                                         >
-                                                                            <PackageCheck size={12} className="mr-1" />
-                                                                            GRN
-                                                                        </Button>
+                                                                            <PackageCheck size={11} /> Receive Item
+                                                                        </button>
                                                                     )}
                                                                 </td>
                                                             </tr>

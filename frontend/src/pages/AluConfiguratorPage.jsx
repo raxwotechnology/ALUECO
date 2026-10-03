@@ -133,6 +133,41 @@ const AluConfiguratorPage = () => {
                     if (p.profileCode) profMap[p.profileCode.toUpperCase()] = { name: p.description, ratePerM: Math.round(pricePerM), code: p.profileCode };
                 });
 
+                // Material Inventory Products (PRIMARY source for master profile rates)
+                rawMaterialsData.forEach(p => {
+                    if (p.aluCategory === 'profiles') {
+                        const code = p.productCode || p.name;
+                        const price = Number(p.basePrice || p.costs?.lastPurchaseCost || p.costs?.standardCost || p.costs?.averageCost) || 0;
+                        let lengthM = 0;
+                        if (p.aluSpecs?.lengthMm > 0) {
+                            lengthM = p.aluSpecs.lengthMm / 1000;
+                        } else if (p.aluSpecs?.standardLength) {
+                            const stdL = parseFloat(p.aluSpecs.standardLength);
+                            lengthM = stdL > 50 ? (stdL / 1000) : (stdL * 0.3048);
+                        } else {
+                            lengthM = 5.8;
+                        }
+                        const ratePerM = lengthM > 0 ? Math.round(price / lengthM) : price;
+                        const profItem = {
+                            code: code,
+                            name: p.name || code,
+                            ratePerM: ratePerM > 0 ? ratePerM : (price > 0 ? price : 750),
+                            description: p.name || code
+                        };
+                        if (p.productCode) {
+                            profMap[p.productCode] = profItem;
+                            profMap[p.productCode.toUpperCase()] = profItem;
+                            profMap[p.productCode.toLowerCase()] = profItem;
+                            profMap[p.productCode.replace(/[-_\s]/g, '').toUpperCase()] = profItem;
+                        }
+                        if (p.name) {
+                            profMap[p.name] = profItem;
+                            profMap[p.name.toUpperCase()] = profItem;
+                            profMap[p.name.toLowerCase()] = profItem;
+                        }
+                    }
+                });
+
                 const glassMap = {};
                 // 1. Load from AluGlass collection
                 glass.forEach(g => {

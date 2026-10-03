@@ -93,7 +93,10 @@ export const calculateBOM = ({
     const accessoryRates = { ...defaultAccessoryRates, ...(rates?.accessories || {}) };
 
     const getProf = (key) => {
-        const found = profileRates[key] || defaultProfileRates[key];
+        if (!key) return { name: '', ratePerM: 750, code: '' };
+        const upper = String(key).toUpperCase();
+        const clean = upper.replace(/[-_\s]/g, '');
+        const found = profileRates[key] || profileRates[upper] || profileRates[clean] || defaultProfileRates[key] || defaultProfileRates[upper];
         if (found && Number(found.ratePerM) > 0) return found;
         return { name: found?.name || key, ratePerM: 750, code: key };
     };
@@ -197,6 +200,7 @@ export const calculateBOM = ({
                 const discountedRate = ratePerM * discountMultiplier;
                 return {
                     code: p.profileCode,
+                    profileCode: p.profileCode,
                     name: p.description || profObj.name,
                     length: cutLength,
                     qty: totalQty,
@@ -366,6 +370,7 @@ export const calculateBOM = ({
             const discountedRate = unitRate * discountMultiplier;
             return {
                 code: p.code || `CUST-PROF-${idx + 1}`,
+                profileCode: p.code || `CUST-PROF-${idx + 1}`,
                 name: p.name || 'Custom Aluminium Profile',
                 length: Number(p.length) || 0,
                 qty: (Number(p.qty) || 1) * Q,
@@ -530,6 +535,7 @@ export const calculateBOM = ({
             const headRates = applyDiscount(getProf(headCode).ratePerM || 0);
             profileCuts.push({
                 code: getProf(headCode).code,
+                profileCode: getProf(headCode).code,
                 name: getProf(headCode).name,
                 length: W,
                 qty: 1 * Q,
@@ -543,6 +549,7 @@ export const calculateBOM = ({
             const sillRates = applyDiscount(getProf(sillCode).ratePerM || 0);
             profileCuts.push({
                 code: getProf(sillCode).code,
+                profileCode: getProf(sillCode).code,
                 name: getProf(sillCode).name,
                 length: W,
                 qty: 1 * Q,
@@ -557,6 +564,7 @@ export const calculateBOM = ({
             const jambRates = applyDiscount(getProf(jambCode).ratePerM || 0);
             profileCuts.push({
                 code: getProf(jambCode).code,
+                profileCode: getProf(jambCode).code,
                 name: getProf(jambCode).name,
                 length: H_total,
                 qty: 2 * Q,
@@ -572,6 +580,7 @@ export const calculateBOM = ({
                 const transomRates = applyDiscount(getProf('TRANSOM_BAR').ratePerM || 0);
                 profileCuts.push({
                     code: getProf('TRANSOM_BAR').code,
+                    profileCode: getProf('TRANSOM_BAR').code,
                     name: getProf('TRANSOM_BAR').name,
                     length: W,
                     qty: 1 * Q,
@@ -587,6 +596,7 @@ export const calculateBOM = ({
                     const awningRates = applyDiscount(getProf('AWNING_SASH').ratePerM || 0);
                     profileCuts.push({
                         code: getProf('AWNING_SASH').code,
+                        profileCode: getProf('AWNING_SASH').code,
                         name: 'Top Awning Sash Horizontal Rails',
                         length: W - 40,
                         qty: 2 * Q,
@@ -598,6 +608,7 @@ export const calculateBOM = ({
                     });
                     profileCuts.push({
                         code: getProf('AWNING_SASH').code,
+                        profileCode: getProf('AWNING_SASH').code,
                         name: 'Top Awning Sash Vertical Stiles',
                         length: H_top - 40,
                         qty: 2 * Q,
@@ -611,6 +622,7 @@ export const calculateBOM = ({
                     const louverRates = applyDiscount(getProf('LOUVER_FRAME').ratePerM || 0);
                     profileCuts.push({
                         code: getProf('LOUVER_FRAME').code,
+                        profileCode: getProf('LOUVER_FRAME').code,
                         name: getProf('LOUVER_FRAME').name,
                         length: H_top - 20,
                         qty: 2 * Q,
@@ -637,6 +649,7 @@ export const calculateBOM = ({
                 const stileRates = applyDiscount(getProf(sashStileCode).ratePerM || 0);
                 profileCuts.push({
                     code: getProf(sashStileCode).code,
+                    profileCode: getProf(sashStileCode).code,
                     name: `${sashName} Vertical Stiles`,
                     length: panelHeight,
                     qty: totalStiles * Q,
@@ -650,6 +663,7 @@ export const calculateBOM = ({
                 const railRates = applyDiscount(getProf(sashRailCode).ratePerM || 0);
                 profileCuts.push({
                     code: getProf(sashRailCode).code,
+                    profileCode: getProf(sashRailCode).code,
                     name: `${sashName} Horizontal Rails (Top & Bottom)`,
                     length: panelWidth,
                     qty: totalRails * Q,

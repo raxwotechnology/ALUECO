@@ -203,22 +203,6 @@ export default function AluProjectsPage() {
                                     </h3>
                                     <p className="text-xs text-slate-500 mt-0.5">{project.customerSnapshot?.name || project.customerName || 'Client'}</p>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        onClick={() => setEditingProject(project)}
-                                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                        title="Edit Project"
-                                    >
-                                        <Edit size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => requestDelete(project._id)}
-                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                        title="Delete (Requires Admin Password)"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
                             </div>
 
                             <div className="pt-3 border-t border-slate-100 text-xs">

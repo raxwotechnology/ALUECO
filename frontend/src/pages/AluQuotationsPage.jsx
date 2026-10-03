@@ -12,6 +12,8 @@ const AluQuotationsPage = () => {
     const [quotations, setQuotations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState(null);
+    const [convertingId, setConvertingId] = useState(null);
+    const [converting, setConverting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
 
@@ -62,9 +64,11 @@ const AluQuotationsPage = () => {
         }
     };
 
-    const handleConvertToOrder = async (id) => {
+    const handleConvertToOrder = async () => {
+        if (!convertingId) return;
+        setConverting(true);
         try {
-            const { data } = await api.post(`/alu/quotations/${id}/convert-to-order`);
+            const { data } = await api.post(`/alu/quotations/${convertingId}/convert-to-order`);
             const aluPo = data.data?.aluPurchaseOrder;
             if (aluPo) {
                 toast.success(
@@ -74,12 +78,15 @@ const AluQuotationsPage = () => {
             } else {
                 toast.success('Converted to Sales Order & Commercial Invoice successfully!');
             }
+            setConvertingId(null);
             fetchQuotations();
             if (data.data?.invoiceId) {
                 navigate(`/invoices/${data.data.invoiceId}`);
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to convert quotation to order');
+        } finally {
+            setConverting(false);
         }
     };
 
@@ -105,12 +112,28 @@ const AluQuotationsPage = () => {
         const styles = {
             draft: 'text-amber-700 bg-amber-50 border-amber-200',
             sent: 'text-blue-700 bg-blue-50 border-blue-200',
+            follow_up: 'text-orange-700 bg-orange-50 border-orange-200',
+            revised: 'text-indigo-700 bg-indigo-50 border-indigo-200',
             accepted: 'text-emerald-700 bg-emerald-50 border-emerald-200',
             rejected: 'text-rose-700 bg-rose-50 border-rose-200',
             expired: 'text-slate-500 bg-slate-100 border-slate-200',
             converted: 'text-purple-700 bg-purple-50 border-purple-200'
         };
         return styles[status] || 'text-slate-500 bg-slate-50';
+    };
+
+    const getStatusLabel = (status) => {
+        const labels = {
+            draft: 'Draft',
+            sent: 'Sent',
+            follow_up: 'Follow Up',
+            revised: 'Revised',
+            accepted: 'Accepted',
+            rejected: 'Rejected',
+            expired: 'Expired',
+            converted: 'Converted'
+        };
+        return labels[status] || status;
     };
 
     return (
@@ -187,6 +210,7 @@ const AluQuotationsPage = () => {
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Project Name</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Client Name</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Quote Date</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Selling Price</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -207,9 +231,12 @@ const AluQuotationsPage = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                                             {format(new Date(q.date), 'dd MMM yyyy')}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
+                                            LKR {(q.finalSellingPrice || 0).toLocaleString()}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusStyle(q.status)}`}>
-                                                {q.status}
+                                                {getStatusLabel(q.status)}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1.5">
@@ -225,7 +252,7 @@ const AluQuotationsPage = () => {
                                             <button onClick={() => handleDuplicateQuotation(q._id)} title="Duplicate Quotation (Clone)" className="text-slate-600 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><Copy size={16} /></button>
                                             
                                             {q.status !== 'converted' ? (
-                                                <button onClick={() => handleConvertToOrder(q._id)} title="Convert to Sales Order & Invoice" className="text-slate-600 hover:text-purple-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><ArrowRightLeft size={16} /></button>
+                                                <button onClick={() => setConvertingId(q._id)} title="Convert to Sales Order & Invoice" className="text-slate-600 hover:text-purple-600 p-1.5 rounded-lg hover:bg-slate-100 transition"><ArrowRightLeft size={16} /></button>
                                             ) : (
                                                 <span title="Already Converted to Order" className="text-purple-400 p-1.5 inline-block opacity-40"><ArrowRightLeft size={16} /></span>
                                             )}
@@ -246,7 +273,18 @@ const AluQuotationsPage = () => {
                 title="Delete Quotation"
                 message="Are you sure you want to delete this quotation? All revision history for this specific copy will be removed from latest list."
                 onConfirm={handleDelete}
-                onCancel={() => setDeletingId(null)}
+                onClose={() => setDeletingId(null)}
+            />
+
+            {/* Convert to Order Confirmation */}
+            <ConfirmDialog
+                isOpen={!!convertingId}
+                title="Convert to Sales Order"
+                message="Convert this quotation to an official Commercial Invoice and Sales Order? This will check material stock and generate shortage POs automatically. This action cannot be reversed."
+                confirmText={converting ? 'Converting...' : 'Yes, Convert'}
+                onConfirm={handleConvertToOrder}
+                onClose={() => setConvertingId(null)}
+                loading={converting}
             />
         </div>
     );

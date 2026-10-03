@@ -94,8 +94,9 @@ export default function CustomerQuotationView({
         const aluminiumCost = costSummary.totalAluminiumCost || 0;
         const glassCost = costSummary.totalGlassCost || 0;
         const hardwareCost = costSummary.totalAccessoriesCost || 0;
+        const gasketCost = costSummary.totalGasketCost || 0;
         const labourCost = item.labourCost || costSummary.labourCost || 0;
-        const rawLineTotal = item.totalPrice || item.lineTotal || (aluminiumCost + glassCost + hardwareCost + labourCost) || (qty * (item.unitPrice || 0));
+        const rawLineTotal = item.totalPrice || item.lineTotal || (aluminiumCost + glassCost + hardwareCost + gasketCost + labourCost) || (qty * (item.unitPrice || 0));
 
         let apportionedTransport = 0;
         if (distributeTransportCost && transportCost > 0 && rawItemsSubtotal > 0) {
@@ -149,9 +150,10 @@ export default function CustomerQuotationView({
             const aluminiumCost = costSummary.totalAluminiumCost || 0;
             const glassCost = costSummary.totalGlassCost || 0;
             const hardwareCost = costSummary.totalAccessoriesCost || 0;
+            const gasketCost = costSummary.totalGasketCost || 0;
             const labourCost = item.labourCost || costSummary.labourCost || 0;
 
-            return sum + aluminiumCost + glassCost + hardwareCost + labourCost;
+            return sum + aluminiumCost + glassCost + hardwareCost + gasketCost + labourCost;
         }, 0);
 
         // When distributeTransportCost is true, subtotal absorbs the transport cost
@@ -362,12 +364,13 @@ export default function CustomerQuotationView({
                                 const aluminiumCost = costSummary.totalAluminiumCost || 0;
                                 const glassCost = costSummary.totalGlassCost || 0;
                                 const hardwareCost = costSummary.totalAccessoriesCost || 0;
+                                const gasketCost = costSummary.totalGasketCost || 0;
                                 const labourCost = item.labourCost || costSummary.labourCost || 0;
 
                                 // Use displayLineTotal if transport distributed, otherwise totalPrice / cost components
                                 const itemTotal = distributeTransportCost 
                                     ? item.displayLineTotal 
-                                    : (item.totalPrice || (aluminiumCost + glassCost + hardwareCost + labourCost));
+                                    : (item.totalPrice || (aluminiumCost + glassCost + hardwareCost + gasketCost + labourCost));
 
                                 return (
                                     <tr key={index} className={index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}>

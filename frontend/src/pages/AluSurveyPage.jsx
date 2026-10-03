@@ -333,13 +333,7 @@ const AluSurveyPage = () => {
                                 </div>
                             </div>
 
-                            <div className="pt-3 border-t space-y-2">
-                                <Button
-                                    onClick={() => convertToQuotation(survey)}
-                                    className="w-full flex justify-center items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs shadow-sm transition"
-                                >
-                                    <FileText size={13} /> Convert to Quotation
-                                </Button>
+                            <div className="pt-3 border-t">
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => handleOpenEdit(survey)}

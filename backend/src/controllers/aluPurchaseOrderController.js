@@ -12,7 +12,8 @@ export const getAluPurchaseOrders = asyncHandler(async (req, res) => {
     const filter = {};
 
     if (status && status !== 'all') {
-        filter.status = status;
+        const statusArr = Array.isArray(status) ? status : status.split(',');
+        filter.status = statusArr.length > 1 ? { $in: statusArr } : statusArr[0];
     }
     if (sourceType && sourceType !== 'all') {
         filter.sourceType = sourceType;

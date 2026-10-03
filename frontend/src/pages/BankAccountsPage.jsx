@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Eye, Receipt, TrendingUp, DollarSign, RefreshCw, X, ArrowUpRight, ArrowDownLeft, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
@@ -17,6 +18,7 @@ import { downloadCSV } from '../utils/exportUtils';
 
 export default function BankAccountsPage() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [accounts, setAccounts] = useState([]);
     const [selectedAccount, setSelectedAccount] = useState(null);
     const [ledger, setLedger] = useState([]);
@@ -105,6 +107,7 @@ export default function BankAccountsPage() {
         setSaving(true);
         try {
             await api.post('/finance/bank-accounts', formData);
+            queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
             toast.success('Bank account registered successfully');
             setIsModalOpen(false);
             setFormData({

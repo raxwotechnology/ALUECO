@@ -55,7 +55,9 @@ export default function PaymentFormPage() {
         queryFn: async () => {
             const { data } = await api.get('/finance/bank-accounts');
             return data.data || [];
-        }
+        },
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
     const { data: suppliersData } = useQuery({
         queryKey: ['suppliers', 'active'],

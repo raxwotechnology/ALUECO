@@ -85,7 +85,16 @@ export default function AluRawMaterialsPage() {
                     aluCategory: p.aluCategory || 'profiles'
                 }));
 
-            setStockItems([...stock, ...emptyItems]);
+            const enrichedStock = stock.map(s => {
+                const p = s.productId || {};
+                return {
+                    ...s,
+                    unitOfMeasure: p.unitOfMeasure || s.unitOfMeasure || 'Lengths',
+                    aluCategory: p.aluCategory || s.aluCategory || 'profiles'
+                };
+            });
+
+            setStockItems([...enrichedStock, ...emptyItems]);
             setAllProducts(prods);
             setWarehouses(whRes.data.data || []);
         } catch (err) {
@@ -130,12 +139,19 @@ export default function AluRawMaterialsPage() {
 
     const handleEditItem = (item) => {
         const product = item.productId;
-        const productId = product?._id || item.productId;
+        const productId = (product?._id || item.productId)?.toString();
         if (!productId) {
             toast.error('Cannot edit: Product ID not found');
             return;
         }
-        setEditingProduct(typeof product === 'object' ? product : allProducts.find(p => p._id === productId) || { _id: productId });
+        const fullProd = allProducts.find(p => p._id?.toString() === productId);
+        const resolved = {
+            ...(typeof product === 'object' ? product : {}),
+            ...(fullProd || {}),
+            _id: productId,
+            costPerUnit: item.costPerUnit || fullProd?.costs?.lastPurchaseCost || fullProd?.basePrice || 0
+        };
+        setEditingProduct(resolved);
         setIsFormOpen(true);
     };
 
@@ -263,6 +279,26 @@ export default function AluRawMaterialsPage() {
         return s.variant === 'warning' || s.variant === 'danger';
     }).length;
 
+    const getCategoryBadge = (aluCategory, aluSpecs) => {
+        const cat = aluCategory || (aluSpecs?.type === 'AP' ? 'profiles' : aluSpecs?.type === 'GL' ? 'glass' : aluSpecs?.type === 'AC' ? 'accessories' : aluSpecs?.type === 'HW' ? 'hardware' : aluSpecs?.type === 'GS' ? 'gaskets' : 'profiles');
+        switch (cat) {
+            case 'profiles':
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Profile (AP)</span>;
+            case 'glass':
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200">Glass (GL)</span>;
+            case 'accessories':
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">Accessory (AC)</span>;
+            case 'hardware':
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Hardware (HW)</span>;
+            case 'gaskets':
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">Gasket (GS)</span>;
+            default:
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-50 text-gray-700 border border-gray-200">{cat}</span>;
+        }
+    };
+
+    const getUom = (r) => r.productId?.unitOfMeasure || r.unitOfMeasure || 'Lengths';
+
     const columns = [
         {
             key: 'productCode',
@@ -279,12 +315,30 @@ export default function AluRawMaterialsPage() {
         { 
             key: 'productName', 
             label: 'Material Name', 
+            render: (r) => {
+                const p = r.productId || {};
+                const specSummary = [p.aluSpecs?.series, p.aluSpecs?.finish].filter(Boolean).join(' • ');
+                return (
+                    <div>
+                        <span className="font-bold text-gray-900 text-sm block">{r.productName || p.name}</span>
+                        <span className="text-xs text-gray-500 font-medium">{specSummary || 'Aluminium Raw Material'}</span>
+                    </div>
+                );
+            } 
+        },
+        {
+            key: 'categoryType',
+            label: 'Type',
+            render: (r) => getCategoryBadge(r.productId?.aluCategory || r.aluCategory, r.productId?.aluSpecs)
+        },
+        {
+            key: 'unitOfMeasure',
+            label: 'UOM / Unit',
             render: (r) => (
-                <div>
-                    <span className="font-bold text-gray-900 text-sm block">{r.productName || r.productId?.name}</span>
-                    <span className="text-xs text-gray-400">{r.productId?.category?.name || 'Aluminium Stock'}</span>
-                </div>
-            ) 
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {getUom(r)}
+                </span>
+            )
         },
         { 
             key: 'warehouseName', 
@@ -312,17 +366,17 @@ export default function AluRawMaterialsPage() {
         { 
             key: 'onHand', 
             label: 'On Hand', 
-            render: (r) => <span className="font-extrabold text-gray-900">{r.quantities?.onHand} {r.unitOfMeasure}</span> 
+            render: (r) => <span className="font-extrabold text-gray-900">{r.quantities?.onHand} <span className="text-xs font-normal text-slate-500">{getUom(r)}</span></span> 
         },
         { 
             key: 'reserved', 
             label: 'Reserved (Project)', 
-            render: (r) => <span className="font-medium text-amber-600">{(r.quantities?.reserved || 0)} {r.unitOfMeasure}</span> 
+            render: (r) => <span className="font-medium text-amber-600">{(r.quantities?.reserved || 0)} <span className="text-xs font-normal text-amber-500/80">{getUom(r)}</span></span> 
         },
         { 
             key: 'available', 
             label: 'Available', 
-            render: (r) => <span className="font-extrabold text-emerald-600">{r.quantities?.available} {r.unitOfMeasure}</span> 
+            render: (r) => <span className="font-extrabold text-emerald-600">{r.quantities?.available} <span className="text-xs font-normal text-emerald-500/80">{getUom(r)}</span></span> 
         },
         { 
             key: 'costPerUnit', 

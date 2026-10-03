@@ -14,10 +14,12 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
     const [aluProducts, setAluProducts] = useState([]);
     const [pendingPos, setPendingPos] = useState([]);
     const [projectsSummary, setProjectsSummary] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
 
     const [form, setForm] = useState({
         warehouseId: '',
-        supplierName: 'Swisstek Aluminium',
+        supplierId: '',
+        supplierName: '',
         invoiceNumber: '',
         notes: '',
         items: [
@@ -28,11 +30,12 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
     useEffect(() => {
         const fetchInitial = async () => {
             try {
-                const [whRes, prodRes, poRes, projRes] = await Promise.all([
+                const [whRes, prodRes, poRes, projRes, supRes] = await Promise.all([
                     api.get('/warehouses'),
                     api.get('/alu/raw-materials'),
-                    api.get('/alu/purchase-orders?status=pending'),
-                    api.get('/alu/projects/materials-summary')
+                    api.get('/alu/purchase-orders?status=pending&status=partially_received'),
+                    api.get('/alu/projects/materials-summary'),
+                    api.get('/suppliers').catch(() => ({ data: { data: [] } }))
                 ]);
 
                 const whList = whRes.data.data || [];
@@ -46,9 +49,22 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
                 setPendingPos(poRes.data.data || []);
                 setProjectsSummary(projRes.data.data || []);
 
+                const supList = supRes.data?.data || supRes.data || [];
+                setSuppliers(Array.isArray(supList) ? supList : []);
+                if (supList.length > 0 && !form.supplierId && !form.supplierName) {
+                    setForm(prev => ({
+                        ...prev,
+                        supplierId: supList[0]._id,
+                        supplierName: supList[0].displayName || supList[0].name
+                    }));
+                }
+
                 // If selected PO is provided, auto-load its items
                 if (selectedPo) {
-                    handleLoadFromPO(selectedPo);
+                    const foundPo = typeof selectedPo === 'string' 
+                        ? (poRes.data.data || []).find(p => p.poNumber === selectedPo) 
+                        : selectedPo;
+                    if (foundPo) handleLoadFromPO(foundPo);
                 }
 
                 // If prefillItem is provided, auto-fill the first item
@@ -104,17 +120,28 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
     };
 
     const handleLoadFromPO = (po) => {
-        const items = (po.items || []).map(i => ({
-            productId: i.productId?._id || i.productId || '',
-            productCode: i.productCode || '',
-            quantityReceived: i.pendingQuantity || i.quantityRequired || 0,
-            unitCost: i.estimatedUnitCost || 0,
-            unitOfMeasure: i.unit || 'Lengths'
-        }));
+        const items = (po.items || [])
+            .filter(i => {
+                const pending = i.pendingQuantity !== undefined ? i.pendingQuantity : i.requiredQuantity;
+                return pending > 0 && i.status !== 'fulfilled';
+            })
+            .map(i => ({
+                productId: i.productId?._id || i.productId || '',
+                productCode: i.productCode || i.itemCode || '',
+                productName: i.productName || '',
+                quantityReceived: i.pendingQuantity || i.requiredQuantity || 0,
+                unitCost: i.estimatedUnitCost || 0,
+                unitOfMeasure: i.unitOfMeasure || 'Lengths',
+                isFromPO: true
+            }));
+
+        const poSupplierId = po.supplierId?._id || po.supplierId || '';
+        const poSupplierName = po.supplierName || (po.supplierId?.displayName || po.supplierId?.name) || '';
 
         setForm(prev => ({
             ...prev,
-            supplierName: po.supplierName || prev.supplierName,
+            supplierId: poSupplierId || prev.supplierId,
+            supplierName: poSupplierName || prev.supplierName,
             notes: `Fulfilling Shortage PO: ${po.poNumber} (${po.projectName})`,
             items: items.length ? items : prev.items
         }));
@@ -184,7 +211,7 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
             <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
                 
                 {/* 01. Pending Shortage PO Banner */}
-                {pendingPos.length > 0 && (
+                {!selectedPo && pendingPos.length > 0 && (
                     <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl space-y-2.5">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -242,15 +269,29 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                Supplier / Extruder
+                                Supplier / Extruder <span className="text-rose-500">*</span>
                             </label>
-                            <input
-                                type="text"
-                                value={form.supplierName}
-                                onChange={e => setForm({ ...form, supplierName: e.target.value })}
-                                placeholder="e.g. Swisstek Aluminium"
-                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-sm"
-                            />
+                            <select
+                                value={form.supplierId || ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    const found = suppliers.find(s => s._id === val);
+                                    if (found) {
+                                        setForm({ ...form, supplierId: found._id, supplierName: found.displayName || found.name || found.companyName });
+                                    } else {
+                                        setForm({ ...form, supplierId: '', supplierName: '' });
+                                    }
+                                }}
+                                required
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-sm"
+                            >
+                                <option value="">-- Select Registered Supplier --</option>
+                                {suppliers.map(s => (
+                                    <option key={s._id} value={s._id}>
+                                        {s.displayName || s.name || s.companyName} {s.category ? `(${s.category})` : ''}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
@@ -284,75 +325,102 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
                         </button>
                     </div>
 
-                    <div className="space-y-2.5">
-                        {form.items.map((it, idx) => {
-                            const lineTotal = (Number(it.quantityReceived) || 0) * (Number(it.unitCost) || 0);
-
-                            return (
-                                <div key={idx} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-2">
-                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                                        <div className="sm:col-span-5">
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                                                Select Material
-                                            </label>
-                                            <select
-                                                value={it.productId}
-                                                onChange={e => handleProductSelect(idx, e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
-                                            >
-                                                <option value="">-- Choose Raw Material --</option>
-                                                {aluProducts.map(p => (
-                                                    <option key={p._id} value={p._id}>
-                                                        {p.productCode} - {p.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div className="sm:col-span-3">
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                                                Item Code
-                                            </label>
-                                            <input
-                                                type="text"
-                                                maxLength={15}
-                                                value={it.productCode}
-                                                onChange={e => {
-                                                    const next = [...form.items];
-                                                    next[idx].productCode = e.target.value.toUpperCase();
-                                                    setForm({ ...form, items: next });
-                                                }}
-                                                required
-                                                placeholder="PRF-..."
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono uppercase focus:outline-none focus:bg-white"
-                                            />
-                                        </div>
-
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                                                Qty ({it.unitOfMeasure || 'Units'})
-                                            </label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0.01"
-                                                value={it.quantityReceived}
-                                                onChange={e => {
-                                                    const next = [...form.items];
-                                                    next[idx].quantityReceived = Number(e.target.value);
-                                                    setForm({ ...form, items: next });
-                                                }}
-                                                required
-                                                placeholder="0.00"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none focus:bg-white"
-                                            />
-                                        </div>
-
-                                        <div className="sm:col-span-2 flex items-center gap-1.5">
-                                            <div className="flex-1">
-                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                                                    Cost (LKR)
-                                                </label>
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100/80 text-slate-600 font-bold uppercase text-[10px]">
+                                <tr>
+                                    <th className="p-3">Select Material</th>
+                                    <th className="p-3 w-40">Item Code</th>
+                                    <th className="p-3 w-28 text-center">Qty</th>
+                                    <th className="p-3 w-32 text-right">Unit Cost</th>
+                                    <th className="p-3 w-32 text-right">Line Total (Rs)</th>
+                                    <th className="p-3 w-12 text-center"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                                {form.items.map((it, idx) => {
+                                    const lineTotal = (Number(it.quantityReceived) || 0) * (Number(it.unitCost) || 0);
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                            <td className="p-2 align-top">
+                                                {it.isFromPO ? (
+                                                    <div className="w-full bg-slate-50/50 border border-slate-200/50 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 select-none">
+                                                        {it.productCode} {it.productName ? `- ${it.productName}` : ''}
+                                                    </div>
+                                                ) : (
+                                                    <select
+                                                        value={it.productId}
+                                                        onChange={e => handleProductSelect(idx, e.target.value)}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-400"
+                                                    >
+                                                        <option value="">-- Choose Raw Material --</option>
+                                                        {aluProducts.map(p => (
+                                                            <option key={p._id} value={p._id}>
+                                                                {p.productCode} - {p.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {/* Project Suggestions */}
+                                                {it.productCode && (() => {
+                                                    const matchingProjects = getMatchingProjects(it.productCode);
+                                                    if (matchingProjects.length > 0) {
+                                                        return (
+                                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                                {matchingProjects.slice(0, 2).map(project => (
+                                                                    <span key={project._id} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[9px] font-semibold text-indigo-700">
+                                                                        <Building2 size={9} />
+                                                                        {project.projectName || project.quoteNumber}
+                                                                    </span>
+                                                                ))}
+                                                                {matchingProjects.length > 2 && <span className="text-[9px] text-slate-500 font-bold">+{matchingProjects.length - 2} more</span>}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </td>
+                                            <td className="p-2 align-top">
+                                                {it.isFromPO ? (
+                                                    <div className="w-full bg-slate-50/50 border border-slate-200/50 rounded-lg px-2 py-1.5 text-xs font-mono uppercase text-slate-500 select-none">
+                                                        {it.productCode}
+                                                    </div>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        maxLength={15}
+                                                        value={it.productCode}
+                                                        onChange={e => {
+                                                            const next = [...form.items];
+                                                            next[idx].productCode = e.target.value.toUpperCase();
+                                                            setForm({ ...form, items: next });
+                                                        }}
+                                                        required
+                                                        placeholder="PRF-..."
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono uppercase focus:outline-none focus:bg-white focus:border-indigo-400"
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className="p-2 align-top text-center">
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0.01"
+                                                        value={it.quantityReceived}
+                                                        onChange={e => {
+                                                            const next = [...form.items];
+                                                            next[idx].quantityReceived = Number(e.target.value);
+                                                            setForm({ ...form, items: next });
+                                                        }}
+                                                        required
+                                                        placeholder="0.00"
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-indigo-700 text-center focus:outline-none focus:bg-white focus:border-indigo-400"
+                                                    />
+                                                    <span className="block text-[9px] text-slate-400 mt-0.5 font-bold">{it.unitOfMeasure || 'Units'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-2 align-top text-right">
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -364,70 +432,29 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
                                                         setForm({ ...form, items: next });
                                                     }}
                                                     placeholder="0.00"
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-medium focus:outline-none focus:bg-white"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-medium text-right focus:outline-none focus:bg-white focus:border-indigo-400"
                                                 />
-                                            </div>
-                                            {form.items.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeItem(idx)}
-                                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
-                                                    title="Remove Row"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Line item subtotal badge */}
-                                    <div className="flex justify-end text-[11px] font-medium text-slate-500 pr-2">
-                                        Line Total: <strong className="ml-1 text-slate-800">Rs. {lineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
-                                    </div>
-
-                                    {/* Project Suggestions */}
-                                    {it.productCode && (
-                                        <div className="mt-2 pt-2 border-t border-slate-100">
-                                            {(() => {
-                                                const matchingProjects = getMatchingProjects(it.productCode);
-                                                if (matchingProjects.length === 0) {
-                                                    return (
-                                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                                            <CheckCircle2 size={11} />
-                                                            <span>No pending projects require this material</span>
-                                                        </div>
-                                                    );
-                                                }
-                                                return (
-                                                    <div className="space-y-1.5">
-                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600">
-                                                            <MapPin size={11} />
-                                                            <span>Required by {matchingProjects.length} project(s):</span>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {matchingProjects.slice(0, 3).map(project => (
-                                                                <span
-                                                                    key={project._id}
-                                                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] font-semibold text-indigo-700"
-                                                                >
-                                                                    <Building2 size={9} />
-                                                                    {project.projectName || project.quoteNumber}
-                                                                </span>
-                                                            ))}
-                                                            {matchingProjects.length > 3 && (
-                                                                <span className="text-[10px] text-slate-500 font-medium">
-                                                                    +{matchingProjects.length - 3} more
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                            </td>
+                                            <td className="p-2 align-top text-right font-bold text-slate-800 pt-3.5">
+                                                {(lineTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="p-2 align-top text-center pt-2">
+                                                {form.items.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeItem(idx)}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                        title="Remove Row"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
 
                     {/* Total GRN Value Banner */}

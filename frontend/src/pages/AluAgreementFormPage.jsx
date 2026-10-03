@@ -14,6 +14,8 @@ const AluAgreementFormPage = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [quotations, setQuotations] = useState([]);
+    const [bankAccounts, setBankAccounts] = useState([]);
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
     const [showPrintModal, setShowPrintModal] = useState(false);
 
     // Form State
@@ -41,26 +43,46 @@ const AluAgreementFormPage = () => {
         },
         generalConditions: 'All payments shall follow the agreed schedule. Variations will be charged separately. Final handover will be after full payment.',
         bankDetails: {
-            bankName: 'Hatton National Bank',
-            accountName: 'M.E.H.Bandara',
-            accountNumber: '147020135728',
-            branch: 'Nawala'
+            bankName: '',
+            accountName: '',
+            accountNumber: '',
+            branch: ''
         }
     });
 
-    // Load active quotations for auto-fill dropdown
+    // Load active quotations and registered bank accounts
     useEffect(() => {
-        const fetchQuotations = async () => {
+        const fetchInitialData = async () => {
             try {
-                const res = await api.get('/alu/quotations');
-                if (res.data?.success) {
-                    setQuotations(res.data.data || []);
+                const [quotesRes, bankRes] = await Promise.all([
+                    api.get('/alu/quotations'),
+                    api.get('/finance/bank-accounts')
+                ]);
+                if (quotesRes.data?.success) {
+                    setQuotations(quotesRes.data.data || []);
+                }
+                if (bankRes.data?.success && bankRes.data.data?.length > 0) {
+                    const accounts = bankRes.data.data;
+                    setBankAccounts(accounts);
+                    const defaultAcc = accounts.find(a => a.isActive) || accounts[0];
+                    if (defaultAcc && !id) {
+                        setSelectedBankAccountId(defaultAcc._id);
+                        setAgreementData(prev => ({
+                            ...prev,
+                            bankDetails: {
+                                bankName: defaultAcc.bankName || '',
+                                accountName: defaultAcc.accountName || '',
+                                accountNumber: defaultAcc.accountNumber || '',
+                                branch: defaultAcc.branchName || ''
+                            }
+                        }));
+                    }
                 }
             } catch (err) {
-                console.error('Failed to load quotations list', err);
+                console.error('Failed to load initial data', err);
             }
         };
-        fetchQuotations();
+        fetchInitialData();
 
         // If editing existing agreement
         if (id) {
@@ -436,9 +458,43 @@ const AluAgreementFormPage = () => {
 
                 {/* 4. Bank Details */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 text-xs">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2">
-                        4. Contractor Bank Details
-                    </h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                            4. Contractor Bank Details
+                        </h3>
+                        {bankAccounts.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500 font-medium">Select Registered Account:</span>
+                                <select
+                                    value={selectedBankAccountId}
+                                    onChange={(e) => {
+                                        const accId = e.target.value;
+                                        setSelectedBankAccountId(accId);
+                                        const acc = bankAccounts.find(a => a._id === accId);
+                                        if (acc) {
+                                            setAgreementData(prev => ({
+                                                ...prev,
+                                                bankDetails: {
+                                                    bankName: acc.bankName || '',
+                                                    accountName: acc.accountName || '',
+                                                    accountNumber: acc.accountNumber || '',
+                                                    branch: acc.branchName || ''
+                                                }
+                                            }));
+                                        }
+                                    }}
+                                    className="p-1.5 border border-indigo-200 rounded-lg bg-indigo-50/50 text-indigo-950 font-bold focus:ring-2 focus:ring-indigo-500/30 outline-none"
+                                >
+                                    <option value="">-- Choose Account --</option>
+                                    {bankAccounts.map((acc) => (
+                                        <option key={acc._id} value={acc._id}>
+                                            {acc.bankName} - {acc.accountNumber} ({acc.accountName})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div>

@@ -184,17 +184,37 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             
             setCommonSettings({
                 warehouseId: propWarehouses[0]?._id || warehouses[0]?._id || '',
-                series: specs.series || 'Swisstek 100mm Commercial Sliding',
-                finish: specs.finish || 'Powder Coated White (RAL 9016)',
-                supplierName: specs.brand || 'Swisstek Aluminium'
+                series: specs.series || '',
+                finish: specs.finish || '',
+                supplierName: specs.brand || ''
             });
-            setItems([{
+
+            const initialCost = editProduct.costs?.lastPurchaseCost ?? editProduct.basePrice ?? editProduct.costPerUnit ?? 0;
+            const standardLength = specs.standardLength !== undefined && specs.standardLength !== null ? specs.standardLength.toString() : '';
+            const cutLength = specs.cutLength !== undefined && specs.cutLength !== null ? specs.cutLength.toString() : '';
+            const fullBarPrice = specs.fullBarPrice !== undefined && specs.fullBarPrice !== null ? specs.fullBarPrice.toString() : '';
+
+            const normalizeUom = (u) => {
+                if (!u) return 'Lengths';
+                const lower = u.toString().trim().toLowerCase();
+                if (lower === 'm' || lower === 'meter' || lower === 'meters') return 'Meters';
+                if (lower === 'sqft' || lower === 'sq.ft' || lower === 'sq ft') return 'Sq.Ft';
+                if (lower === 'sqm' || lower === 'sq.m' || lower === 'sq m') return 'Sq.M';
+                if (lower === 'pcs' || lower === 'nos' || lower === 'pieces') return 'Nos';
+                if (lower === 'kg' || lower === 'kilogram' || lower === 'kgs') return 'Kg';
+                if (lower === 'ft' || lower === 'feet') return 'Ft';
+                if (lower === 'roll' || lower === 'rolls') return 'Rolls';
+                if (lower === 'lengths' || lower === 'length' || lower === 'bar') return 'Lengths';
+                return u;
+            };
+
+            const editItem = {
                 productCode: editProduct.productCode || '',
                 name: editProduct.name || '',
-                unitOfMeasure: editProduct.unitOfMeasure || 'Lengths',
+                unitOfMeasure: normalizeUom(editProduct.unitOfMeasure),
                 quantity: 0,
-                purchaseCost: editProduct.costs?.lastPurchaseCost || editProduct.basePrice || 0,
-                type: specs.type || CATEGORY_TO_TYPE[editProduct.aluCategory] || '',
+                purchaseCost: initialCost,
+                type: specs.type || CATEGORY_TO_TYPE[editProduct.aluCategory] || (isAluminiumProfile ? 'AP' : ''),
                 profile: specs.profile || '',
                 colour: specs.colour || '',
                 length: lengthInFeet,
@@ -202,11 +222,20 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 height: specs.height || '',
                 side: specs.side || '',
                 description: specs.description || '',
-                // Load profile pricing fields - preserve actual values including 0
-                standardLength: specs.standardLength !== undefined && specs.standardLength !== null ? specs.standardLength.toString() : '',
-                cutLength: specs.cutLength !== undefined && specs.cutLength !== null ? specs.cutLength.toString() : '',
-                fullBarPrice: specs.fullBarPrice !== undefined && specs.fullBarPrice !== null ? specs.fullBarPrice.toString() : '',
-            }]);
+                standardLength,
+                cutLength,
+                fullBarPrice,
+            };
+
+            // If AP and fullBarPrice is set and initialCost is 0, calculate initial profile price
+            if (editItem.type === 'AP' && standardLength && fullBarPrice && initialCost === 0) {
+                const calc = calculateProfilePrice(editItem);
+                if (calc && calc.price > 0) {
+                    editItem.purchaseCost = calc.price;
+                }
+            }
+
+            setItems([editItem]);
         } else {
             setCommonSettings({
                 series: 'Swisstek 100mm Commercial Sliding',
@@ -244,22 +273,21 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         console.log('calculateProfilePrice - standardLength:', standardLength, 'fullBarPrice:', fullBarPrice);
 
         // Check if values are valid numbers (not NaN, not null, not undefined, not empty string)
-        // Allow fullBarPrice to be 0, but standardLength must be positive
         if (isNaN(standardLength) || standardLength <= 0 || item.fullBarPrice === '' || isNaN(fullBarPrice) || fullBarPrice < 0) {
             console.log('Price calculation failed validation');
             return { price: item.purchaseCost || 0, calculation: '', breakdown: null };
         }
 
-        const standardLengthConfig = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === item.standardLength);
+        const standardLengthConfig = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === item.standardLength?.toString());
         
-        if (!standardLengthConfig.isCuttable) {
+        if (!standardLengthConfig || !standardLengthConfig.isCuttable) {
             // Non-cuttable profiles (12ft, 18ft) - use standard price directly
             return {
                 price: fullBarPrice,
                 calculation: 'Standard Price (No Cutting)',
                 breakdown: {
                     fullBarPrice,
-                    pricePerFt: fullBarPrice / standardLength,
+                    pricePerFt: standardLength > 0 ? (fullBarPrice / standardLength) : 0,
                     cuttingCharge: 0,
                     formula: 'Standard Supplier Length'
                 }
@@ -369,6 +397,17 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 }
             }
             
+            // Auto-default standard UOM when type changes
+            if (newType === 'AP' && (!currentItem.unitOfMeasure || currentItem.unitOfMeasure === 'Sq.Ft' || currentItem.unitOfMeasure === 'Nos')) {
+                currentItem.unitOfMeasure = 'Lengths';
+            } else if (newType === 'GL' && (currentItem.unitOfMeasure === 'Lengths' || !currentItem.unitOfMeasure)) {
+                currentItem.unitOfMeasure = 'Sq.Ft';
+            } else if ((newType === 'AC' || newType === 'HW') && (currentItem.unitOfMeasure === 'Lengths' || !currentItem.unitOfMeasure)) {
+                currentItem.unitOfMeasure = 'Nos';
+            } else if (newType === 'GS' && (currentItem.unitOfMeasure === 'Lengths' || !currentItem.unitOfMeasure)) {
+                currentItem.unitOfMeasure = 'Meters';
+            }
+
             // Reset profile-specific fields when changing type (only in create mode)
             if (newType !== 'AP' && !isEditMode) {
                 currentItem.standardLength = '';
@@ -391,9 +430,10 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
             }
         }
         
-        // Auto-generate product code when relevant fields change (only in create mode)
-        if (!isEditMode && ['type', 'profile', 'colour', 'length', 'side', 'width', 'height', 'standardLength', 'cutLength'].includes(field)) {
-            next[idx].productCode = generateProductCode(next[idx]);
+        // Auto-generate product code when relevant fields change (both create and edit mode)
+        if (['type', 'profile', 'colour', 'length', 'side', 'width', 'height', 'standardLength', 'cutLength'].includes(field)) {
+            const gen = generateProductCode(next[idx]);
+            if (gen) next[idx].productCode = gen;
         }
         
         setItems(next);
@@ -448,8 +488,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
         // Validate all rows
         for (let i = 0; i < items.length; i++) {
             const it = items[i];
-            // Only validate type in create mode, not edit mode
-            if (!isEditMode && !it.type) {
+            if (!it.type) {
                 toast.error(`Row #${i + 1}: Type is required`);
                 return;
             }
@@ -457,18 +496,18 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 toast.error(`Row #${i + 1}: Material name is required`);
                 return;
             }
-            // Validate type-specific fields for AP profiles (only in create mode)
-            if (!isEditMode && it.type === 'AP' && !it.standardLength) {
+            // Validate type-specific fields for AP profiles
+            if (it.type === 'AP' && !it.standardLength) {
                 toast.error(`Row #${i + 1}: Standard Length is required for Aluminium Profiles`);
                 return;
             }
-            if (!isEditMode && it.type === 'AP' && (it.fullBarPrice === '' || it.fullBarPrice === null || it.fullBarPrice === undefined)) {
+            if (it.type === 'AP' && (it.fullBarPrice === '' || it.fullBarPrice === null || it.fullBarPrice === undefined)) {
                 toast.error(`Row #${i + 1}: Full Bar Price is required for Aluminium Profiles`);
                 return;
             }
-            // Validate cut length for cuttable profiles (only in create mode)
-            if (!isEditMode && it.type === 'AP' && it.standardLength) {
-                const isCuttable = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable;
+            // Validate cut length for cuttable profiles
+            if (it.type === 'AP' && it.standardLength) {
+                const isCuttable = STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength?.toString())?.isCuttable;
                 if (isCuttable && !it.cutLength) {
                     toast.error(`Row #${i + 1}: Cut Length is required for this Standard Length`);
                     return;
@@ -492,9 +531,10 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 
                 // Convert length from feet to mm for Aluminium Profile
                 const lengthInMm = isAluminiumProfile && it.length ? feetToMm(it.length) : (it.length || '');
-                
+                const finalCode = (it.productCode || generateProductCode(it) || editProduct.productCode || '').trim().toUpperCase();
+
                 const payload = {
-                    productCode: it.productCode?.trim().toUpperCase() || '',
+                    productCode: finalCode,
                     name: it.name.trim(),
                     unitOfMeasure: it.unitOfMeasure,
                     basePrice: Number(it.purchaseCost) || 0,
@@ -508,18 +548,18 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         series: commonSettings.series,
                         finish: commonSettings.finish,
                         brand: commonSettings.supplierName,
-                        type: it.type || editProduct.aluSpecs?.type || '',
-                        profile: it.profile || editProduct.aluSpecs?.profile || '',
-                        colour: it.colour || editProduct.aluSpecs?.colour || '',
+                        type: it.type || '',
+                        profile: it.profile || '',
+                        colour: it.colour || '',
                         length: lengthInMm,
-                        width: it.width || editProduct.aluSpecs?.width || '',
-                        height: it.height || editProduct.aluSpecs?.height || '',
-                        side: it.side || editProduct.aluSpecs?.side || '',
-                        description: it.description || editProduct.aluSpecs?.description || '',
-                        // Add profile pricing fields
-                        standardLength: it.standardLength !== undefined && it.standardLength !== null && it.standardLength !== '' ? it.standardLength : (editProduct.aluSpecs?.standardLength || ''),
-                        cutLength: it.cutLength !== undefined && it.cutLength !== null && it.cutLength !== '' ? it.cutLength : (editProduct.aluSpecs?.cutLength || ''),
-                        fullBarPrice: it.fullBarPrice !== undefined && it.fullBarPrice !== null && it.fullBarPrice !== '' ? it.fullBarPrice : (editProduct.aluSpecs?.fullBarPrice || ''),
+                        width: it.width || '',
+                        height: it.height || '',
+                        side: it.side || '',
+                        description: it.description || '',
+                        // Profile pricing fields
+                        standardLength: it.standardLength || '',
+                        cutLength: it.cutLength || '',
+                        fullBarPrice: it.fullBarPrice !== undefined && it.fullBarPrice !== null && it.fullBarPrice !== '' ? it.fullBarPrice : '',
                     }
                 };
 
@@ -533,7 +573,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                 console.log('Updated product data:', data.data);
                 
                 if (data.success) {
-                    toast.success(data.message || 'Material updated successfully!');
+                    toast.success(data.message || 'Material updated successfully! All BOMs and quotations cascaded.');
                     console.log('Calling onSuccess callback to refresh data');
                     onSuccess?.();
                     onClose();
@@ -759,6 +799,15 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                         )}
                     </div>
 
+                    {isEditMode && (
+                        <div className="flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-xs">
+                            <Sparkles size={16} className="text-indigo-600 flex-shrink-0" />
+                            <span>
+                                <strong>Full Inventory & Item Code Editing:</strong> You can edit any field (Name, Specs, Type, Dimensions, Price, or Item Code). If the Item Code or Name is modified, it will <strong>automatically cascade to all BOMs, Quotations, Purchase Orders, and Stock records</strong>.
+                            </span>
+                        </div>
+                    )}
+
                     <div className="space-y-3">
                         {items.map((it, idx) => {
                             const lineTotal = (Number(it.quantity) || 0) * (Number(it.purchaseCost) || 0);
@@ -773,9 +822,11 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
 
                                         <div className="flex items-center gap-3">
-                                            <span className="text-xs font-semibold text-slate-500">
-                                                Line Valuation: <strong className="text-emerald-700">Rs. {lineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
-                                            </span>
+                                            {!isEditMode && (
+                                                <span className="text-xs font-semibold text-slate-500">
+                                                    Line Valuation: <strong className="text-emerald-700">Rs. {lineTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}</strong>
+                                                </span>
+                                            )}
                                             {items.length > 1 && !isEditMode && (
                                                 <button
                                                     type="button"
@@ -796,7 +847,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 <Sparkles size={13} /> Product Details
                                             </span>
                                             <span className="text-[9px] font-normal text-slate-500">
-                        Auto-code: Type + Profile + Colour + Side + {it.type === 'AP' ? 'Cut/Standard Length' : 'Length'} (no spaces)
+                                                Auto-code: Type + Profile + Colour + Side + Length (or type custom code below)
                                             </span>
                                         </div>
                                         
@@ -840,7 +891,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                 />
                                             </div>
 
-                                            {/* Side - For all types */}
+                                            {/* Side */}
                                             <div>
                                                 <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Side</label>
                                                 <input
@@ -889,7 +940,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                     {/* Full Bar Price */}
                                                     {it.standardLength && (
                                                         <div>
-                                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Full Bar Price (LKR) *</label>
+                                                            <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Full Bar Price (LKR)</label>
                                                             <input
                                                                 type="number"
                                                                 step="0.01"
@@ -906,7 +957,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                     )}
 
                                                     {/* Cut Length - Only for cuttable profiles */}
-                                                    {it.standardLength && STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable && (
+                                                    {it.standardLength && STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength?.toString())?.isCuttable && (
                                                         <div>
                                                             <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-0.5">Available Cut Length *</label>
                                                             <select
@@ -915,7 +966,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                                 className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                             >
                                                                 <option value="">Select Cut Length</option>
-                                                                {STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.cutLengths.map(cl => (
+                                                                {STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength?.toString())?.cutLengths.map(cl => (
                                                                     <option key={cl} value={cl}>{cl} ft</option>
                                                                 ))}
                                                             </select>
@@ -923,7 +974,7 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                                     )}
 
                                                     {/* Non-cuttable info message */}
-                                                    {it.standardLength && !STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength)?.isCuttable && (
+                                                    {it.standardLength && !STANDARD_LENGTH_OPTIONS.find(sl => sl.value === it.standardLength?.toString())?.isCuttable && (
                                                         <div className="col-span-2 sm:col-span-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                                                             <div className="flex items-start gap-2">
                                                                 <Info size={14} className="text-blue-600 mt-0.5 flex-shrink-0" />
@@ -1046,41 +1097,51 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
 
                                     {/* 2. Standard Inventory & Pricing Fields */}
                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-white p-2 border border-slate-200 rounded-xl">
-                                        {/* Generated Unique Code */}
-                                        <div className={isEditMode ? 'sm:col-span-4' : 'sm:col-span-4'}>
-                                            <div className="flex justify-between text-[10px] font-extrabold text-slate-600 mb-0.5">
-                                                <span>{isEditMode ? 'ITEM CODE (Editable)' : 'AUTO-GENERATED CODE *'}</span>
+                                        {/* Generated / Editable Unique Code */}
+                                        <div className={isEditMode ? 'sm:col-span-5' : 'sm:col-span-4'}>
+                                            <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-600 mb-0.5">
+                                                <span>ITEM CODE *</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const gen = generateProductCode(it);
+                                                        if (gen) updateItem(idx, 'productCode', gen);
+                                                    }}
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 transition"
+                                                    title="Auto-generate code from Type, Profile, Colour, Side and Length"
+                                                >
+                                                    <Sparkles size={11} /> Auto-Generate
+                                                </button>
                                             </div>
                                             <input
                                                 type="text"
                                                 value={it.productCode}
-                                                onChange={e => updateItem(idx, 'productCode', e.target.value)}
+                                                onChange={e => updateItem(idx, 'productCode', e.target.value.toUpperCase())}
                                                 placeholder={it.type === 'AP' ? 'APSWISSTEK100MMWHITETOP1969' : 'APSWISSTEK100MMATTLACKTOPFRAME6000'}
-                                                className={`w-full border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase ${isEditMode ? 'bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20' : 'bg-indigo-50/40 border-indigo-200 text-indigo-900 cursor-not-allowed'}`}
-                                                readOnly={!isEditMode}
-                                                title={isEditMode ? 'Edit item code manually' : `Auto-generated from Type, Profile, Colour, Side, ${it.type === 'AP' ? 'Cut/Standard Length' : 'Length'}`}
+                                                className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold uppercase bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                title="Item code will automatically cascade to BOMs and Quotations if changed."
                                             />
                                         </div>
 
-                                        {/* Stock Qty - create mode only; use Add Qty on table for stock changes */}
+                                        {/* Stock Qty - create mode only */}
                                         {!isEditMode && (
-                                        <div className="sm:col-span-3">
-                                            <label className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">STOCK QTY *</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value={it.quantity}
-                                                onChange={e => updateItem(idx, 'quantity', Number(e.target.value))}
-                                                required
-                                                placeholder="10"
-                                                className="w-full bg-emerald-50/60 focus:bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                            />
-                                        </div>
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">STOCK QTY *</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={it.quantity}
+                                                    onChange={e => updateItem(idx, 'quantity', Number(e.target.value))}
+                                                    required
+                                                    placeholder="10"
+                                                    className="w-full bg-emerald-50/60 focus:bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                />
+                                            </div>
                                         )}
 
                                         {/* Unit */}
-                                        <div className="sm:col-span-2">
+                                        <div className={isEditMode ? 'sm:col-span-3' : 'sm:col-span-2'}>
                                             <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">UOM (UNIT)</label>
                                             <select
                                                 value={it.unitOfMeasure}
@@ -1094,22 +1155,21 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                                         </div>
 
                                         {/* Unit Cost */}
-                                        <div className="sm:col-span-3">
+                                        <div className={isEditMode ? 'sm:col-span-4' : 'sm:col-span-3'}>
                                             <label className="block text-[10px] font-extrabold text-slate-600 mb-0.5">
-                                                PRICE / UNIT COST (LKR) {it.type === 'AP' ? <span className="text-emerald-600 ml-1">(Auto)</span> : ''}
+                                                PRICE / UNIT COST (LKR)
                                             </label>
                                             <input
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
                                                 value={it.purchaseCost}
-                                                onChange={e => updateItem(idx, 'purchaseCost', Number(e.target.value))}
+                                                onChange={e => updateItem(idx, 'purchaseCost', e.target.value === '' ? '' : Number(e.target.value))}
                                                 placeholder="0.00"
-                                                readOnly={it.type === 'AP'}
-                                                className={`w-full ${it.type === 'AP' ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900 cursor-not-allowed' : 'bg-slate-50 focus:bg-white border border-slate-300'} rounded-lg px-2.5 py-1.5 text-xs font-extrabold focus:outline-none`}
+                                                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                             />
                                             {it.type === 'AP' && (
-                                                <p className="text-[9px] text-emerald-600 mt-0.5">Auto-calculated from profile pricing</p>
+                                                <p className="text-[9px] text-emerald-600 mt-0.5">Auto-calculated or enter custom cost</p>
                                             )}
                                         </div>
                                     </div>
@@ -1119,26 +1179,54 @@ export default function AluRawMaterialModal({ isOpen, onClose, onSuccess, wareho
                     </div>
                 </div>
 
-                {/* 3. Batch Summary Bar */}
-                <div className="p-4 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-6">
-                        <div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Products</span>
-                            <strong className="text-base font-extrabold text-slate-900">{items.length} Items</strong>
+                {/* 3. Batch Summary Bar / Edit Status Bar */}
+                {isEditMode ? (
+                    <div className="p-4 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-6">
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Material Name</span>
+                                <strong className="text-sm font-extrabold text-slate-900">{items[0]?.name || 'Aluminium Material'}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Active Item Code</span>
+                                <strong className="text-xs font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{items[0]?.productCode || '-'}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Unit of Measure</span>
+                                <strong className="text-xs font-bold text-slate-700">{items[0]?.unitOfMeasure || 'Lengths'}</strong>
+                            </div>
                         </div>
-                        <div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Quantity</span>
-                            <strong className="text-base font-extrabold text-indigo-700">{totalQuantity} Units</strong>
-                        </div>
-                    </div>
 
-                    <div className="text-right">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Initial Valuation</span>
-                        <strong className="text-lg font-black text-emerald-700">
-                            Rs. {totalBatchValuation.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
-                        </strong>
+                        <div className="text-right">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Updated Unit Cost</span>
+                            <strong className="text-lg font-black text-emerald-700">
+                                Rs. {(Number(items[0]?.purchaseCost) || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                            </strong>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="p-4 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-6">
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Products</span>
+                                <strong className="text-base font-extrabold text-slate-900">{items.length} Items</strong>
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Quantity</span>
+                                <strong className="text-base font-extrabold text-indigo-700">{totalQuantity} Units</strong>
+                            </div>
+                        </div>
+
+                        <div className="text-right">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Initial Valuation</span>
+                            <strong className="text-lg font-black text-emerald-700">
+                                Rs. {totalBatchValuation.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                            </strong>
+                        </div>
+                    </div>
+                )}
+
+
 
                 {/* Footer Controls */}
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">

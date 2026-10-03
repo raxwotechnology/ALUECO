@@ -63,7 +63,6 @@ const menuGroups = [
             // 5. Reports & Analytics
             { label: '5. REPORTS & ANALYTICS', isSubHeader: true },
             { label: 'Project-wise Profit & Loss (P&L)', icon: BarChart3, path: '/alu/reports/project-pnl', permission: 'reports.financial' },
-            { label: 'Separated Reporting Engine', icon: LineChart, path: '/alu/reports/analytics', permission: 'reports.financial' },
             { label: 'Supplier & Customer Aging', icon: Clock, path: '/alu/reports/aging', permission: 'reports.financial' },
             { label: 'Alu Scrap Inventory', icon: History, path: '/alu/scrap', permission: 'sales.view' },
         ],

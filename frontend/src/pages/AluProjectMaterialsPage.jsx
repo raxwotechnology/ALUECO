@@ -19,6 +19,7 @@ export default function AluProjectMaterialsPage() {
     const [activeTabMap, setActiveTabMap] = useState({});
     const [isGrnModalOpen, setIsGrnModalOpen] = useState(false);
     const [selectedItemForGrn, setSelectedItemForGrn] = useState(null);
+    const [selectedPoForGrn, setSelectedPoForGrn] = useState(null);
 
     const fetchProjectMaterials = async () => {
         setLoading(true);
@@ -59,6 +60,11 @@ export default function AluProjectMaterialsPage() {
 
     const handleOpenGrnModal = (item) => {
         setSelectedItemForGrn(item);
+        setIsGrnModalOpen(true);
+    };
+
+    const handleOpenGrnModalForPO = (poNumber) => {
+        setSelectedPoForGrn(poNumber);
         setIsGrnModalOpen(true);
     };
 
@@ -316,6 +322,12 @@ export default function AluProjectMaterialsPage() {
                                             >
                                                 Accessories &amp; Hardware ({p.accessories?.length || 0})
                                             </button>
+                                            <button
+                                                onClick={() => setProjectTab(p._id, 'gaskets')}
+                                                className={`py-2 px-3.5 rounded-t-xl transition-all border-b-2 ${activeTab === 'gaskets' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                            >
+                                                Gaskets &amp; Rubber ({p.gaskets?.length || 0})
+                                            </button>
                                         </div>
 
                                         {/* TAB 1: SHORTAGE ITEMS */}
@@ -340,44 +352,59 @@ export default function AluProjectMaterialsPage() {
                                                                 <th className="p-2.5 text-center">Action</th>
                                                             </tr>
                                                         </thead>
-                                                        <tbody className="divide-y divide-amber-100 bg-white">
-                                                            {p.shortageItems.map((st, sIdx) => (
-                                                                <tr key={sIdx} className="hover:bg-amber-50/40">
-                                                                    <td className="p-2.5 font-extrabold text-indigo-600 font-mono">{st.poNumber}</td>
-                                                                    <td className="p-2.5 font-bold text-slate-800 font-mono">{st.itemCode}</td>
-                                                                    <td className="p-2.5 font-semibold text-slate-700">{st.productName}</td>
-                                                                    <td className="p-2.5 text-center font-bold text-slate-700">{st.requiredQuantity} {st.unitOfMeasure}</td>
-                                                                    <td className="p-2.5 text-center font-bold text-emerald-600">{st.receivedQuantity}</td>
-                                                                    <td className="p-2.5 text-center font-black text-rose-600">{st.pendingQuantity} {st.unitOfMeasure}</td>
-                                                                    <td className="p-2.5 text-right font-mono font-extrabold text-slate-900">LKR {(st.estimatedTotalCost || 0).toLocaleString()}</td>
-                                                                    <td className="p-2.5 text-center">
-                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${st.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-800' : st.status === 'partially_received' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
-                                                                            {st.status}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="p-2.5 text-center">
-                                                                        <div className="flex items-center justify-center gap-1">
-                                                                            {(st.pendingQuantity > 0) && (
+                                                        <tbody className="bg-white">
+                                                            {Object.entries(p.shortageItems.reduce((acc, st) => {
+                                                                if (!acc[st.poNumber]) acc[st.poNumber] = { items: [], poId: st.poId };
+                                                                acc[st.poNumber].items.push(st);
+                                                                return acc;
+                                                            }, {})).map(([poNumber, group], gIdx) => (
+                                                                <React.Fragment key={gIdx}>
+                                                                    <tr className="bg-amber-50/80 border-b-2 border-amber-200">
+                                                                        <td colSpan="8" className="p-2.5">
+                                                                            <span className="font-extrabold text-indigo-700 font-mono">{poNumber}</span>
+                                                                        </td>
+                                                                        <td className="p-2.5 text-center">
+                                                                            {group.items.some(i => i.pendingQuantity > 0) && (
                                                                                 <button
-                                                                                    onClick={() => handleOpenGrnModal(st)}
-                                                                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition"
-                                                                                    title="Receive via GRN"
+                                                                                    onClick={() => handleOpenGrnModalForPO(poNumber)}
+                                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow-sm w-full"
+                                                                                    title="Receive Entire PO"
                                                                                 >
-                                                                                    <Plus size={12} /> GRN
+                                                                                    <PackageCheck size={14} /> Receive PO
                                                                                 </button>
                                                                             )}
-                                                                            {st.receivedQuantity === 0 && (
-                                                                                <button
-                                                                                    onClick={() => handleDeleteItem(st.poId, st.itemId, st.itemCode)}
-                                                                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition"
-                                                                                    title="Delete Item"
-                                                                                >
-                                                                                    <Trash2 size={12} />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
+                                                                        </td>
+                                                                    </tr>
+                                                                    {group.items.map((st, sIdx) => (
+                                                                        <tr key={`${gIdx}-${sIdx}`} className="hover:bg-amber-50/40 border-b border-amber-100">
+                                                                            <td className="p-2.5 text-slate-400 text-center font-bold">↳</td>
+                                                                            <td className="p-2.5 font-bold text-slate-800 font-mono">{st.itemCode}</td>
+                                                                            <td className="p-2.5 font-semibold text-slate-700">{st.productName}</td>
+                                                                            <td className="p-2.5 text-center font-bold text-slate-700">{st.requiredQuantity} {st.unitOfMeasure}</td>
+                                                                            <td className="p-2.5 text-center font-bold text-emerald-600">{st.receivedQuantity}</td>
+                                                                            <td className="p-2.5 text-center font-black text-rose-600">{st.pendingQuantity} {st.unitOfMeasure}</td>
+                                                                            <td className="p-2.5 text-right font-mono font-extrabold text-slate-900">LKR {(st.estimatedTotalCost || 0).toLocaleString()}</td>
+                                                                            <td className="p-2.5 text-center">
+                                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${st.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-800' : st.status === 'partially_received' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
+                                                                                    {st.status}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-2.5 text-center">
+                                                                                <div className="flex items-center justify-center gap-1">
+                                                                                    {st.receivedQuantity === 0 && (
+                                                                                        <button
+                                                                                            onClick={() => handleDeleteItem(st.poId, st.itemId, st.itemCode)}
+                                                                                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition"
+                                                                                            title="Delete Item"
+                                                                                        >
+                                                                                            <Trash2 size={12} />
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </React.Fragment>
                                                             ))}
                                                         </tbody>
                                                     </table>
@@ -435,7 +462,25 @@ export default function AluProjectMaterialsPage() {
                                                         <tbody className="divide-y divide-slate-100">
                                                             {p.glass.map((gl, gIdx) => (
                                                                 <tr key={gIdx} className="hover:bg-slate-50">
-                                                                    <td className="p-2.5 font-extrabold text-slate-800">{gl.type}</td>
+                                                                    <td className="p-2.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            {gl.code && (
+                                                                                <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                                                                    {gl.code}
+                                                                                </span>
+                                                                            )}
+                                                                            <div>
+                                                                                <span className="font-extrabold text-slate-800 block text-xs">
+                                                                                    {gl.typeName || gl.type || gl.code || 'Standard Glass'}
+                                                                                </span>
+                                                                                {gl.thickness && (
+                                                                                    <span className="text-[10px] font-bold text-teal-800 bg-teal-100/70 px-1.5 py-0.2 rounded border border-teal-200 inline-block mt-0.5">
+                                                                                        Thickness: {gl.thickness}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
                                                                     <td className="p-2.5 text-center font-bold text-slate-700">{gl.quantity} Panes</td>
                                                                     <td className="p-2.5 text-right font-mono font-bold text-indigo-700">{parseFloat((gl.totalAreaSqFt || 0).toFixed(2))} Sq.Ft</td>
                                                                     <td className="p-2.5 text-right font-mono font-bold text-slate-900">LKR {(gl.totalCost || 0).toLocaleString()}</td>
@@ -478,6 +523,40 @@ export default function AluProjectMaterialsPage() {
                                                 )}
                                             </div>
                                         )}
+
+                                        {/* TAB 5: GASKETS & RUBBER */}
+                                        {activeTab === 'gaskets' && (
+                                            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                                                {p.gaskets && p.gaskets.length > 0 ? (
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
+                                                            <tr>
+                                                                <th className="p-2.5">Gasket Code</th>
+                                                                <th className="p-2.5">Gasket &amp; Weatherseal Description</th>
+                                                                <th className="p-2.5 text-center">Required Quantity</th>
+                                                                <th className="p-2.5 text-right">Total Estimated Cost</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {p.gaskets.map((gsk, gIdx) => (
+                                                                <tr key={gIdx} className="hover:bg-slate-50">
+                                                                    <td className="p-2.5">
+                                                                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                                            {gsk.code}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-2.5 font-semibold text-slate-800">{gsk.name}</td>
+                                                                    <td className="p-2.5 text-center font-extrabold text-slate-900">{gsk.requiredQty} {gsk.unit}</td>
+                                                                    <td className="p-2.5 text-right font-mono font-bold text-slate-900">LKR {(gsk.totalCost || 0).toLocaleString()}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div className="p-6 text-center text-xs text-slate-400">No gasket / rubber seal items recorded for this project.</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -492,12 +571,15 @@ export default function AluProjectMaterialsPage() {
                 onClose={() => {
                     setIsGrnModalOpen(false);
                     setSelectedItemForGrn(null);
+                    setSelectedPoForGrn(null);
                 }}
                 prefillItem={selectedItemForGrn}
+                selectedPo={selectedPoForGrn}
                 onSuccess={() => {
                     fetchProjectMaterials();
                     setIsGrnModalOpen(false);
                     setSelectedItemForGrn(null);
+                    setSelectedPoForGrn(null);
                 }}
             />
         </div>

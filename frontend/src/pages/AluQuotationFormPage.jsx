@@ -10,6 +10,18 @@ import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
 import { calculateBOM } from '../utils/aluBOMCalculator';
 
+const isGasketItem = (a) => {
+    if (!a) return false;
+    if (a.isGasket === true) return true;
+    const u = (a.unit || '').trim().toLowerCase();
+    if (u === 'm' || u === 'meter' || u === 'meters' || u === 'metre' || u === 'metres' || u === 'mtr') return true;
+    const c = (a.code || a.actualCode || a.productCode || '').trim().toUpperCase();
+    if (c.startsWith('GSK') || c.startsWith('GSH') || c.startsWith('GAS')) return true;
+    const n = (a.name || a.description || '').trim().toLowerCase();
+    if (n.includes('gasket') || n.includes('weather seal') || n.includes('wool pile') || n.includes('epdm') || n.includes('rubber seal') || n.includes('glazing seal')) return true;
+    return false;
+};
+
 const AluQuotationFormPage = () => {
     const navigate = useNavigate();
     const { id } = useParams(); // present if editing
@@ -234,12 +246,45 @@ const AluQuotationFormPage = () => {
                 });
 
                 rawMaterialsData.forEach(p => {
-                    if (p.aluCategory === 'accessories' || p.aluCategory === 'hardware' || p.aluCategory === 'gaskets') {
+                    if (p.aluCategory === 'profiles') {
+                        const code = p.productCode || p.name;
+                        const price = Number(p.basePrice || p.costs?.lastPurchaseCost || p.costs?.standardCost || p.costs?.averageCost) || 0;
+                        let lengthM = 0;
+                        if (p.aluSpecs?.lengthMm > 0) {
+                            lengthM = p.aluSpecs.lengthMm / 1000;
+                        } else if (p.aluSpecs?.standardLength) {
+                            const stdL = parseFloat(p.aluSpecs.standardLength);
+                            lengthM = stdL > 50 ? (stdL / 1000) : (stdL * 0.3048);
+                        } else {
+                            lengthM = 5.8;
+                        }
+                        const ratePerM = lengthM > 0 ? Math.round(price / lengthM) : price;
+                        const profItem = {
+                            code: code,
+                            name: p.name || code,
+                            ratePerM: ratePerM > 0 ? ratePerM : (price > 0 ? price : 750),
+                            description: p.name || code
+                        };
+                        if (p.productCode) {
+                            profMap[p.productCode] = profItem;
+                            profMap[p.productCode.toUpperCase()] = profItem;
+                            profMap[p.productCode.replace(/[-_\s]/g, '').toUpperCase()] = profItem;
+                        }
+                        if (p.name) {
+                            profMap[p.name] = profItem;
+                            profMap[p.name.toUpperCase()] = profItem;
+                        }
+                    } else if (p.aluCategory === 'accessories' || p.aluCategory === 'hardware' || p.aluCategory === 'gaskets') {
                         let code = p.productCode?.toUpperCase();
                         if (!code || code.startsWith('P-')) code = p.aluSpecs?.profile?.toUpperCase();
                         if (!code) code = p.name?.toUpperCase();
                         if (code && !accMap[code]) {
-                            accMap[code] = { name: p.name || code, unitRate: p.basePrice || p.mrp || 0, unit: p.unitOfMeasure || 'pcs' };
+                            accMap[code] = { 
+                                name: p.name || code, 
+                                unitRate: p.basePrice || p.mrp || 0, 
+                                unit: p.unitOfMeasure || (p.aluCategory === 'gaskets' ? 'm' : 'pcs'),
+                                isGasket: p.aluCategory === 'gaskets'
+                            };
                         }
                     }
                 });
@@ -263,33 +308,117 @@ const AluQuotationFormPage = () => {
                         description: q.description || '',
                         location: q.location || '',
                         validTill: q.validTill ? new Date(q.validTill).toISOString().split('T')[0] : '',
-                        items: q.items.map(item => ({
-                            applicationType: item.applicationType,
-                            configuration: item.configuration,
-                            description: item.description || '',
-                            width: item.width,
-                            height: item.height,
-                            quantity: item.quantity,
-                            profileSpec: item.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
-                            glassSpec: item.glassSpec || '5mm Single Tempered Clear Glass',
-                            hardwareSpec: item.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
-                            scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
-                            trackSystem: item.trackSystem,
-                            topSection: item.topSection,
-                            panelArrangement: item.panelArrangement,
-                            sketchImage: item.sketchImage,
-                            profileCuts: item.profileCuts || [],
-                            glassItems: item.glassItems || [],
-                            accessories: item.accessories || [],
-                            totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * item.quantity) / 92903.04).toFixed(2)),
-                            labourRatePerSqFt: item.labourRatePerSqFt || 150,
-                            labourMethod: item.labourMethod || 'sqft',
-                            labourCost: item.labourCost || 0,
-                            unitPrice: item.unitPrice || 0,
-                            totalPrice: item.totalPrice || 0,
-                            costingSummary: item.costingSummary || { finalSellingPrice: item.totalPrice || 0 },
-                            profitMarginPercent: item.profitMarginPercent ?? q.profitMarginPercent ?? 20
-                        })),
+                        items: q.items.map(item => {
+                            // Find matching application template to heal legacy missing cut codes/names
+                            const tmpl = loadedTemplates.find(t => 
+                                (t.type?.toLowerCase() === (item.applicationType || '').toLowerCase() || (item.applicationType || '').toLowerCase().includes(t.type?.toLowerCase())) &&
+                                (String(t.configuration).trim() === String(item.configuration).trim() || 
+                                 (item.configuration || '').includes(String(t.configuration)) || 
+                                 String(t.configuration).includes(item.configuration || ''))
+                            );
+
+                            const enrichedProfileCuts = (item.profileCuts || []).map((pc, idx) => {
+                                const templateProf = tmpl?.profileBOM?.[idx];
+                                const code = pc.profileCode || pc.code || templateProf?.profileCode || templateProf?.actualCode || '';
+                                const profInfo = profMap[code] || profMap[code?.toUpperCase()] || {};
+                                const unitRate = Number(pc.unitRate) || profInfo.ratePerM || 750;
+                                const length = Number(pc.length) || 0;
+                                const qty = Number(pc.qty) || 1;
+                                const totalLengthM = (length * qty) / 1000;
+                                const cost = Number(pc.cost) > 0 ? Number(pc.cost) : Math.round(totalLengthM * unitRate);
+                                const name = pc.name || pc.description || profInfo.name || templateProf?.description || code || 'Aluminium Profile';
+                                return {
+                                    ...pc,
+                                    profileCode: code,
+                                    code: code,
+                                    name: name,
+                                    description: name,
+                                    length: length,
+                                    qty: qty,
+                                    totalLength: length * qty,
+                                    totalLengthM: parseFloat(totalLengthM.toFixed(3)),
+                                    unitRate: unitRate,
+                                    cost: cost
+                                };
+                            });
+
+                            const gasketItems = (item.gasketItems && item.gasketItems.length > 0)
+                                ? item.gasketItems.map(g => ({ ...g, isGasket: true, unit: g.unit || 'm' }))
+                                : (item.accessories || []).filter(isGasketItem).map(a => ({ ...a, isGasket: true, unit: a.unit || 'm' }));
+
+                            const hardwareAccessories = (item.accessories || []).filter(a => !isGasketItem(a)).map(a => ({ ...a, isGasket: false, unit: a.unit || 'pcs' }));
+
+                            const calcGlassCost = item.costingSummary?.totalGlassCost !== undefined && Number(item.costingSummary.totalGlassCost) > 0
+                                ? Number(item.costingSummary.totalGlassCost)
+                                : (item.glassItems || []).reduce((s, g) => s + (Number(g.cost) || 0), 0);
+
+                            const calcGasketCost = item.costingSummary?.totalGasketCost !== undefined && Number(item.costingSummary.totalGasketCost) > 0
+                                ? Number(item.costingSummary.totalGasketCost)
+                                : gasketItems.reduce((s, g) => s + (Number(g.cost) || ((Number(g.qty) || 0) * (Number(g.unitRate) || 0))), 0);
+
+                            const calcHardwareCost = item.costingSummary?.totalAccessoriesCost !== undefined && Number(item.costingSummary.totalAccessoriesCost) > 0
+                                ? Math.max(0, Number(item.costingSummary.totalAccessoriesCost) - calcGasketCost)
+                                : hardwareAccessories.reduce((s, a) => s + (Number(a.cost) || ((Number(a.qty) || 0) * (Number(a.unitRate) || 0))), 0);
+
+                            let calcAluCost = item.costingSummary?.totalAluminiumCost !== undefined && Number(item.costingSummary.totalAluminiumCost) > 0
+                                ? Number(item.costingSummary.totalAluminiumCost)
+                                : enrichedProfileCuts.reduce((s, pc) => s + (Number(pc.cost) || 0), 0);
+
+                            const itemMargin = item.profitMarginPercent ?? q.profitMarginPercent ?? 20;
+                            const totalLabour = item.costingSummary?.totalLabourCost !== undefined && Number(item.costingSummary.totalLabourCost) > 0
+                                ? Number(item.costingSummary.totalLabourCost)
+                                : ((item.labourCost || 0) * (item.quantity || 1));
+
+                            const calcRawCost = calcAluCost + calcGlassCost + calcHardwareCost + calcGasketCost;
+                            const itemSelling = item.totalPrice || Math.round((calcRawCost + totalLabour) * (1 + itemMargin / 100));
+
+                            const hydratedCostingSummary = {
+                                ...(item.costingSummary || {}),
+                                totalAluminiumCost: calcAluCost,
+                                totalGlassCost: calcGlassCost,
+                                totalAccessoriesCost: calcHardwareCost + calcGasketCost,
+                                totalGasketCost: calcGasketCost,
+                                totalLabourCost: totalLabour,
+                                unitLabourCost: item.quantity > 0 ? Math.round(totalLabour / item.quantity) : totalLabour,
+                                labourRatePerSqFt: item.labourRatePerSqFt || 150,
+                                profitMarginPercent: itemMargin,
+                                profitMarginAmount: item.costingSummary?.profitMarginAmount || Math.round((calcRawCost + totalLabour) * (itemMargin / 100)),
+                                totalRawCost: calcRawCost,
+                                finalSellingPrice: itemSelling
+                            };
+
+                            return {
+                                applicationType: item.applicationType,
+                                configuration: item.configuration,
+                                description: item.description || '',
+                                width: item.width,
+                                height: item.height,
+                                quantity: item.quantity,
+                                profileSpec: item.profileSpec || 'Swisstek 100mm Series (1.2-1.5mm Thickness, Powder Coated)',
+                                glassSpec: item.glassSpec || '5mm Single Tempered Clear Glass',
+                                hardwareSpec: item.hardwareSpec || 'Kinlong / 3H Heavy Duty Touch Locks, Rollers & Seals',
+                                gasketSpec: item.gasketSpec || 'EPDM Weather Seal Gaskets Inclusive',
+                                scopeSpec: item.scopeSpec || 'Fabrication, Delivery & Installation Inclusive',
+                                trackSystem: item.trackSystem,
+                                topSection: item.topSection,
+                                panelArrangement: item.panelArrangement,
+                                sketchImage: item.sketchImage,
+                                profileCuts: enrichedProfileCuts,
+                                glassItems: item.glassItems || [],
+                                accessories: hardwareAccessories,
+                                gasketItems,
+                                totalGasketMeters: item.totalGasketMeters || parseFloat(gasketItems.reduce((s, g) => s + (Number(g.qty) || 0), 0).toFixed(2)),
+                                totalAreaSqFt: item.totalAreaSqFt || parseFloat(((item.width * item.height * item.quantity) / 92903.04).toFixed(2)),
+                                labourRatePerSqFt: item.labourRatePerSqFt || 150,
+                                labourMethod: item.labourMethod || 'sqft',
+                                labourCost: item.labourCost || (item.quantity > 0 ? Math.round(totalLabour / item.quantity) : 0),
+                                unitPrice: item.unitPrice || (item.quantity > 0 ? Math.round(itemSelling / item.quantity) : itemSelling),
+                                totalPrice: itemSelling,
+                                costingSummary: hydratedCostingSummary,
+                                aluminiumDiscountPercent: item.aluminiumDiscountPercent || 0,
+                                profitMarginPercent: itemMargin
+                            };
+                        }),
                         transportCost: q.transportCost || 0,
                         totalLabourCost: q.totalLabourCost || 0,
                         otherCost: q.otherCost || 0,
@@ -369,12 +498,7 @@ const AluQuotationFormPage = () => {
         const updatedItems = [...formData.items];
         const item = { ...updatedItems[index], [field]: numVal };
 
-        // Match template from database
-        const matchedTemplate = templates.find(t => 
-            (item.templateId && t._id === item.templateId) ||
-            (t.type === item.applicationType && item.configuration?.includes(t.configuration))
-        ) || templates.find(t => t.type === item.applicationType);
-
+        const oldQ = Math.max(1, Number(item.quantity) || 1);
         const w = field === 'width' ? numVal : item.width;
         const h = field === 'height' ? numVal : item.height;
         const q = Math.max(1, field === 'quantity' ? numVal : item.quantity);
@@ -397,10 +521,19 @@ const AluQuotationFormPage = () => {
         }
 
         const totalLabour = unitLabour * q;
+        item.width = w;
+        item.height = h;
+        item.quantity = q;
         item.labourRatePerSqFt = ratePerSqFt;
         item.labourCost = unitLabour;
         item.unitAreaSqFt = unitAreaSqFt;
         item.totalAreaSqFt = totalAreaSqFt;
+
+        // Match template from database
+        const matchedTemplate = templates.find(t => 
+            (item.templateId && t._id === item.templateId) ||
+            (t.type === item.applicationType && item.configuration?.includes(t.configuration))
+        ) || templates.find(t => t.type === item.applicationType);
 
         if (matchedTemplate && dbRates) {
             const bom = calculateBOM({
@@ -439,15 +572,81 @@ const AluQuotationFormPage = () => {
                 finalSellingPrice
             };
         } else {
-            // For openings from 2D configurator, recalculate selling price directly from raw materials + labour + margin:
-            const rawCost = item.costingSummary?.totalRawCost || 
-                ((item.costingSummary?.totalAluminiumCost || 0) + 
-                 (item.costingSummary?.totalGlassCost || 0) + 
-                 (item.costingSummary?.totalAccessoriesCost || 0));
+            // For openings from 2D configurator, recalculate selling price with proper material scaling
+            let unitAlu = (Number(item.costingSummary?.totalAluminiumCost) || 0) / oldQ;
+            let unitGlass = (Number(item.costingSummary?.totalGlassCost) || 0) / oldQ;
+            let unitGasket = (Number(item.costingSummary?.totalGasketCost) || (item.gasketItems ? item.gasketItems.reduce((s, g) => s + (Number(g.cost) || 0), 0) : 0)) / oldQ;
+            let unitHardware = (item.costingSummary?.totalAccessoriesCost !== undefined
+                ? Math.max(0, (Number(item.costingSummary.totalAccessoriesCost) || 0) - (unitGasket * oldQ))
+                : (item.accessories || []).filter(a => !isGasketItem(a)).reduce((s, a) => s + (Number(a.cost) || 0), 0)
+            ) / oldQ;
 
-            const baseWithLabour = rawCost + totalLabour;
-            const profitAmount = baseWithLabour * (margin / 100);
+            // Fallback for gaskets if unitGasket was 0
+            if (unitGasket <= 0 && ((item.gasketItems && item.gasketItems.length > 0) || (item.accessories && item.accessories.length > 0))) {
+                const gItems = (item.gasketItems && item.gasketItems.length > 0) ? item.gasketItems : item.accessories.filter(isGasketItem);
+                unitGasket = (gItems.reduce((s, g) => s + (Number(g.cost) || ((Number(g.qty) || 0) * (Number(g.unitRate) || 0))), 0)) / oldQ;
+            }
+
+            // Fallback for hardware if unitHardware was 0
+            if (unitHardware <= 0 && item.accessories && item.accessories.length > 0) {
+                const hItems = item.accessories.filter(a => !isGasketItem(a));
+                unitHardware = (hItems.reduce((s, a) => s + (Number(a.cost) || ((Number(a.qty) || 0) * (Number(a.unitRate) || 0))), 0)) / oldQ;
+            }
+
+            // Fallback for profile cuts if unitAlu was 0
+            if (unitAlu <= 0 && item.profileCuts && item.profileCuts.length > 0) {
+                const totalCutsCost = item.profileCuts.reduce((sum, pc) => {
+                    const profRate = dbRates?.profiles?.[pc.profileCode || pc.code]?.ratePerM || Number(pc.unitRate) || 750;
+                    const lenM = ((pc.length || 0) * (pc.qty || 1)) / 1000;
+                    return sum + (Number(pc.cost) > 0 ? Number(pc.cost) : (lenM * profRate));
+                }, 0);
+                unitAlu = totalCutsCost / oldQ;
+            }
+
+            // Fallback for glass if unitGlass was 0
+            if (unitGlass <= 0 && item.glassItems && item.glassItems.length > 0) {
+                unitGlass = (item.glassItems.reduce((s, g) => s + (Number(g.cost) || 0), 0)) / oldQ;
+            }
+
+            // If dimensions changed, scale area/perimeter materials proportionally
+            if (field === 'width' || field === 'height') {
+                const oldUnitArea = parseFloat(((item.width * item.height) / 92903.04).toFixed(2)) || unitAreaSqFt || 1;
+                const areaRatio = oldUnitArea > 0 ? (unitAreaSqFt / oldUnitArea) : 1;
+                unitGlass = Math.round(unitGlass * areaRatio);
+                const perimeterRatio = (w + h) / Math.max(1, (item.width + item.height));
+                unitAlu = Math.round(unitAlu * perimeterRatio);
+                unitGasket = Math.round(unitGasket * perimeterRatio);
+            }
+
+            const newAluCost = Math.round(unitAlu * q);
+            const newGlassCost = Math.round(unitGlass * q);
+            const newHardwareCost = Math.round(unitHardware * q);
+            const newGasketCost = Math.round(unitGasket * q);
+            const newRawCost = newAluCost + newGlassCost + newHardwareCost + newGasketCost;
+
+            const baseWithLabour = newRawCost + totalLabour;
+            const profitAmount = Math.round(baseWithLabour * (margin / 100));
             const newFinalSelling = Math.round(baseWithLabour + profitAmount);
+
+            // Scale item cut & component quantities proportionally if quantity changed
+            const qRatio = q / oldQ;
+            if (field === 'quantity' && qRatio !== 1) {
+                item.profileCuts = (item.profileCuts || []).map(pc => ({
+                    ...pc,
+                    qty: Math.max(1, Math.round((pc.qty || 1) * qRatio)),
+                    cost: Math.round((Number(pc.cost) || 0) * qRatio)
+                }));
+                item.accessories = (item.accessories || []).map(a => ({
+                    ...a,
+                    qty: Math.max(1, Math.round((a.qty || 1) * qRatio)),
+                    cost: Math.round((Number(a.cost) || 0) * qRatio)
+                }));
+                item.gasketItems = (item.gasketItems || []).map(g => ({
+                    ...g,
+                    qty: Math.max(1, Math.round((g.qty || 1) * qRatio)),
+                    cost: Math.round((Number(g.cost) || 0) * qRatio)
+                }));
+            }
 
             item.profitMarginPercent = margin;
             item.labourRatePerSqFt = ratePerSqFt;
@@ -455,14 +654,21 @@ const AluQuotationFormPage = () => {
             item.totalPrice = newFinalSelling;
             item.unitPrice = Math.round(newFinalSelling / q);
             item.totalAreaSqFt = totalAreaSqFt;
-            if (item.costingSummary) {
-                item.costingSummary.totalLabourCost = totalLabour;
-                item.costingSummary.unitLabourCost = unitLabour;
-                item.costingSummary.labourRatePerSqFt = ratePerSqFt;
-                item.costingSummary.profitMarginPercent = margin;
-                item.costingSummary.profitMarginAmount = Math.round(profitAmount);
-                item.costingSummary.finalSellingPrice = newFinalSelling;
-            }
+
+            item.costingSummary = {
+                ...(item.costingSummary || {}),
+                totalAluminiumCost: newAluCost,
+                totalGlassCost: newGlassCost,
+                totalAccessoriesCost: newHardwareCost + newGasketCost,
+                totalGasketCost: newGasketCost,
+                totalLabourCost: totalLabour,
+                unitLabourCost: unitLabour,
+                labourRatePerSqFt: ratePerSqFt,
+                profitMarginPercent: margin,
+                profitMarginAmount: profitAmount,
+                totalRawCost: newRawCost,
+                finalSellingPrice: newFinalSelling
+            };
         }
 
         updatedItems[index] = item;
@@ -553,21 +759,48 @@ const AluQuotationFormPage = () => {
         });
 
         // Materials & Labour totals across all openings
-        const totalAluminium = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalAluminiumCost || 0), 0));
-        const totalGlass = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalGlassCost || 0), 0));
+        const totalAluminium = Math.round(formData.items.reduce((s, it) => {
+            const c = it.costingSummary?.totalAluminiumCost;
+            if (c !== undefined && Number(c) > 0) return s + Number(c);
+            const pcCost = (it.profileCuts || []).reduce((sum, pc) => {
+                if (Number(pc.cost) > 0) return sum + Number(pc.cost);
+                const r = dbRates?.profiles?.[pc.profileCode || pc.code]?.ratePerM || Number(pc.unitRate) || 750;
+                return sum + (((pc.length || 0) * (pc.qty || 1)) / 1000) * r;
+            }, 0);
+            return s + (pcCost || 0);
+        }, 0));
+
+        const totalGlass = Math.round(formData.items.reduce((s, it) => {
+            const c = it.costingSummary?.totalGlassCost;
+            if (c !== undefined && Number(c) > 0) return s + Number(c);
+            return s + (it.glassItems || []).reduce((sum, g) => sum + (Number(g.cost) || 0), 0);
+        }, 0));
+
         const totalHardware = Math.round(formData.items.reduce((s, it) => {
-            const accItems = (it.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm');
-            if (accItems.length > 0) return s + accItems.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
-            const gasketPart = it.costingSummary?.totalGasketCost || 0;
-            return s + Math.max(0, (it.costingSummary?.totalAccessoriesCost || 0) - gasketPart);
+            const accItems = (it.accessories || []).filter(a => !isGasketItem(a));
+            if (accItems.length > 0) return s + accItems.reduce((sum, a) => sum + (Number(a.cost) || ((Number(a.qty) || 0) * (Number(a.unitRate) || 0))), 0);
+            const gasketPart = Number(it.costingSummary?.totalGasketCost) || 0;
+            return s + Math.max(0, (Number(it.costingSummary?.totalAccessoriesCost) || 0) - gasketPart);
         }, 0));
+
         const totalGaskets = Math.round(formData.items.reduce((s, it) => {
-            return s + (it.costingSummary?.totalGasketCost || (it.gasketItems ? it.gasketItems.reduce((sum, g) => sum + (Number(g.cost) || 0), 0) : 0));
+            if (it.costingSummary?.totalGasketCost !== undefined && Number(it.costingSummary.totalGasketCost) > 0) {
+                return s + Number(it.costingSummary.totalGasketCost);
+            }
+            if (it.gasketItems && it.gasketItems.length > 0) {
+                return s + it.gasketItems.reduce((sum, g) => sum + (Number(g.cost) || ((Number(g.qty) || 0) * (Number(g.unitRate) || 0))), 0);
+            }
+            return s + (it.accessories || []).filter(isGasketItem).reduce((sum, a) => sum + (Number(a.cost) || ((Number(a.qty) || 0) * (Number(a.unitRate) || 0))), 0);
         }, 0));
-        const totalGasketMeters = parseFloat(formData.items.reduce((s, it) => s + (Number(it.totalGasketMeters) || 0), 0).toFixed(2));
+
+        const totalGasketMeters = parseFloat(formData.items.reduce((s, it) => {
+            if (Number(it.totalGasketMeters) > 0) return s + Number(it.totalGasketMeters);
+            const gItems = (it.gasketItems && it.gasketItems.length > 0) ? it.gasketItems : (it.accessories || []).filter(isGasketItem);
+            return s + gItems.reduce((sum, g) => sum + (Number(g.qty) || 0), 0);
+        }, 0).toFixed(2));
         const totalRaw = totalAluminium + totalGlass + totalHardware + totalGaskets;
         const totalLabour = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.totalLabourCost || ((it.labourCost || 0) * (it.quantity || 1))), 0));
-        const totalProfitMargin = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.profitMarginAmount || 0), 0));
+        const totalProfitMargin = Math.round(formData.items.reduce((s, it) => s + (it.costingSummary?.profitMarginAmount || Math.round(((it.costingSummary?.totalRawCost || totalRaw) + (it.costingSummary?.totalLabourCost || totalLabour)) * ((it.profitMarginPercent ?? 20) / 100))), 0));
         const totalAreaSqFt = parseFloat(formData.items.reduce((s, it) => s + (Number(it.totalAreaSqFt) || 0), 0).toFixed(2));
 
         return {
@@ -1030,12 +1263,22 @@ const AluQuotationFormPage = () => {
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
                                                     <span>📦 1. Aluminium Profiles</span>
-                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalAluminiumCost || 0).toLocaleString()}</span>
+                                                    <span className="font-mono">LKR {Math.round(
+                                                        (item.costingSummary?.totalAluminiumCost !== undefined && Number(item.costingSummary.totalAluminiumCost) > 0)
+                                                            ? Number(item.costingSummary.totalAluminiumCost)
+                                                            : (item.profileCuts || []).reduce((sum, pc) => {
+                                                                if (Number(pc.cost) > 0) return sum + Number(pc.cost);
+                                                                const r = dbRates?.profiles?.[pc.profileCode || pc.code]?.ratePerM || Number(pc.unitRate) || 750;
+                                                                return sum + (((pc.length || 0) * (pc.qty || 1)) / 1000) * r;
+                                                            }, 0)
+                                                    ).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                                                     {(item.profileCuts || []).map((pc, i) => (
                                                         <div key={i} className="flex justify-between text-[10px] text-slate-600 border-b border-slate-100 py-0.5">
-                                                            <span className="truncate max-w-[140px]">{pc.name || pc.code}</span>
+                                                            <span className="truncate max-w-[140px]" title={pc.name || pc.description || pc.code || pc.profileCode}>
+                                                                {pc.name || pc.description || pc.code || pc.profileCode || 'Aluminium Profile'}
+                                                            </span>
                                                             <span className="font-mono font-bold">{pc.length}mm × {pc.qty}</span>
                                                         </div>
                                                     ))}
@@ -1046,7 +1289,11 @@ const AluQuotationFormPage = () => {
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
                                                     <span>🪟 2. Glass Panels</span>
-                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalGlassCost || 0).toLocaleString()}</span>
+                                                    <span className="font-mono">LKR {Math.round(
+                                                        (item.costingSummary?.totalGlassCost !== undefined && Number(item.costingSummary.totalGlassCost) > 0)
+                                                            ? Number(item.costingSummary.totalGlassCost)
+                                                            : (item.glassItems || []).reduce((sum, g) => sum + (Number(g.cost) || 0), 0)
+                                                    ).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                                                     {(item.glassItems || []).map((g, i) => (
@@ -1063,22 +1310,28 @@ const AluQuotationFormPage = () => {
                                                 <div className="flex justify-between font-bold text-slate-800 border-b pb-1 text-[11px]">
                                                     <span>⚙️ 3. Hardware &amp; Accessories</span>
                                                     <span className="font-mono">LKR {Math.round(
-                                                        (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length > 0
-                                                            ? (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').reduce((sum, a) => sum + (Number(a.cost) || 0), 0)
-                                                            : Math.max(0, (item.costingSummary?.totalAccessoriesCost || 0) - (item.costingSummary?.totalGasketCost || 0))
+                                                        (() => {
+                                                            const hItems = (item.accessories || []).filter(a => !isGasketItem(a));
+                                                            if (hItems.length > 0) return hItems.reduce((sum, a) => sum + (Number(a.cost) || ((Number(a.qty) || 0) * (Number(a.unitRate) || 0))), 0);
+                                                            const gCost = Number(item.costingSummary?.totalGasketCost) || 0;
+                                                            return Math.max(0, (Number(item.costingSummary?.totalAccessoriesCost) || 0) - gCost);
+                                                        })()
                                                     ).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                                                    {(item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').length === 0 ? (
-                                                        <div className="text-[10px] text-slate-400 italic py-1">No hardware items</div>
-                                                    ) : (
-                                                        (item.accessories || []).filter(a => !a.isGasket && (a.unit || '').toLowerCase() !== 'm').map((a, i) => (
-                                                            <div key={i} className="flex justify-between text-[10px] text-slate-600 border-b border-slate-100 py-0.5">
-                                                                <span className="truncate max-w-[130px] font-semibold">{a.name || a.code}</span>
-                                                                <span className="font-mono font-bold">{a.qty} {a.unit || 'pcs'}</span>
-                                                            </div>
-                                                        ))
-                                                    )}
+                                                    {(() => {
+                                                        const hItems = (item.accessories || []).filter(a => !isGasketItem(a));
+                                                        return hItems.length === 0 ? (
+                                                            <div className="text-[10px] text-slate-400 italic py-1">No hardware items</div>
+                                                        ) : (
+                                                            hItems.map((a, i) => (
+                                                                <div key={i} className="flex justify-between text-[10px] text-slate-600 border-b border-slate-100 py-0.5">
+                                                                    <span className="truncate max-w-[130px] font-semibold" title={a.name || a.code}>{a.name || a.code}</span>
+                                                                    <span className="font-mono font-bold">{a.qty} {a.unit || 'pcs'}</span>
+                                                                </div>
+                                                            ))
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -1086,19 +1339,34 @@ const AluQuotationFormPage = () => {
                                             <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 space-y-1.5">
                                                 <div className="flex justify-between font-bold text-amber-950 border-b border-amber-200 pb-1 text-[11px]">
                                                     <span>🪢 4. Gaskets</span>
-                                                    <span className="font-mono">LKR {Math.round(item.costingSummary?.totalGasketCost || (item.gasketItems ? item.gasketItems.reduce((sum, g) => sum + (Number(g.cost) || 0), 0) : 0)).toLocaleString()}</span>
+                                                    <span className="font-mono">LKR {Math.round(
+                                                        (() => {
+                                                            if (item.costingSummary?.totalGasketCost !== undefined && Number(item.costingSummary.totalGasketCost) > 0) {
+                                                                return Number(item.costingSummary.totalGasketCost);
+                                                            }
+                                                            const gList = (item.gasketItems && item.gasketItems.length > 0)
+                                                                ? item.gasketItems
+                                                                : (item.accessories || []).filter(isGasketItem);
+                                                            return gList.reduce((sum, g) => sum + (Number(g.cost) || ((Number(g.qty) || 0) * (Number(g.unitRate) || 0))), 0);
+                                                        })()
+                                                    ).toLocaleString()}</span>
                                                 </div>
                                                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                                                    {(item.gasketItems && item.gasketItems.length > 0 ? item.gasketItems : (item.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).length === 0 ? (
-                                                        <div className="text-[10px] text-slate-400 italic py-1">No gaskets specified</div>
-                                                    ) : (
-                                                        (item.gasketItems && item.gasketItems.length > 0 ? item.gasketItems : (item.accessories || []).filter(a => a.isGasket || (a.unit || '').toLowerCase() === 'm')).map((gk, i) => (
-                                                            <div key={i} className="flex justify-between text-[10px] text-amber-900 border-b border-amber-100 py-0.5">
-                                                                <span className="truncate max-w-[120px] font-semibold">{gk.name || gk.code}</span>
-                                                                <span className="font-mono font-bold">{gk.qty} m</span>
-                                                            </div>
-                                                        ))
-                                                    )}
+                                                    {(() => {
+                                                        const gList = (item.gasketItems && item.gasketItems.length > 0)
+                                                            ? item.gasketItems
+                                                            : (item.accessories || []).filter(isGasketItem);
+                                                        return gList.length === 0 ? (
+                                                            <div className="text-[10px] text-slate-400 italic py-1">No gaskets specified</div>
+                                                        ) : (
+                                                            gList.map((gk, i) => (
+                                                                <div key={i} className="flex justify-between text-[10px] text-amber-900 border-b border-amber-100 py-0.5">
+                                                                    <span className="truncate max-w-[120px] font-semibold" title={gk.name || gk.code}>{gk.name || gk.code}</span>
+                                                                    <span className="font-mono font-bold">{gk.qty} m</span>
+                                                                </div>
+                                                            ))
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>
@@ -1107,7 +1375,7 @@ const AluQuotationFormPage = () => {
                                         {(() => {
                                             const itemRaw = Math.round(
                                                 item.costingSummary?.totalRawCost ||
-                                                ((item.costingSummary?.totalAluminiumCost || 0) + (item.costingSummary?.totalGlassCost || 0) + (item.costingSummary?.totalAccessoriesCost || 0))
+                                                ((item.costingSummary?.totalAluminiumCost || 0) + (item.costingSummary?.totalGlassCost || 0) + (item.costingSummary?.totalAccessoriesCost || 0) + (item.costingSummary?.totalGasketCost || 0))
                                             );
                                             const itemLabour = Math.round(item.costingSummary?.totalLabourCost || ((item.labourCost || 0) * (item.quantity || 1)));
                                             const itemBase = itemRaw + itemLabour;

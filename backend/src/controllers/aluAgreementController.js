@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import AluAgreement from '../models/AluAgreement.js';
 import AluQuotation from '../models/AluQuotation.js';
+import BankAccount from '../models/BankAccount.js';
 
 // Helper to generate Agreement Number (PA-200, PA-201, ...)
 const generateAgreementNumber = async () => {
@@ -56,6 +57,20 @@ export const createAgreement = asyncHandler(async (req, res) => {
         { stageName: 'Final Payment Upon Project Completion', amount: Math.round(projectValue * 0.25), percentage: 25 }
     ];
 
+    // Resolve Bank Details fallback from database if not specified
+    let finalBankDetails = bankDetails;
+    if (!finalBankDetails || !finalBankDetails.accountNumber) {
+        const defaultAccount = await BankAccount.findOne({ isActive: true, deletedAt: null }).sort({ createdAt: -1 });
+        if (defaultAccount) {
+            finalBankDetails = {
+                bankName: defaultAccount.bankName,
+                accountName: defaultAccount.accountName,
+                accountNumber: defaultAccount.accountNumber,
+                branch: defaultAccount.branchName || ''
+            };
+        }
+    }
+
     const agreement = await AluAgreement.create({
         agreementNumber,
         quotationId,
@@ -68,11 +83,11 @@ export const createAgreement = asyncHandler(async (req, res) => {
         leadTimeDays: leadTimeDays || 14,
         warranties: warranties || { workmanshipYears: 10, hardwareYears: 5 },
         generalConditions,
-        bankDetails: bankDetails || {
-            bankName: 'Hatton National Bank',
-            accountName: 'M.E.H.Bandara',
-            accountNumber: '147020135728',
-            branch: 'Nawala'
+        bankDetails: finalBankDetails || {
+            bankName: 'Bank of Ceylon',
+            accountName: 'Company Account',
+            accountNumber: '',
+            branch: ''
         },
         createdBy: req.user ? req.user._id : null
     });

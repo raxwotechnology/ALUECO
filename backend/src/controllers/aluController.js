@@ -346,13 +346,21 @@ export const getAluRawMaterials = asyncHandler(async (req, res) => {
 
     const stockItems = await StockItem.find(stockFilter)
         .populate('warehouseId', 'name warehouseCode')
-        .populate('productId', 'name productCode unitOfMeasure stockLevels aluCategory aluSpecs businessType');
+        .populate('productId', 'name productCode unitOfMeasure stockLevels aluCategory aluSpecs businessType costs basePrice');
+
+    const sanitizedStockItems = stockItems.map(item => {
+        const itemObj = item.toObject ? item.toObject() : { ...item };
+        if (itemObj.productId?.unitOfMeasure) {
+            itemObj.unitOfMeasure = itemObj.productId.unitOfMeasure;
+        }
+        return itemObj;
+    });
 
     res.json({
         success: true,
         data: {
             products,
-            stockItems
+            stockItems: sanitizedStockItems
         }
     });
 });
@@ -508,14 +516,26 @@ export const updateAluRawMaterial = asyncHandler(async (req, res) => {
         throw new Error('Raw material not found');
     }
 
-    console.log('Existing product:', existing);
-
     const update = { ...req.body };
-    
-    // Check if productCode is being changed
-    const oldProductCode = existing.productCode;
-    const newProductCode = update.productCode?.trim().toUpperCase();
-    const isProductCodeChanged = newProductCode && oldProductCode && newProductCode !== oldProductCode;
+    const oldProductCode = (existing.productCode || '').trim().toUpperCase();
+    const newProductCode = (update.productCode || oldProductCode).trim().toUpperCase();
+    const isProductCodeChanged = Boolean(newProductCode && oldProductCode && newProductCode !== oldProductCode);
+
+    // If productCode changed, check for duplicate unique codes
+    if (isProductCodeChanged) {
+        const duplicate = await Product.findOne({
+            _id: { $ne: id },
+            productCode: newProductCode,
+            deletedAt: null
+        });
+        if (duplicate) {
+            res.status(400);
+            throw new Error(`Item Code "${newProductCode}" is already in use by another material ("${duplicate.name}"). Please use a unique code.`);
+        }
+        update.productCode = newProductCode;
+    } else {
+        update.productCode = oldProductCode;
+    }
 
     // Merge costs and aluSpecs properly to preserve existing data
     if (update.costs) {
@@ -527,113 +547,409 @@ export const updateAluRawMaterial = asyncHandler(async (req, res) => {
 
     console.log('Final update object:', update);
 
-    // Update the product directly to avoid pre-save hook conflicts
+    // Update the product directly
     const product = await Product.findByIdAndUpdate(id, update, { returnDocument: 'after', runValidators: true });
     
     console.log('Updated product:', product);
 
-    // Update StockItem costPerUnit if cost changed
-    if (update.costs && (update.costs.lastPurchaseCost !== undefined || update.basePrice !== undefined)) {
-        const newCost = update.costs.lastPurchaseCost || update.basePrice || 0;
-        const StockItem = (await import('../models/StockItem.js')).default;
-        
-        console.log('Updating StockItem costPerUnit to:', newCost);
-        console.log('StockItem update condition met - costs:', update.costs, 'basePrice:', update.basePrice);
-        
-        const updateResult = await StockItem.updateMany(
-            { productId: id },
-            { costPerUnit: newCost }
-        );
-        
-        console.log('StockItem updateMany result:', updateResult);
-        
-        // Also update totalValue for all stock items
+    const StockItem = (await import('../models/StockItem.js')).default;
+
+    // Synchronize denormalized productCode, productName, unitOfMeasure to all StockItem records
+    const newCost = (update.costs && update.costs.lastPurchaseCost !== undefined)
+        ? Number(update.costs.lastPurchaseCost)
+        : (update.basePrice !== undefined ? Number(update.basePrice) : (product.costs?.lastPurchaseCost || product.basePrice || 0));
+
+    await StockItem.updateMany(
+        { productId: id },
+        { 
+            productCode: product.productCode,
+            productName: product.name,
+            unitOfMeasure: product.unitOfMeasure,
+            ...(newCost >= 0 ? { costPerUnit: newCost } : {})
+        }
+    );
+
+    if (newCost >= 0) {
         const stockItems = await StockItem.find({ productId: id });
-        console.log('Found stock items to update:', stockItems.length);
-        
         for (const stockItem of stockItems) {
             stockItem.totalValue = +(stockItem.quantities.onHand * newCost).toFixed(2);
             await stockItem.save();
         }
-        
-        console.log('StockItem costs updated successfully');
-    } else {
-        console.log('StockItem cost update condition not met');
-        console.log('update.costs:', update.costs);
-        console.log('update.basePrice:', update.basePrice);
     }
 
-    // Cascade productCode update to all related collections
-    if (isProductCodeChanged) {
-        console.log(`Cascading productCode change from ${oldProductCode} to ${newProductCode}`);
-        
-        const StockItem = (await import('../models/StockItem.js')).default;
-        const StockMovement = (await import('../models/StockMovement.js')).default;
+    // CASCADE ITEM CODE & NAME CHANGES TO BOMs, APPLICATIONS, QUOTATIONS, POs, etc.
+    const effectiveCode = product.productCode;
+    const effectiveOldCode = oldProductCode;
+
+    // 1. BillOfMaterials (Standard BOM Components)
+    try {
         const BillOfMaterials = (await import('../models/BillOfMaterials.js')).default;
-        const PurchaseOrder = (await import('../models/PurchaseOrder.js')).default;
-        const SalesOrder = (await import('../models/SalesOrder.js')).default;
-        const Invoice = (await import('../models/Invoice.js')).default;
-        const ProductionOrder = (await import('../models/ProductionOrder.js')).default;
-        const GoodsReceiptNote = (await import('../models/GoodsReceiptNote.js')).default;
-
-        // Update StockItem
-        await StockItem.updateMany(
-            { productId: id },
-            { productCode: newProductCode }
-        );
-
-        // Update StockMovement
-        await StockMovement.updateMany(
-            { productId: id },
-            { productCode: newProductCode }
-        );
-
-        // Update BillOfMaterials components
         await BillOfMaterials.updateMany(
-            { 'components.productId': id },
-            { 'components.$[elem].productCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
+            { 
+                $or: [
+                    { 'components.productId': id },
+                    ...(effectiveOldCode ? [{ 'components.productCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'components.$[elem].productCode': effectiveCode,
+                'components.$[elem].productName': product.name,
+                'components.$[elem].unitOfMeasure': product.unitOfMeasure,
+                ...(newCost >= 0 ? { 'components.$[elem].standardCost': newCost } : {})
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
         );
-
-        // Update PurchaseOrder items
-        await PurchaseOrder.updateMany(
-            { 'items.productId': id },
-            { 'items.$[elem].itemCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
-        );
-
-        // Update SalesOrder items
-        await SalesOrder.updateMany(
-            { 'items.productId': id },
-            { 'items.$[elem].productCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
-        );
-
-        // Update Invoice items
-        await Invoice.updateMany(
-            { 'items.productId': id },
-            { 'items.$[elem].productCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
-        );
-
-        // Update ProductionOrder items
-        await ProductionOrder.updateMany(
-            { 'items.productId': id },
-            { 'items.$[elem].productCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
-        );
-
-        // Update GoodsReceiptNote items
-        await GoodsReceiptNote.updateMany(
-            { 'items.productId': id },
-            { 'items.$[elem].itemCode': newProductCode },
-            { arrayFilters: [{ 'elem.productId': id }] }
-        );
-
-        console.log('Cascading update completed');
+    } catch (err) {
+        console.error('Failed to cascade to BillOfMaterials:', err);
     }
 
-    res.json({ success: true, message: 'Raw material updated successfully', data: product });
+    // 2. AluApplication (Alu System BOM Formulas / Configurator Templates)
+    if (effectiveOldCode && isProductCodeChanged) {
+        try {
+            const AluApplication = (await import('../models/AluApplication.js')).default;
+            
+            // Profile BOM cuts
+            await AluApplication.updateMany(
+                { 
+                    $or: [
+                        { 'profileBOM.profileCode': effectiveOldCode },
+                        { 'profileBOM.actualCode': effectiveOldCode }
+                    ]
+                },
+                { 
+                    'profileBOM.$[elem].profileCode': effectiveCode,
+                    'profileBOM.$[elem].actualCode': effectiveCode,
+                    'profileBOM.$[elem].description': product.name
+                },
+                { 
+                    arrayFilters: [
+                        { 
+                            $or: [
+                                { 'elem.profileCode': effectiveOldCode },
+                                { 'elem.actualCode': effectiveOldCode }
+                            ]
+                        }
+                    ] 
+                }
+            );
+
+            // Glass BOM
+            await AluApplication.updateMany(
+                { 'glassBOM.glassCode': effectiveOldCode },
+                { 'glassBOM.$[elem].glassCode': effectiveCode },
+                { arrayFilters: [{ 'elem.glassCode': effectiveOldCode }] }
+            );
+
+            // Accessory BOM
+            await AluApplication.updateMany(
+                { 
+                    $or: [
+                        { 'accessoryBOM.accessoryCode': effectiveOldCode },
+                        { 'accessoryBOM.actualCode': effectiveOldCode }
+                    ]
+                },
+                { 
+                    'accessoryBOM.$[elem].accessoryCode': effectiveCode,
+                    'accessoryBOM.$[elem].actualCode': effectiveCode
+                },
+                { 
+                    arrayFilters: [
+                        { 
+                            $or: [
+                                { 'elem.accessoryCode': effectiveOldCode },
+                                { 'elem.actualCode': effectiveOldCode }
+                            ]
+                        }
+                    ] 
+                }
+            );
+
+            // Gasket BOM
+            await AluApplication.updateMany(
+                { 
+                    $or: [
+                        { 'gasketBOM.gasketCode': effectiveOldCode },
+                        { 'gasketBOM.actualCode': effectiveOldCode }
+                    ]
+                },
+                { 
+                    'gasketBOM.$[elem].gasketCode': effectiveCode,
+                    'gasketBOM.$[elem].actualCode': effectiveCode,
+                    'gasketBOM.$[elem].name': product.name
+                },
+                { 
+                    arrayFilters: [
+                        { 
+                            $or: [
+                                { 'elem.gasketCode': effectiveOldCode },
+                                { 'elem.actualCode': effectiveOldCode }
+                            ]
+                        }
+                    ] 
+                }
+            );
+        } catch (err) {
+            console.error('Failed to cascade to AluApplication:', err);
+        }
+    }
+
+    // 3. AluQuotation (Quotations with BOM snapshots)
+    if (effectiveOldCode && isProductCodeChanged) {
+        try {
+            const AluQuotation = (await import('../models/AluQuotation.js')).default;
+            await AluQuotation.updateMany(
+                { 'items.profileCuts.profileCode': effectiveOldCode },
+                { 
+                    'items.$[itemElem].profileCuts.$[cutElem].profileCode': effectiveCode,
+                    'items.$[itemElem].profileCuts.$[cutElem].description': product.name
+                },
+                { 
+                    arrayFilters: [
+                        { 'itemElem.profileCuts.profileCode': effectiveOldCode },
+                        { 'cutElem.profileCode': effectiveOldCode }
+                    ] 
+                }
+            );
+
+            await AluQuotation.updateMany(
+                { 'items.glassItems.glassCode': effectiveOldCode },
+                { 'items.$[itemElem].glassItems.$[glassElem].glassCode': effectiveCode },
+                { 
+                    arrayFilters: [
+                        { 'itemElem.glassItems.glassCode': effectiveOldCode },
+                        { 'glassElem.glassCode': effectiveOldCode }
+                    ] 
+                }
+            );
+
+            await AluQuotation.updateMany(
+                { 'items.accessories.code': effectiveOldCode },
+                { 
+                    'items.$[itemElem].accessories.$[accElem].code': effectiveCode,
+                    'items.$[itemElem].accessories.$[accElem].name': product.name
+                },
+                { 
+                    arrayFilters: [
+                        { 'itemElem.accessories.code': effectiveOldCode },
+                        { 'accElem.code': effectiveOldCode }
+                    ] 
+                }
+            );
+        } catch (err) {
+            console.error('Failed to cascade to AluQuotation:', err);
+        }
+    }
+
+    // 4. AluPurchaseOrder (Aluminium PO Items)
+    try {
+        const AluPurchaseOrder = (await import('../models/AluPurchaseOrder.js')).default;
+        await AluPurchaseOrder.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.itemCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].itemCode': effectiveCode,
+                'items.$[elem].productName': product.name,
+                'items.$[elem].unitOfMeasure': product.unitOfMeasure
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.itemCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+    } catch (err) {
+        console.error('Failed to cascade to AluPurchaseOrder:', err);
+    }
+
+    // 5. General PurchaseOrder & GoodsReceiptNote
+    try {
+        const PurchaseOrder = (await import('../models/PurchaseOrder.js')).default;
+        await PurchaseOrder.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.productCode': effectiveOldCode }, { 'items.itemCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].productCode': effectiveCode,
+                'items.$[elem].itemCode': effectiveCode,
+                'items.$[elem].productName': product.name
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }, { 'elem.itemCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+
+        const GoodsReceiptNote = (await import('../models/GoodsReceiptNote.js')).default;
+        await GoodsReceiptNote.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.productCode': effectiveOldCode }, { 'items.itemCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].productCode': effectiveCode,
+                'items.$[elem].itemCode': effectiveCode,
+                'items.$[elem].productName': product.name
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }, { 'elem.itemCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+    } catch (err) {
+        console.error('Failed to cascade to PO/GRN:', err);
+    }
+
+    // 6. StockMovement, ProductionOrder, SalesOrder, Invoice
+    try {
+        const StockMovement = (await import('../models/StockMovement.js')).default;
+        await StockMovement.updateMany(
+            { 
+                $or: [
+                    { productId: id },
+                    ...(effectiveOldCode ? [{ productCode: effectiveOldCode }] : [])
+                ]
+            },
+            { productCode: effectiveCode, productName: product.name }
+        );
+
+        const ProductionOrder = (await import('../models/ProductionOrder.js')).default;
+        await ProductionOrder.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.productCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].productCode': effectiveCode,
+                'items.$[elem].productName': product.name
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+
+        const SalesOrder = (await import('../models/SalesOrder.js')).default;
+        await SalesOrder.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.productCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].productCode': effectiveCode,
+                'items.$[elem].productName': product.name
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+
+        const Invoice = (await import('../models/Invoice.js')).default;
+        await Invoice.updateMany(
+            { 
+                $or: [
+                    { 'items.productId': id },
+                    ...(effectiveOldCode ? [{ 'items.productCode': effectiveOldCode }] : [])
+                ]
+            },
+            { 
+                'items.$[elem].productCode': effectiveCode,
+                'items.$[elem].productName': product.name
+            },
+            { 
+                arrayFilters: [
+                    { 
+                        $or: [
+                            { 'elem.productId': id },
+                            ...(effectiveOldCode ? [{ 'elem.productCode': effectiveOldCode }] : [])
+                        ]
+                    }
+                ] 
+            }
+        );
+    } catch (err) {
+        console.error('Failed to cascade to StockMovement/Production/Sales/Invoice:', err);
+    }
+
+    // 7. AluProfile, AluGlass, AluAccessory
+    if (effectiveOldCode && isProductCodeChanged) {
+        try {
+            const AluProfile = (await import('../models/AluProfile.js')).default;
+            await AluProfile.updateMany(
+                { profileCode: effectiveOldCode },
+                { profileCode: effectiveCode, description: product.name }
+            );
+
+            const AluGlass = (await import('../models/AluGlass.js')).default;
+            await AluGlass.updateMany(
+                { glassCode: effectiveOldCode },
+                { glassCode: effectiveCode }
+            );
+
+            const AluAccessory = (await import('../models/AluAccessory.js')).default;
+            await AluAccessory.updateMany(
+                { code: effectiveOldCode },
+                { code: effectiveCode, name: product.name }
+            );
+        } catch (err) {
+            console.error('Failed to cascade to AluProfile/Glass/Accessory:', err);
+        }
+    }
+
+    console.log(`Cascade update completed for product ${id} (code: ${effectiveCode})`);
+
+    res.json({ success: true, message: 'Raw material and all related records updated successfully', data: product });
 });
 
 export const deleteAluRawMaterial = asyncHandler(async (req, res) => {
@@ -651,6 +967,7 @@ export const deleteAluRawMaterial = asyncHandler(async (req, res) => {
 export const processAluGrn = asyncHandler(async (req, res) => {
     const {
         warehouseId,
+        supplierId,
         supplierName,
         invoiceNumber,
         notes,
@@ -665,13 +982,29 @@ export const processAluGrn = asyncHandler(async (req, res) => {
     const { increaseStock } = await import('../services/stockService.js');
     const AluPurchaseOrder = (await import('../models/AluPurchaseOrder.js')).default;
     const Product = (await import('../models/Product.js')).default;
+    const GoodsReceiptNote = (await import('../models/GoodsReceiptNote.js')).default;
+    const Bill = (await import('../models/Bill.js')).default;
+    const Supplier = (await import('../models/Supplier.js')).default;
+
+    let supplier = null;
+    if (supplierId) {
+        supplier = await Supplier.findById(supplierId);
+    }
+    if (!supplier && supplierName) {
+        supplier = await Supplier.findOne({
+            $or: [{ displayName: supplierName }, { name: supplierName }, { companyName: supplierName }]
+        });
+    }
 
     const grnNumber = `ALU-GRN-${Date.now().toString().slice(-6)}`;
     const results = [];
+    const grnLineItems = [];
+    const billLineItems = [];
 
     for (const item of items) {
         const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
         let pId = item.productId;
+        let pName = item.productName || item.description || `AluEco Raw Material (${targetCode})`;
 
         if (!pId && targetCode) {
             let found = await Product.findOne({
@@ -682,7 +1015,7 @@ export const processAluGrn = asyncHandler(async (req, res) => {
                 // Auto-create raw material product entry if it doesn't exist
                 found = new Product({
                     productCode: targetCode,
-                    name: item.productName || item.description || `AluEco Raw Material (${targetCode})`,
+                    name: pName,
                     productType: 'raw_material',
                     businessType: 'alueco',
                     unitOfMeasure: item.unitOfMeasure || 'pcs',
@@ -692,6 +1025,7 @@ export const processAluGrn = asyncHandler(async (req, res) => {
                 await found.save();
             }
             pId = found._id;
+            pName = found.name;
         }
 
         if (!pId || !item.quantityReceived) continue;
@@ -706,9 +1040,39 @@ export const processAluGrn = asyncHandler(async (req, res) => {
             costPerUnit: cost,
             movementType: 'grn',
             sourceDocument: { type: 'grn', number: grnNumber },
-            reason: `AluEco GRN from ${supplierName || 'Supplier'}`,
+            reason: `AluEco GRN from ${supplier?.displayName || supplierName || 'Supplier'}`,
             notes: invoiceNumber ? `Supplier Invoice #${invoiceNumber}` : notes,
             userId: req.user?._id,
+        });
+
+        grnLineItems.push({
+            productId: pId,
+            productCode: targetCode,
+            productName: pName,
+            orderedQuantity: qty,
+            receivedQuantity: qty,
+            acceptedQuantity: qty,
+            rejectedQuantity: 0,
+            unitOfMeasure: item.unitOfMeasure || 'pcs',
+            unitPrice: cost,
+            qcStatus: 'passed',
+            stockMovementId: stockResult.movement?._id,
+            notes: invoiceNumber ? `Inv #${invoiceNumber}` : notes
+        });
+
+        billLineItems.push({
+            lineNumber: billLineItems.length + 1,
+            productId: pId,
+            productCode: targetCode,
+            productName: pName,
+            description: pName,
+            quantity: qty,
+            unitOfMeasure: item.unitOfMeasure || 'pcs',
+            unitPrice: cost,
+            taxable: false,
+            taxRate: 0,
+            lineSubtotal: +(qty * cost).toFixed(2),
+            lineTotal: +(qty * cost).toFixed(2)
         });
 
         // Auto fulfill any pending AluPurchaseOrder matching this item code
@@ -732,6 +1096,7 @@ export const processAluGrn = asyncHandler(async (req, res) => {
                         const decr = Math.min(curPending, remainingFulfill);
                         poItem.receivedQuantity = (poItem.receivedQuantity || 0) + decr;
                         poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
+                        if (supplier?._id || supplierId) poItem.supplierId = supplier?._id || supplierId;
                         remainingFulfill -= decr;
 
                         if (poItem.pendingQuantity === 0) {
@@ -746,6 +1111,9 @@ export const processAluGrn = asyncHandler(async (req, res) => {
                 if (poModified) {
                     const allFulfilled = po.items.every(i => (i.pendingQuantity || 0) === 0 || i.status === 'fulfilled');
                     po.status = allFulfilled ? 'fulfilled' : 'partially_received';
+                    if (supplier?.displayName || supplierName) po.supplierName = supplier?.displayName || supplierName;
+                    if (supplier?._id || supplierId) po.supplierId = supplier?._id || supplierId;
+                    po.markModified('items');
                     await po.save();
                 }
             }
@@ -758,11 +1126,80 @@ export const processAluGrn = asyncHandler(async (req, res) => {
         });
     }
 
+    // Save formal GoodsReceiptNote entry
+    let savedGrn = null;
+    if (grnLineItems.length > 0) {
+        try {
+            const totalValue = grnLineItems.reduce((s, i) => s + (i.receivedQuantity * i.unitPrice), 0);
+            savedGrn = new GoodsReceiptNote({
+                grnNumber,
+                supplierId: supplier?._id || supplierId || null,
+                supplierName: supplier?.displayName || supplier?.name || supplierName || 'Supplier',
+                warehouseId,
+                receiptDate: new Date(),
+                supplierDeliveryNoteNumber: invoiceNumber,
+                supplierInvoiceNumber: invoiceNumber,
+                items: grnLineItems,
+                totalReceivedValue: totalValue,
+                totalAcceptedValue: totalValue,
+                totalPayableLKR: totalValue,
+                status: 'approved',
+                notes: notes || `AluEco GRN from ${supplier?.displayName || supplierName || 'Supplier'}`,
+                receivedBy: req.user?._id,
+                createdBy: req.user?._id
+            });
+            await savedGrn.save();
+        } catch (grnErr) {
+            console.warn('[AluEco GRN Doc Save Error]:', grnErr.message);
+        }
+    }
+
+    // Save formal Supplier Bill entry (Accounts Payable)
+    let savedBill = null;
+    if (billLineItems.length > 0) {
+        try {
+            const totalValue = billLineItems.reduce((s, i) => s + i.lineTotal, 0);
+            savedBill = new Bill({
+                supplierInvoiceNumber: invoiceNumber,
+                supplierId: supplier?._id || supplierId || null,
+                supplierSnapshot: {
+                    name: supplier?.displayName || supplier?.name || supplierName || 'Supplier',
+                    code: supplier?.supplierCode || ''
+                },
+                grnIds: savedGrn ? [savedGrn._id] : [],
+                grnNumbers: savedGrn ? [savedGrn.grnNumber] : [grnNumber],
+                billDate: new Date(),
+                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Net 30 default
+                items: billLineItems,
+                subtotal: totalValue,
+                grandTotal: totalValue,
+                balanceDue: totalValue,
+                amountPaid: 0,
+                paymentStatus: 'unpaid',
+                status: 'approved',
+                notes: `Auto-generated from AluEco GRN ${savedGrn?.grnNumber || grnNumber}${invoiceNumber ? ` (Inv #${invoiceNumber})` : ''}`,
+                createdBy: req.user?._id
+            });
+            await savedBill.save();
+
+            // Update supplier balance
+            if (supplier) {
+                supplier.outstandingBalance = (supplier.outstandingBalance || 0) + totalValue;
+                supplier.totalBilled = (supplier.totalBilled || 0) + totalValue;
+                await supplier.save();
+            }
+        } catch (billErr) {
+            console.warn('[AluEco Bill Doc Save Error]:', billErr.message);
+        }
+    }
+
     res.status(201).json({
         success: true,
-        message: `AluEco GRN processed successfully. Recorded ${results.length} materials into stock.`,
+        message: `AluEco GRN processed successfully. Recorded ${results.length} materials into stock, generated GRN intake record, and created Supplier Bill.`,
         data: {
-            grnNumber,
+            grnNumber: savedGrn?.grnNumber || grnNumber,
+            billNumber: savedBill?.billNumber,
+            totalItems: results.length,
             items: results
         }
     });
@@ -802,6 +1239,29 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
         }
     });
 
+    // Fetch all products to lookup descriptions, thickness, specs for glass and accessories
+    const Product = (await import('../models/Product.js')).default;
+    const allProducts = await Product.find({ businessType: 'alueco', deletedAt: null }).lean();
+    const productByCode = {};
+    allProducts.forEach(p => {
+        if (p.productCode) {
+            productByCode[p.productCode.toUpperCase()] = p;
+        }
+    });
+
+    // Also fetch AluGlass if available
+    let allGlassList = [];
+    try {
+        const AluGlass = (await import('../models/AluGlass.js')).default;
+        allGlassList = await AluGlass.find({ isActive: true }).lean();
+    } catch (e) {
+        // ignore
+    }
+    const glassByCode = {};
+    allGlassList.forEach(gl => {
+        if (gl.glassCode) glassByCode[gl.glassCode.toUpperCase()] = gl;
+    });
+
     const mappedQuotationIds = new Set();
     const mappedPONumbers = new Set();
 
@@ -822,9 +1282,10 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
         const profileMap = {};
         const glassMap = {};
         const accessoryMap = {};
+        const gasketMap = {};
 
         // 1. Process cutting optimization results for profiles
-        if (q.cuttingOptimizationResults) {
+        if (q.cuttingOptimizationResults && Object.keys(q.cuttingOptimizationResults).length > 0) {
             Object.values(q.cuttingOptimizationResults).forEach(p => {
                 const code = (p.profileCode || '').toUpperCase();
                 if (!code) return;
@@ -840,16 +1301,86 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
                     cost: p.totalCost || 0
                 };
             });
+        } else {
+            // Fallback to profileCuts from items
+            (q.items || []).forEach(item => {
+                (item.profileCuts || []).forEach(pc => {
+                    const code = (pc.code || pc.profileCode || '').toUpperCase();
+                    if (!code) return;
+                    if (!profileMap[code]) {
+                        profileMap[code] = {
+                            code,
+                            description: pc.description || pc.name || `Profile ${code}`,
+                            totalRequiredMm: 0,
+                            totalRequiredBars: 0,
+                            availableStockBars: stockMap[code] || 0,
+                            wastePercent: 0,
+                            cost: 0
+                        };
+                    }
+                    const reqMm = (pc.length || 0) * (pc.qty || 1);
+                    profileMap[code].totalRequiredMm += reqMm;
+                    profileMap[code].cost += (pc.cost || 0);
+                });
+            });
+            // Approximate bars and waste for fallback
+            Object.values(profileMap).forEach(p => {
+                if (p.totalRequiredBars === 0 && p.totalRequiredMm > 0) {
+                     p.totalRequiredBars = Math.ceil(p.totalRequiredMm / 5800); // approx 5.8m per bar
+                     
+                     // Calculate waste %
+                     const totalPurchasedMm = p.totalRequiredBars * 5800;
+                     const wasteMm = totalPurchasedMm - p.totalRequiredMm;
+                     p.wastePercent = totalPurchasedMm > 0 ? parseFloat(((wasteMm / totalPurchasedMm) * 100).toFixed(1)) : 0;
+                     
+                     // Re-calculate cost based on full bars instead of just the cuts
+                     const prod = productByCode[p.code];
+                     const unitCost = prod?.basePrice || prod?.costs?.lastPurchaseCost || 0;
+                     if (unitCost > 0) {
+                         p.cost = p.totalRequiredBars * unitCost;
+                     }
+                }
+            });
         }
 
         // 2. Process quotation items for glass & accessories
         (q.items || []).forEach(item => {
             // Glass items
             (item.glassItems || []).forEach(g => {
-                const code = g.glassCode || 'Standard Glass';
+                const rawCode = g.glassCode || 'STANDARD_GLASS';
+                const code = rawCode.toUpperCase();
+                const prod = productByCode[code];
+                const aluGlass = glassByCode[code];
+
+                let typeName = g.type || g.description || '';
+                let thickness = g.thickness || '';
+
+                if (aluGlass) {
+                    if (!typeName) typeName = aluGlass.typeName;
+                    if (!thickness) thickness = aluGlass.thickness;
+                }
+                if (prod) {
+                    if (!typeName) typeName = prod.name;
+                    if (!thickness) thickness = prod.aluSpecs?.thickness || '';
+                }
+                if (!typeName && item.glassSpec) {
+                    typeName = item.glassSpec;
+                }
+                if (!typeName) {
+                    typeName = code !== 'STANDARD_GLASS' ? `Glass ${code}` : 'Standard Glass';
+                }
+
+                if (!thickness && typeName) {
+                    const match = typeName.match(/(\d+(?:\.\d+)?\s*mm)/i);
+                    if (match) thickness = match[1];
+                }
+
                 if (!glassMap[code]) {
                     glassMap[code] = {
-                        code,
+                        code: rawCode,
+                        type: thickness ? `${typeName} (${thickness})` : typeName,
+                        typeName,
+                        thickness: thickness || '',
                         totalAreaSqFt: 0,
                         quantity: 0,
                         totalCost: 0
@@ -860,22 +1391,37 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
                 glassMap[code].totalCost += (g.cost || 0);
             });
 
-            // Accessory items
-            (item.accessories || []).forEach(a => {
+            // Accessory & Gasket items
+            const allAccessoriesAndGaskets = [...(item.accessories || []), ...(item.gasketItems || [])];
+            allAccessoriesAndGaskets.forEach(a => {
                 const code = (a.code || '').toUpperCase();
                 if (!code) return;
-                if (!accessoryMap[code]) {
-                    accessoryMap[code] = {
+
+                const prod = productByCode[code];
+                const isGasketItem = Boolean(
+                    a.isGasket || 
+                    code.startsWith('GS') || 
+                    prod?.aluCategory === 'gaskets' || 
+                    prod?.aluSpecs?.type === 'GS' || 
+                    /gasket|rubber|weatherseal|weatherstrip|woolpile|beading|wedge/i.test(a.name || '') ||
+                    /gasket|rubber|weatherseal|weatherstrip|woolpile|beading|wedge/i.test(prod?.name || '')
+                );
+
+                const targetMap = isGasketItem ? gasketMap : accessoryMap;
+                const defaultUnit = isGasketItem ? (prod?.unitOfMeasure || a.unit || 'm') : (prod?.unitOfMeasure || a.unit || 'pcs');
+
+                if (!targetMap[code]) {
+                    targetMap[code] = {
                         code,
-                        name: a.name || code,
+                        name: a.name || prod?.name || code,
                         requiredQty: 0,
                         availableStockQty: stockMap[code] || 0,
-                        unit: a.unit || 'pcs',
+                        unit: defaultUnit,
                         totalCost: 0
                     };
                 }
-                accessoryMap[code].requiredQty += (a.qty || 0);
-                accessoryMap[code].totalCost += (a.cost || 0);
+                targetMap[code].requiredQty = +(targetMap[code].requiredQty + (a.qty || 0)).toFixed(2);
+                targetMap[code].totalCost = +(targetMap[code].totalCost + (a.cost || 0)).toFixed(2);
             });
         });
 
@@ -941,6 +1487,7 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
             profiles: Object.values(profileMap),
             glass: Object.values(glassMap),
             accessories: Object.values(accessoryMap),
+            gaskets: Object.values(gasketMap),
             shortageItems,
             linkedPOs: projectPOs.map(p => ({ _id: p._id, poNumber: p.poNumber, status: p.status, totalAmount: p.totalEstimatedCost })),
             totalPendingPOValue
@@ -982,6 +1529,7 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
             profiles: [],
             glass: [],
             accessories: [],
+            gaskets: [],
             shortageItems,
             linkedPOs: [{ _id: po._id, poNumber: po.poNumber, status: po.status, totalAmount: po.totalEstimatedCost }],
             totalPendingPOValue

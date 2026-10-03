@@ -30,27 +30,51 @@ const aluQuotationItemSchema = new mongoose.Schema({
     // Snapshot of calculated components for this opening
     profileCuts: [{
         profileCode: String,
+        code: String,
         description: String,
+        name: String,
         length: Number, // in mm
         qty: Number,    // quantity of cuts for this length
-        totalLength: Number
+        totalLength: Number,
+        totalLengthM: Number,
+        unitRate: Number,
+        discountedRate: Number,
+        cost: Number
     }],
     glassItems: [{
         glassCode: String,
+        type: { type: String },
         width: Number,
         height: Number,
         qty: Number,
         areaSqFt: Number,
         unitRate: Number,
-        cost: Number
+        cost: Number,
+        glassSheetLength: String,
+        base21ftPrice: Number
     }],
     accessories: [{
         code: String,
         name: String,
         qty: Number,
         unitRate: Number,
-        cost: Number
+        cost: Number,
+        unit: String,
+        isGasket: Boolean
     }],
+    gasketItems: [{
+        code: String,
+        name: String,
+        qty: Number,
+        unitRate: Number,
+        cost: Number,
+        unit: String,
+        isGasket: Boolean
+    }],
+    gasketSpec: { type: String, default: '' },
+    totalGasketMeters: { type: Number, default: 0 },
+    aluminiumDiscountPercent: { type: Number, default: 0 },
+    costingSummary: { type: mongoose.Schema.Types.Mixed, default: {} },
     labourCost: Number,
     unitPrice: Number, // calculated selling price for 1 opening (before manual project adjustments)
     totalPrice: Number, // unitPrice * quantity
@@ -77,6 +101,7 @@ const aluQuotationSchema = new mongoose.Schema({
     totalAluminiumCost: { type: Number, default: 0 },
     totalGlassCost: { type: Number, default: 0 },
     totalAccessoriesCost: { type: Number, default: 0 },
+    totalGasketCost: { type: Number, default: 0 },
     totalLabourCost: { type: Number, default: 0 },
     transportCost: { type: Number, default: 0 },
     otherCost: { type: Number, default: 0 },

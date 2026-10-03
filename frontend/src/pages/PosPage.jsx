@@ -167,7 +167,8 @@ export default function PosPage() {
             const { data } = await api.get('/finance/bank-accounts');
             return data.data || [];
         },
-        staleTime: 60000,
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
     const bankAccounts = bankAccountsData || [];
 

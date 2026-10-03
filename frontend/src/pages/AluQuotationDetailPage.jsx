@@ -378,29 +378,6 @@ const AluQuotationDetailPage = () => {
                         <ArrowLeft size={16} className="text-white" /> Back to Quotations
                     </button>
 
-                    {/* View Mode Toggle Switch */}
-                    <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200">
-                        <button
-                            onClick={() => setViewMode('customer')}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                viewMode === 'customer'
-                                    ? 'bg-[#064E3B] text-white shadow-sm'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            Customer Quotation View (Official)
-                        </button>
-                        <button
-                            onClick={() => setViewMode('internal')}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                viewMode === 'internal'
-                                    ? 'bg-slate-900 text-white shadow-sm'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            Internal Material List &amp; Costing
-                        </button>
-                    </div>
 
                     {/* Options Toggles */}
                     {viewMode === 'customer' && (
@@ -454,9 +431,7 @@ const AluQuotationDetailPage = () => {
                             <Receipt size={14} /> {converting ? 'Converting...' : '⚡ Convert to Invoice &amp; Track Payments'}
                         </Button>
                     )}
-                    <Button onClick={handleDownloadInternalPDF} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
-                        <FileSpreadsheet size={14} /> Export Internal Costing
-                    </Button>
+
                     <Button onClick={handleDownloadCustomerPDF} className="flex items-center gap-1.5 bg-[#064E3B] hover:bg-emerald-900 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-sm transition">
                         <Download size={14} /> Export Customer PDF
                     </Button>
@@ -513,28 +488,6 @@ const AluQuotationDetailPage = () => {
                 </div>
             </div>
 
-            {/* Cost cards grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {[
-                    { label: 'Total Aluminium Cost', val: `${quotation.totalAluminiumCost.toLocaleString()}`, color: 'text-slate-800', icon: Layers, iconColor: 'bg-indigo-50 text-indigo-600' },
-                    { label: 'Total Glass Cost', val: `${quotation.totalGlassCost.toLocaleString()}`, color: 'text-slate-800', icon: Eye, iconColor: 'bg-cyan-50 text-cyan-600' },
-                    { label: 'Total Accessories Cost', val: `${quotation.totalAccessoriesCost.toLocaleString()}`, color: 'text-slate-800', icon: SettingsIcon, iconColor: 'bg-amber-50 text-amber-600' },
-                    { label: 'Total Labour Cost', val: `${quotation.totalLabourCost.toLocaleString()}`, color: 'text-slate-800', icon: Users, iconColor: 'bg-orange-50 text-orange-600' },
-                    { label: 'Subtotal (Final Selling Price)', val: `${subtotalCost.toLocaleString()}`, color: 'text-slate-800', icon: DollarSign, iconColor: 'bg-slate-100 text-slate-700' },
-                    { label: 'Transport Cost', val: `${quotation.transportCost.toLocaleString()}`, color: 'text-slate-800', icon: Truck, iconColor: 'bg-teal-50 text-teal-600' },
-                    { label: 'Other Cost', val: `${quotation.otherCost.toLocaleString()}`, color: 'text-slate-800', icon: Package, iconColor: 'bg-purple-50 text-purple-600' }
-                ].map((c, idx) => (
-                    <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-white shadow-sm flex items-center gap-3">
-                        <div className={`p-2.5 rounded-xl ${c.iconColor}`}>
-                            <c.icon size={20} />
-                        </div>
-                        <div>
-                            <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">{c.label}</span>
-                            <span className={`text-base font-black ${c.color}`}>{c.val}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
 
             {/* Split layout: Aluminium table + optimization visual */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">

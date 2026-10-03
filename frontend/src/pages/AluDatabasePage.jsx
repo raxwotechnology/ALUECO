@@ -1378,47 +1378,6 @@ export default function AluDatabasePage() {
                                             </button>
                                         </div>
                                     </div>
-
-                                    {/* Quick Formula Presets for Gasket Length */}
-                                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
-                                        <span className="text-slate-400 font-semibold">Presets:</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const next = (appForm.gasketBOM || []).map((item, i) =>
-                                                    i === idx ? { ...item, formula: '2 * (W + H) / 1000' } : item
-                                                );
-                                                setAppForm({ ...appForm, gasketBOM: next });
-                                            }}
-                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
-                                        >
-                                            Perimeter: 2*(W+H)/1000
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const next = (appForm.gasketBOM || []).map((item, i) =>
-                                                    i === idx ? { ...item, formula: '2 * (W / P + H) * P / 1000' } : item
-                                                );
-                                                setAppForm({ ...appForm, gasketBOM: next });
-                                            }}
-                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
-                                        >
-                                            Panels: 2*(W/P+H)*P/1000
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const next = (appForm.gasketBOM || []).map((item, i) =>
-                                                    i === idx ? { ...item, formula: '(2 * W + 4 * H) / 1000' } : item
-                                                );
-                                                setAppForm({ ...appForm, gasketBOM: next });
-                                            }}
-                                            className="px-2 py-0.5 bg-white border border-slate-200 hover:border-amber-400 rounded text-slate-600 font-mono hover:text-amber-700 transition"
-                                        >
-                                            Double Track: (2*W+4*H)/1000
-                                        </button>
-                                    </div>
                                 </div>
                             );
                         })}

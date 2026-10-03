@@ -39,7 +39,6 @@ export default function AluProjectPnLPage() {
             ContractValue: r.contractValue,
             MaterialCost: r.materialCost,
             LaborCost: r.laborCost,
-            SiteExpenses: r.siteExpenses,
             TotalDirectCost: r.totalDirectCost,
             NetProfit: r.netProfit,
             NetMarginPercent: r.netMarginPercent
@@ -122,7 +121,6 @@ export default function AluProjectPnLPage() {
                                 <th className="p-3.5">Contract Value</th>
                                 <th className="p-3.5">Material Cost</th>
                                 <th className="p-3.5">Labor Cost</th>
-                                <th className="p-3.5">Site Expenses</th>
                                 <th className="p-3.5">Total Direct Cost</th>
                                 <th className="p-3.5">Net Profit</th>
                                 <th className="p-3.5">Margin %</th>
@@ -139,7 +137,6 @@ export default function AluProjectPnLPage() {
                                     <td className="p-3.5 font-bold text-slate-800">LKR {r.contractValue.toLocaleString()}</td>
                                     <td className="p-3.5 text-slate-600">LKR {r.materialCost.toLocaleString()}</td>
                                     <td className="p-3.5 text-slate-600">LKR {r.laborCost.toLocaleString()}</td>
-                                    <td className="p-3.5 text-slate-600">LKR {r.siteExpenses.toLocaleString()}</td>
                                     <td className="p-3.5 font-bold text-rose-600">LKR {r.totalDirectCost.toLocaleString()}</td>
                                     <td className="p-3.5 font-bold text-emerald-600">LKR {r.netProfit.toLocaleString()}</td>
                                     <td className="p-3.5 font-bold">
