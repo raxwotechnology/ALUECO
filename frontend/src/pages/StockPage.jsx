@@ -29,6 +29,9 @@ export default function StockPage() {
     const [filters, setFilters] = useState({
         search: '', warehouseId: '', lowStock: '',
         stockType: '', // 'open' or 'balance' or ''
+        category: '', // 'profiles', 'glass', 'accessories', etc.
+        businessType: '', // 'alueco' or 'general'
+        stockStatus: '', // 'out_of_stock', 'low_stock', 'in_stock'
         page: 1, limit: 20,
     });
 
@@ -223,38 +226,70 @@ export default function StockPage() {
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search product..."
+                            placeholder="Search product name, code, SKU..."
                             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
                             value={filters.search}
                             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
                         />
                     </div>
-                    <div className="w-full sm:w-52">
+                    <div className="w-full sm:w-40">
                         <Select
-                            placeholder="All Warehouses"
-                            options={warehouseOptions}
+                            placeholder="Warehouse"
+                            options={[{ value: '', label: 'All Warehouses' }, ...warehouseOptions]}
                             value={filters.warehouseId}
                             onChange={(e) => setFilters((f) => ({ ...f, warehouseId: e.target.value, page: 1 }))}
                         />
                     </div>
-                    <div className="w-full sm:w-44">
+                    <div className="w-full sm:w-36">
                         <Select
-                            placeholder="All Stock Types"
+                            placeholder="Category"
                             options={[
-                                { value: '', label: 'All Stock Types' },
-                                { value: 'open', label: 'Open Stock only' },
-                                { value: 'balance', label: 'Balance Stock only' }
+                                { value: '', label: 'All Categories' },
+                                { value: 'profiles', label: 'Profiles' },
+                                { value: 'glass', label: 'Glass' },
+                                { value: 'accessories', label: 'Accessories' },
+                                { value: 'hardware', label: 'Hardware' },
+                                { value: 'gaskets', label: 'Gaskets' }
+                            ]}
+                            value={filters.category}
+                            onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value, page: 1 }))}
+                        />
+                    </div>
+                    <div className="w-full sm:w-36">
+                        <Select
+                            placeholder="Type"
+                            options={[
+                                { value: '', label: 'All Types' },
+                                { value: 'alueco', label: 'ALUECO' },
+                                { value: 'general', label: 'General' }
+                            ]}
+                            value={filters.businessType}
+                            onChange={(e) => setFilters((f) => ({ ...f, businessType: e.target.value, page: 1 }))}
+                        />
+                    </div>
+                    <div className="w-full sm:w-36">
+                        <Select
+                            placeholder="Stock Type"
+                            options={[
+                                { value: '', label: 'All Stock' },
+                                { value: 'open', label: 'Open Stock' },
+                                { value: 'balance', label: 'Balance Stock' }
                             ]}
                             value={filters.stockType}
                             onChange={(e) => setFilters((f) => ({ ...f, stockType: e.target.value, page: 1 }))}
                         />
                     </div>
-                    <div className="w-full sm:w-40">
+                    <div className="w-full sm:w-36">
                         <Select
-                            placeholder="All Items"
-                            options={[{ value: 'true', label: 'Low stock only' }]}
-                            value={filters.lowStock}
-                            onChange={(e) => setFilters((f) => ({ ...f, lowStock: e.target.value, page: 1 }))}
+                            placeholder="Status"
+                            options={[
+                                { value: '', label: 'All Status' },
+                                { value: 'out_of_stock', label: 'Out of Stock' },
+                                { value: 'low_stock', label: 'Low Stock' },
+                                { value: 'in_stock', label: 'In Stock' }
+                            ]}
+                            value={filters.stockStatus}
+                            onChange={(e) => setFilters((f) => ({ ...f, stockStatus: e.target.value, page: 1 }))}
                         />
                     </div>
                 </div>

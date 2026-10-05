@@ -12,6 +12,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Textarea from '../components/ui/Textarea';
 import EmptyState from '../components/ui/EmptyState';
+import Pagination from '../components/ui/Pagination';
 import { useAuthStore } from '../store/authStore';
 import ProductAutocompleteSelect from '../components/ui/ProductAutocompleteSelect';
 
@@ -26,6 +27,15 @@ export default function GrnsPage() {
     const [products, setProducts] = useState([]);
     const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+    const [filters, setFilters] = useState({
+        status: '',
+        sourceType: '',
+        supplierId: '',
+        warehouseId: '',
+        startDate: '',
+        endDate: '',
+    });
 
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
@@ -77,8 +87,20 @@ export default function GrnsPage() {
     const fetchAllData = useCallback(async () => {
         setLoading(true);
         try {
+            const params = {
+                page: pagination.page,
+                limit: pagination.limit,
+            };
+
+            if (filters.status) params.status = filters.status;
+            if (filters.sourceType) params.sourceType = filters.sourceType;
+            if (filters.supplierId) params.supplierId = filters.supplierId;
+            if (filters.warehouseId) params.warehouseId = filters.warehouseId;
+            if (filters.startDate) params.startDate = filters.startDate;
+            if (filters.endDate) params.endDate = filters.endDate;
+
             const [grnRes, supRes, farmRes, whRes, prodRes, poRes, bankRes] = await Promise.all([
-                api.get('/grns', { params: { startDate: '1970-01-01T00:00:00.000Z', endDate: '2099-12-31T23:59:59.999Z' } }),
+                api.get('/grns', { params }),
                 api.get('/suppliers'),
                 api.get('/farms?status=active'),
                 api.get('/warehouses'),
@@ -103,12 +125,17 @@ export default function GrnsPage() {
             );
             setPurchaseOrders(receivablePos);
             setBankAccounts(bankRes.data.data || []);
+            setPagination(prev => ({
+                ...prev,
+                total: grnRes.data.total || 0,
+                totalPages: grnRes.data.totalPages || 1,
+            }));
         } catch (err) {
             toast.error('Failed to load material receipts (GRNs)');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [pagination.page, filters]);
 
     useEffect(() => {
         fetchAllData();
@@ -131,7 +158,54 @@ export default function GrnsPage() {
             items: []
         });
         setNewItem({ productId: '', receivedQuantity: '', unitPrice: '' });
+        setPagination(prev => ({ ...prev, page: 1 }));
         setIsFormOpen(true);
+    };
+
+    const openFormWithPo = () => {
+        setFormData({
+            purchaseOrderId: purchaseOrders[0]?._id || '',
+            warehouseId: warehouses[0]?._id || '',
+            sourceType: 'supplier',
+            supplierId: '',
+            farmId: '',
+            receiptDate: new Date().toISOString().split('T')[0],
+            supplierDeliveryNoteNumber: '',
+            supplierInvoiceNumber: '',
+            vehicleNumber: '',
+            driverName: '',
+            transportCompany: '',
+            notes: '',
+            items: []
+        });
+        // Auto-populate from first PO if available
+        if (purchaseOrders.length > 0) {
+            handlePoChange(purchaseOrders[0]._id);
+        }
+        setNewItem({ productId: '', receivedQuantity: '', unitPrice: '' });
+        setPagination(prev => ({ ...prev, page: 1 }));
+        setIsFormOpen(true);
+    };
+
+    const handlePageChange = (newPage) => {
+        setPagination(prev => ({ ...prev, page: newPage }));
+    };
+
+    const handleFilterChange = (key, value) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
+        setPagination(prev => ({ ...prev, page: 1 }));
+    };
+
+    const clearFilters = () => {
+        setFilters({
+            status: '',
+            sourceType: '',
+            supplierId: '',
+            warehouseId: '',
+            startDate: '',
+            endDate: '',
+        });
+        setPagination(prev => ({ ...prev, page: 1 }));
     };
 
     // When PO is selected, auto-populate details
@@ -259,6 +333,7 @@ export default function GrnsPage() {
             await api.post('/grns', payload);
             toast.success('Goods Receipt Note recorded in pending QA approval queue');
             setIsFormOpen(false);
+            setPagination(prev => ({ ...prev, page: 1 }));
             fetchAllData();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to record material receipt');
@@ -337,6 +412,7 @@ export default function GrnsPage() {
             toast.success('✅ QA Inspection approved, stock and supplier balances updated!');
             setIsQcOpen(false);
             setIsViewOpen(false);
+            setPagination(prev => ({ ...prev, page: 1 }));
             fetchAllData();
         } catch (err) {
             toast.error(err.response?.data?.message || 'QA approval failed');
@@ -347,7 +423,6 @@ export default function GrnsPage() {
         { key: 'grnNumber', label: 'GRN No', render: (r) => <span className="font-bold text-gray-800">{r.grnNumber}</span> },
         { key: 'source', label: 'Source', render: (r) => r.sourceType === 'own_farm' ? <span className="flex items-center gap-1 text-green-700 font-semibold"><Home size={14} /> Own Farm</span> : <span className="flex items-center gap-1 text-blue-700 font-semibold"><Building size={14} /> Supplier</span> },
         { key: 'sourceName', label: 'Source Name', hideOnMobile: true, render: (r) => r.sourceType === 'own_farm' ? r.farmName || r.farmId?.name || '—' : r.supplierName || r.supplierId?.displayName || '—' },
-        { key: 'poNumber', label: 'PO Ref', hideOnMobile: true, render: (r) => r.poNumber ? <Badge variant="default">{r.poNumber}</Badge> : <span className="text-gray-400 italic">Direct Receipt</span> },
         { key: 'receiptDate', label: 'Receipt Date', hideOnMobile: true, render: (r) => new Date(r.receiptDate).toLocaleDateString() },
         {
             key: 'status',
@@ -381,14 +456,95 @@ export default function GrnsPage() {
             <PageHeader
                 title="Material Receipts (GRN)"
                 description="Record materials intake from suppliers or company farms, and perform quality checks"
-                actions={canManage && <Button variant="primary" onClick={openForm}><Plus size={16} className="mr-1.5" />New GRN</Button>}
+                actions={canManage && (
+                    <div className="flex gap-2">
+                        <Button variant="primary" onClick={openForm}><Plus size={16} className="mr-1.5" />New GRN (Direct)</Button>
+                        <Button variant="secondary" onClick={openFormWithPo} disabled={purchaseOrders.length === 0}><FileText size={16} className="mr-1.5" />GRN (from PO)</Button>
+                    </div>
+                )}
             />
 
             <Card className="p-4">
-                <div className="flex justify-end mb-4">
-                    <button onClick={fetchAllData} className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
-                        <RefreshCw size={16} className="text-gray-500" />
-                    </button>
+                <div className="flex flex-wrap gap-3 mb-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
+                        <select
+                            value={filters.status}
+                            onChange={(e) => handleFilterChange('status', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                            <option value="">All Status</option>
+                            <option value="pending_approval">Pending QA</option>
+                            <option value="approved">QA Approved</option>
+                        </select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Source Type</label>
+                        <select
+                            value={filters.sourceType}
+                            onChange={(e) => handleFilterChange('sourceType', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                            <option value="">All Sources</option>
+                            <option value="supplier">Supplier</option>
+                            <option value="own_farm">Own Farm</option>
+                        </select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Supplier</label>
+                        <select
+                            value={filters.supplierId}
+                            onChange={(e) => handleFilterChange('supplierId', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                            <option value="">All Suppliers</option>
+                            {suppliers.map(s => (
+                                <option key={s._id} value={s._id}>{s.displayName || s.companyName}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Warehouse</label>
+                        <select
+                            value={filters.warehouseId}
+                            onChange={(e) => handleFilterChange('warehouseId', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                            <option value="">All Warehouses</option>
+                            {warehouses.map(w => (
+                                <option key={w._id} value={w._id}>{w.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Start Date</label>
+                        <input
+                            type="date"
+                            value={filters.startDate}
+                            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">End Date</label>
+                        <input
+                            type="date"
+                            value={filters.endDate}
+                            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                    </div>
+                    <div className="flex items-end gap-2">
+                        <button
+                            onClick={clearFilters}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                        >
+                            Clear
+                        </button>
+                        <button onClick={fetchAllData} className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
+                            <RefreshCw size={16} className="text-gray-500" />
+                        </button>
+                    </div>
                 </div>
 
                 {loading ? (
@@ -398,10 +554,23 @@ export default function GrnsPage() {
                         icon={FileText}
                         title="No GRN records"
                         description="Log goods receipt notes to record stock intakes from farms or suppliers."
-                        action={canManage && <Button variant="primary" onClick={openForm}><Plus size={16} className="mr-1.5" />New GRN</Button>}
+                        action={canManage && (
+                            <div className="flex gap-2">
+                                <Button variant="primary" onClick={openForm}><Plus size={16} className="mr-1.5" />New GRN (Direct)</Button>
+                                <Button variant="secondary" onClick={openFormWithPo} disabled={purchaseOrders.length === 0}><FileText size={16} className="mr-1.5" />GRN (from PO)</Button>
+                            </div>
+                        )}
                     />
                 ) : (
-                    <Table columns={columns} data={grns} />
+                    <>
+                        <Table columns={columns} data={grns} />
+                        <Pagination
+                            page={pagination.page}
+                            totalPages={pagination.totalPages}
+                            total={pagination.total}
+                            onPageChange={handlePageChange}
+                        />
+                    </>
                 )}
             </Card>
 
@@ -728,22 +897,14 @@ export default function GrnsPage() {
             >
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-600 block mb-1">Receipt Type</label>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handlePoChange('')}
-                                    className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition ${!formData.purchaseOrderId ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    Direct GRN (No PO)
-                                </button>
+                        {formData.purchaseOrderId && (
+                            <div>
+                                <label className="text-xs font-bold text-gray-600 block mb-1">Purchase Order</label>
                                 <select
                                     value={formData.purchaseOrderId}
                                     onChange={(e) => handlePoChange(e.target.value)}
-                                    className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none bg-white font-medium transition ${formData.purchaseOrderId ? 'border-primary-500 text-primary-600 font-bold focus:ring-2 focus:ring-primary-200' : 'border-gray-300 text-gray-600 focus:ring-2 focus:ring-primary-200'}`}
+                                    className="w-full px-3 py-2 border border-primary-500 rounded-lg text-sm focus:outline-none bg-white font-medium text-primary-600 font-bold focus:ring-2 focus:ring-primary-200"
                                 >
-                                    <option value="">Receive against PO</option>
                                     {purchaseOrders.map(po => (
                                         <option key={po._id} value={po._id}>
                                             {po.poNumber} — {po.supplierSnapshot?.name || po.supplierId?.displayName || 'Supplier'}
@@ -751,7 +912,7 @@ export default function GrnsPage() {
                                     ))}
                                 </select>
                             </div>
-                        </div>
+                        )}
 
                         <Input
                             label="Receipt Date *"

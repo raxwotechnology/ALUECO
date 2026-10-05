@@ -19,6 +19,7 @@ export default function FixedAssetsPage() {
 
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [bankAccounts, setBankAccounts] = useState([]);
     
     // Asset modal
     const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -30,7 +31,7 @@ export default function FixedAssetsPage() {
     const [selectedAsset, setSelectedAsset] = useState(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [newPayment, setNewPayment] = useState({
-        amount: '', date: new Date().toISOString().split('T')[0], reference: '', notes: ''
+        amount: '', date: new Date().toISOString().split('T')[0], reference: '', notes: '', bankAccountId: ''
     });
 
     const [saving, setSaving] = useState(false);
@@ -47,9 +48,19 @@ export default function FixedAssetsPage() {
         }
     }, []);
 
+    const fetchBankAccounts = useCallback(async () => {
+        try {
+            const res = await api.get('/finance/bank-accounts');
+            setBankAccounts(res.data.data || []);
+        } catch {
+            toast.error('Failed to fetch bank accounts');
+        }
+    }, []);
+
     useEffect(() => {
         fetchAssets();
-    }, [fetchAssets]);
+        fetchBankAccounts();
+    }, [fetchAssets, fetchBankAccounts]);
 
     const handleCreateAsset = async (e) => {
         e.preventDefault();
@@ -75,7 +86,7 @@ export default function FixedAssetsPage() {
             await api.post(`/finance/fixed-assets/${selectedAsset._id}/payments`, newPayment);
             toast.success('Payment recorded successfully');
             setIsPaymentModalOpen(false);
-            setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], reference: '', notes: '' });
+            setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], reference: '', notes: '', bankAccountId: '' });
             setSelectedAsset(null);
             fetchAssets();
         } catch (err) {
@@ -193,6 +204,7 @@ export default function FixedAssetsPage() {
                                                 <button
                                                     onClick={() => {
                                                         setSelectedAsset(asset);
+                                                        setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], reference: '', notes: '', bankAccountId: '' });
                                                         setIsPaymentModalOpen(true);
                                                     }}
                                                     className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-700 bg-primary-50 px-2 py-1.5 rounded-lg border border-primary-100"
@@ -315,12 +327,22 @@ export default function FixedAssetsPage() {
                                                 required className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 outline-none" />
                                         </div>
                                         <div>
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Bank Account (Optional)</label>
+                                            <select value={newPayment.bankAccountId} onChange={e => setNewPayment(p => ({ ...p, bankAccountId: e.target.value }))}
+                                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 outline-none">
+                                                <option value="">-- No Bank Account (Manual Entry Only) --</option>
+                                                {bankAccounts.filter(b => b.isActive).map(b => (
+                                                    <option key={b._id} value={b._id}>{b.bankName} - {b.accountNumber} ({fmtRs(b.balance)})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
                                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Reference No.</label>
                                             <input value={newPayment.reference} onChange={e => setNewPayment(p => ({ ...p, reference: e.target.value }))}
                                                 placeholder="e.g. CHQ 11252"
                                                 className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 outline-none" />
                                         </div>
-                                        <div>
+                                        <div className="col-span-1 sm:col-span-2">
                                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Notes / Description</label>
                                             <input value={newPayment.notes} onChange={e => setNewPayment(p => ({ ...p, notes: e.target.value }))}
                                                 placeholder="e.g. First installment check"
@@ -343,24 +365,29 @@ export default function FixedAssetsPage() {
                                     {selectedAsset.payments?.length === 0 ? (
                                         <p className="p-6 text-center text-sm text-gray-400 italic bg-gray-50/25">No payments recorded yet</p>
                                     ) : (
-                                        selectedAsset.payments.map((p, i) => (
-                                            <div key={p._id || i} className="p-4 flex justify-between items-center hover:bg-gray-50 transition">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-                                                        <CheckCircle2 size={16} />
+                                        selectedAsset.payments.map((p, i) => {
+                                            const bankAccount = bankAccounts.find(b => b._id === p.bankAccountId);
+                                            return (
+                                                <div key={p._id || i} className="p-4 flex justify-between items-center hover:bg-gray-50 transition">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                                                            <CheckCircle2 size={16} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-900">{p.reference || `Installment #${i + 1}`}</p>
+                                                            <p className="text-xs text-gray-400">
+                                                                {format(new Date(p.date), 'MMM dd, yyyy')}
+                                                                {bankAccount && ` · ${bankAccount.bankName}`}
+                                                                {p.notes && ` · ${p.notes}`}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-gray-900">{p.reference || `Installment #${i + 1}`}</p>
-                                                        <p className="text-xs text-gray-400">
-                                                            {format(new Date(p.date), 'MMM dd, yyyy')} {p.notes && ` · ${p.notes}`}
-                                                        </p>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-bold text-emerald-600">+{fmtRs(p.amount)}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-bold text-emerald-600">+{fmtRs(p.amount)}</p>
-                                                </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>

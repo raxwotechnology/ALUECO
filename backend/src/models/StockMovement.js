@@ -41,6 +41,7 @@ const stockMovementSchema = new mongoose.Schema(
             },
             id: { type: mongoose.Schema.Types.ObjectId },
             number: { type: String, trim: true },
+            projectName: { type: String, trim: true },
         },
 
         reason: { type: String, trim: true },

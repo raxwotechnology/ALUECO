@@ -478,7 +478,7 @@ export const releaseReservations = async ({ sourceDocumentId, reason = '', sessi
  * Releases reservation + decreases onHand stock + creates movement.
  */
 export const fulfillReservations = async ({
-    sourceDocumentId, sourceDocumentNumber, userId, session,
+    sourceDocumentId, sourceDocumentNumber, userId, session, projectName,
 }) => {
     const reservations = await StockReservation.find({
         'sourceDocument.id': sourceDocumentId,
@@ -509,6 +509,7 @@ export const fulfillReservations = async ({
                 type: 'sales_order',
                 id: sourceDocumentId,
                 number: sourceDocumentNumber,
+                projectName: projectName || r.sourceDocument?.projectName,
             },
             userId,
         });

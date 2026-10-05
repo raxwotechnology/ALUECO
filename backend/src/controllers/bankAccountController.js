@@ -114,6 +114,8 @@ export const getBankAccountLedger = asyncHandler(async (req, res) => {
     .populate('supplierId', 'displayName supplierCode')
     .sort({ paymentDate: 1, createdAt: 1 });
 
+    console.log(`[Ledger] Found ${payments.length} payments for bank account ${account.accountNumber}`);
+
     // Build the ledger entries with running balance
     let currentBalance = 0; // Starts from 0, or we can consider initial balance as starting point
     const ledger = payments.map((p) => {

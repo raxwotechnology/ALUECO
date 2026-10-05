@@ -358,7 +358,7 @@ export const createGrnFromAluPO = asyncHandler(async (req, res) => {
         throw new Error('Warehouse ID is required');
     }
 
-    const { increaseStock } = await import('../services/stockService.js');
+    const { increaseStock, decreaseStock } = await import('../services/stockService.js');
     const Product = (await import('../models/Product.js')).default;
 
     const grnNumber = `ALU-GRN-${Date.now().toString().slice(-6)}`;
@@ -369,8 +369,8 @@ export const createGrnFromAluPO = asyncHandler(async (req, res) => {
 
     for (const item of itemsToProcess) {
         const targetCode = (item.itemCode || item.productCode || '').toUpperCase();
-        const poItem = order.items.find(i => 
-            (i.itemCode || '').toUpperCase() === targetCode || 
+        const poItem = order.items.find(i =>
+            (i.itemCode || '').toUpperCase() === targetCode ||
             (i._id && i._id.toString() === item.itemId)
         );
 
@@ -414,7 +414,7 @@ export const createGrnFromAluPO = asyncHandler(async (req, res) => {
             quantity: receivedQty,
             costPerUnit: cost,
             movementType: 'grn',
-            sourceDocument: { type: 'alu_grn', number: grnNumber, poId: order._id },
+            sourceDocument: { type: 'alu_grn', number: grnNumber, poId: order._id, projectName: order.projectName },
             reason: `GRN for AluEco PO ${order.poNumber} - ${order.projectName}`,
             notes: invoiceNumber ? `Invoice #${invoiceNumber}` : notes,
             userId: req.user?._id,
@@ -423,7 +423,7 @@ export const createGrnFromAluPO = asyncHandler(async (req, res) => {
         // Update PO item received quantity
         poItem.receivedQuantity = (poItem.receivedQuantity || 0) + receivedQty;
         poItem.pendingQuantity = Math.max(0, (poItem.requiredQuantity || 0) - poItem.receivedQuantity);
-        
+
         if (poItem.pendingQuantity === 0) {
             poItem.status = 'fulfilled';
         } else {

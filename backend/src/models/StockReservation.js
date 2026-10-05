@@ -14,6 +14,7 @@ const stockReservationSchema = new mongoose.Schema(
             id: { type: mongoose.Schema.Types.ObjectId, required: false },
             number: { type: String, trim: true },
             lineItemId: { type: mongoose.Schema.Types.ObjectId }, // order line
+            projectName: { type: String, trim: true },
         },
 
         status: {

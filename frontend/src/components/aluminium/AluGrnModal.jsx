@@ -125,15 +125,27 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
                 const pending = i.pendingQuantity !== undefined ? i.pendingQuantity : i.requiredQuantity;
                 return pending > 0 && i.status !== 'fulfilled';
             })
-            .map(i => ({
-                productId: i.productId?._id || i.productId || '',
-                productCode: i.productCode || i.itemCode || '',
-                productName: i.productName || '',
-                quantityReceived: i.pendingQuantity || i.requiredQuantity || 0,
-                unitCost: i.estimatedUnitCost || 0,
-                unitOfMeasure: i.unitOfMeasure || 'Lengths',
-                isFromPO: true
-            }));
+            .map(i => {
+                // Try to get cost from PO item first, then from product catalog
+                let cost = i.estimatedUnitCost || 0;
+                if (!cost && i.productId && aluProducts.length > 0) {
+                    const product = aluProducts.find(p => p._id === i.productId?._id || p._id === i.productId);
+                    if (product) {
+                        cost = product.basePrice || product.costs?.lastPurchaseCost || 0;
+                    }
+                }
+                return {
+                    productId: i.productId?._id || i.productId || '',
+                    productCode: i.productCode || i.itemCode || '',
+                    productName: i.productName || '',
+                    quantityReceived: i.pendingQuantity || i.requiredQuantity || 0,
+                    unitCost: cost,
+                    unitOfMeasure: i.unitOfMeasure || 'Lengths',
+                    isFromPO: true,
+                    poId: po._id, // Include PO ID for auto-allocation
+                    itemId: i._id // Include item ID for tracking
+                };
+            });
 
         const poSupplierId = po.supplierId?._id || po.supplierId || '';
         const poSupplierName = po.supplierName || (po.supplierId?.displayName || po.supplierId?.name) || '';
@@ -142,10 +154,10 @@ export default function AluGrnModal({ isOpen, onClose, onSuccess, selectedPo, pr
             ...prev,
             supplierId: poSupplierId || prev.supplierId,
             supplierName: poSupplierName || prev.supplierName,
-            notes: `Fulfilling Shortage PO: ${po.poNumber} (${po.projectName})`,
+            notes: `Fulfilling Shortage PO: ${po.poNumber} (${po.projectName}) - Items will be auto-allocated to project upon receipt`,
             items: items.length ? items : prev.items
         }));
-        toast.success(`Loaded ${items.length} shortage items from ${po.poNumber}`);
+        toast.success(`Loaded ${items.length} shortage items from ${po.poNumber}. Items will be auto-allocated to project.`);
     };
 
     // Find projects that need this material

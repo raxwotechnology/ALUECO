@@ -11,7 +11,7 @@ const aluPoItemSchema = new mongoose.Schema({
     },
     materialType: {
         type: String,
-        enum: ['profile', 'glass', 'accessory', 'raw_material', 'hardware', 'other'],
+        enum: ['profile', 'glass', 'accessory', 'raw_material', 'hardware', 'gasket', 'other'],
         default: 'raw_material',
     },
     productName: {

@@ -169,17 +169,39 @@ export const checkStockAndShortages = async (salesOrderId, warehouseId) => {
         });
         const productId = product ? product._id : null;
 
-        // Find stock levels in this warehouse or default
+        // Smart stock check: Check specified warehouse first, then all warehouses
         let stockItem = null;
+        let bestWarehouseId = warehouseId;
+        let maxAvailable = 0;
+
         if (productId) {
+            // Check specified warehouse first
             if (warehouseId) {
                 stockItem = await StockItem.findOne({ productId, warehouseId });
+                if (stockItem) {
+                    const available = Math.max(0, (stockItem.quantities?.available !== undefined ? stockItem.quantities.available : ((stockItem.quantities?.openStock || stockItem.quantities?.onHand || 0) - (stockItem.quantities?.reserved || 0))));
+                    if (available > maxAvailable) {
+                        maxAvailable = available;
+                        bestWarehouseId = warehouseId;
+                    }
+                }
             }
-            if (!stockItem) {
-                stockItem = await StockItem.findOne({ productId });
+
+            // If no stock in specified warehouse or we want to check all warehouses, find best warehouse
+            if (maxAvailable === 0 || !warehouseId) {
+                const allStockItems = await StockItem.find({ productId });
+                for (const item of allStockItems) {
+                    const available = Math.max(0, (item.quantities?.available !== undefined ? item.quantities.available : ((item.quantities?.openStock || item.quantities?.onHand || 0) - (item.quantities?.reserved || 0))));
+                    if (available > maxAvailable) {
+                        maxAvailable = available;
+                        stockItem = item;
+                        bestWarehouseId = item.warehouseId;
+                    }
+                }
             }
         }
 
+        // Recalculate available from fresh stock data
         const availableQty = stockItem ? Math.max(0, (stockItem.quantities?.available !== undefined ? stockItem.quantities.available : ((stockItem.quantities?.openStock || stockItem.quantities?.onHand || 0) - (stockItem.quantities?.reserved || 0)))) : 0;
 
         const toReserve = Math.min(availableQty, req.requiredQty);
@@ -204,7 +226,8 @@ export const checkStockAndShortages = async (salesOrderId, warehouseId) => {
             toReserve: parseFloat(toReserve.toFixed(2)),
             shortage: parseFloat(shortage.toFixed(2)),
             unitCost,
-            productId
+            productId,
+            warehouseId: bestWarehouseId
         });
     }
 
@@ -223,9 +246,13 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
     const reservationsCreated = [];
 
     // Check if active reservations already exist for this project to avoid double reserving
+    // Check both SalesOrder ID and Quotation ID
     const existing = await StockReservation.find({
-        'sourceDocument.id': salesOrder ? salesOrder._id : salesOrderId,
-        status: 'active'
+        status: 'active',
+        $or: [
+            { 'sourceDocument.id': salesOrder ? salesOrder._id : salesOrderId },
+            { 'sourceDocument.id': salesOrder?.quotationId }
+        ]
     });
 
     if (existing.length > 0) {
@@ -239,15 +266,22 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
 
     for (const item of check.items) {
         if (item.toReserve > 0 && item.productId) {
-            let stockItem = null;
-            if (warehouseId) {
-                stockItem = await StockItem.findOne({ productId: item.productId, warehouseId });
-            }
+            // Use the warehouse from check results (best warehouse with stock)
+            const targetWarehouseId = item.warehouseId || warehouseId;
+            let stockItem = await StockItem.findOne({ productId: item.productId, warehouseId: targetWarehouseId });
+
             if (!stockItem) {
+                // Fallback to any warehouse with this product
                 stockItem = await StockItem.findOne({ productId: item.productId });
             }
 
             if (stockItem) {
+                // Refresh stock data before reservation to ensure we have latest quantities
+                const freshStockItem = await StockItem.findById(stockItem._id);
+                if (freshStockItem) {
+                    stockItem = freshStockItem;
+                }
+
                 // Deduct from available & increase reserved
                 stockItem.quantities.reserved = +((stockItem.quantities.reserved || 0) + item.toReserve).toFixed(2);
                 stockItem.quantities.available = Math.max(0, (stockItem.quantities.openStock || stockItem.quantities.onHand || 0) - stockItem.quantities.reserved);
@@ -256,13 +290,14 @@ export const reserveStockForProject = async (salesOrderId, warehouseId, userId, 
                 // Create StockReservation entry
                 const reservation = await StockReservation.create([{
                     productId: item.productId,
-                    warehouseId: stockItem.warehouseId || warehouseId,
+                    warehouseId: stockItem.warehouseId || targetWarehouseId,
                     quantity: item.toReserve,
                     unitOfMeasure: item.unitOfMeasure,
                     sourceDocument: {
                         type: 'sales_order',
                         id: salesOrder ? salesOrder._id : salesOrderId,
-                        number: check.orderNumber
+                        number: check.orderNumber,
+                        projectName: salesOrder?.projectName
                     },
                     reservedBy: userId,
                     status: 'active'
@@ -291,9 +326,13 @@ export const releaseProjectReservations = async (salesOrderId, reason, session =
     }
     const orderId = salesOrder ? salesOrder._id : salesOrderId;
 
+    // Find reservations - check both SalesOrder ID and Quotation ID
     const reservations = await StockReservation.find({
-        'sourceDocument.id': orderId,
-        status: 'active'
+        status: 'active',
+        $or: [
+            { 'sourceDocument.id': orderId },
+            { 'sourceDocument.id': salesOrder?.quotationId }
+        ]
     });
 
     for (const r of reservations) {
@@ -320,26 +359,64 @@ export const releaseProjectReservations = async (salesOrderId, reason, session =
 /**
  * Issue reserved materials from warehouse store to production.
  * Decreases physical onHand inventory and clears the reservations.
+ * Automatically reserves materials if no active reservations exist.
  */
 export const issueMaterialsToProduction = async (salesOrderId, warehouseId, userId, session = null) => {
     let salesOrder = await SalesOrder.findById(salesOrderId);
     if (!salesOrder) {
         salesOrder = await SalesOrder.findOne({ quotationId: salesOrderId });
     }
-    if (!salesOrder) throw new Error('Sales Order not found');
+    
+    // If still no SalesOrder, check if it's a quotation and create a temp object
+    if (!salesOrder) {
+        const quotation = await AluQuotation.findById(salesOrderId);
+        if (quotation) {
+            // Create a temporary salesOrder-like object for processing
+            salesOrder = {
+                _id: quotation._id,
+                quotationId: quotation._id,
+                orderNumber: quotation.quoteNumber,
+                projectName: quotation.projectName,
+                customerName: quotation.customerName
+            };
+        } else {
+            throw new Error('Sales Order or Quotation not found');
+        }
+    }
 
+    // Find reservations - check both SalesOrder ID and Quotation ID
     const reservationFilter = {
-        'sourceDocument.id': salesOrder._id,
-        status: 'active'
+        status: 'active',
+        $or: [
+            { 'sourceDocument.id': salesOrder._id },
+            { 'sourceDocument.id': salesOrder.quotationId }
+        ]
     };
     if (warehouseId) {
         reservationFilter.warehouseId = warehouseId;
     }
 
-    const reservations = await StockReservation.find(reservationFilter);
+    let reservations = await StockReservation.find(reservationFilter);
 
+    // If no reservations exist, automatically reserve materials first
     if (reservations.length === 0) {
-        throw new Error('No active stock reservations found for this project. Please reserve materials first.');
+        console.log('[issueMaterialsToProduction] No active reservations found. Auto-reserving materials...');
+        const reserveResult = await reserveStockForProject(salesOrder._id, warehouseId, userId, session);
+        
+        if (!reserveResult.success) {
+            throw new Error('Failed to reserve materials. Please check stock availability.');
+        }
+        
+        if (reserveResult.reservations.length === 0) {
+            const shortageInfo = reserveResult.shortages && reserveResult.shortages.length > 0
+                ? ` Shortages: ${reserveResult.shortages.map(s => `${s.itemCode} (${s.shortage})`).join(', ')}`
+                : '';
+            throw new Error(`No materials available to reserve.${shortageInfo} Please ensure stock is available in the warehouse.`);
+        }
+        
+        // Re-fetch reservations after auto-reservation
+        reservations = await StockReservation.find(reservationFilter);
+        console.log(`[issueMaterialsToProduction] Auto-reserved ${reservations.length} items`);
     }
 
     for (const r of reservations) {
@@ -363,9 +440,10 @@ export const issueMaterialsToProduction = async (salesOrderId, warehouseId, user
             sourceDocument: {
                 type: 'sales_order',
                 id: salesOrder._id,
-                number: salesOrder.orderNumber
+                number: salesOrder.orderNumber || salesOrder._id,
+                projectName: salesOrder.projectName
             },
-            reason: `Issued materials to production for project ${salesOrder.orderNumber}`,
+            reason: `Issued materials to production for project ${salesOrder.orderNumber || salesOrder.projectName || salesOrder._id}`,
             userId,
         });
 
@@ -375,9 +453,15 @@ export const issueMaterialsToProduction = async (salesOrderId, warehouseId, user
         await r.save();
     }
 
-    // Update sales order production status
-    salesOrder.productionStatus = 'in_production';
-    await salesOrder.save();
+    // Update sales order production status if it's a real SalesOrder
+    // If it's a quotation (temp object), update the quotation status instead
+    if (salesOrder && typeof salesOrder.save === 'function') {
+        salesOrder.productionStatus = 'in_production';
+        await salesOrder.save();
+    } else if (salesOrder.quotationId) {
+        // Update quotation status
+        await AluQuotation.findByIdAndUpdate(salesOrder.quotationId, { status: 'in_production' });
+    }
 
     return {
         success: true,

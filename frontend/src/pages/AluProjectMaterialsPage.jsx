@@ -4,7 +4,8 @@ import api from '../api/axios';
 import {
     Boxes, PackageCheck, AlertTriangle, Clock, Search, Filter,
     ChevronDown, ChevronUp, ExternalLink, FileText, ShoppingBag,
-    CheckCircle2, RefreshCw, Layers, ShieldCheck, ArrowRight, Plus, Trash2
+    CheckCircle2, RefreshCw, Layers, ShieldCheck, Plus, Trash2,
+    Factory
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AluGrnModal from '../components/aluminium/AluGrnModal';
@@ -82,6 +83,23 @@ export default function AluProjectMaterialsPage() {
             toast.error(error.response?.data?.message || 'Failed to delete item');
         }
     };
+
+    const handleIssueMaterials = async (projectId, projectName) => {
+        if (!window.confirm(`Are you sure you want to issue all materials to production for project "${projectName}"?\n\nThis will:\n- Reserve materials if not already reserved\n- Reduce stock from inventory\n- Mark project status as "In Production"\n\nThis action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const { data } = await api.post(`/alu/projects/${projectId}/issue-materials`, {});
+            toast.success(`Materials issued to production successfully! ${data.data?.issuedItemCount || 0} items processed.`);
+            fetchProjectMaterials(); // Refresh the data
+        } catch (error) {
+            console.error('Error issuing materials:', error);
+            toast.error(error.response?.data?.message || 'Failed to issue materials to production');
+        }
+    };
+
+
 
     // Filter projects based on search and status
     const filteredProjects = useMemo(() => {
@@ -349,7 +367,7 @@ export default function AluProjectMaterialsPage() {
                                                                 <th className="p-2.5 text-center">Pending Shortage</th>
                                                                 <th className="p-2.5 text-right">Est. Total Cost</th>
                                                                 <th className="p-2.5 text-center">PO Status</th>
-                                                                <th className="p-2.5 text-center">Action</th>
+                                                                <th className="p-2.5 text-center">Actions</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="bg-white">
@@ -364,22 +382,32 @@ export default function AluProjectMaterialsPage() {
                                                                             <span className="font-extrabold text-indigo-700 font-mono">{poNumber}</span>
                                                                         </td>
                                                                         <td className="p-2.5 text-center">
-                                                                            {group.items.some(i => i.pendingQuantity > 0) && (
-                                                                                <button
-                                                                                    onClick={() => handleOpenGrnModalForPO(poNumber)}
-                                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow-sm w-full"
-                                                                                    title="Receive Entire PO"
-                                                                                >
-                                                                                    <PackageCheck size={14} /> Receive PO
-                                                                                </button>
-                                                                            )}
+                                                                            <div className="flex items-center gap-1">
+                                                                                {group.items.some(i => i.pendingQuantity > 0) && (
+                                                                                    <button
+                                                                                        onClick={() => handleOpenGrnModalForPO(poNumber)}
+                                                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1 transition shadow-sm"
+                                                                                        title="Receive Entire PO"
+                                                                                    >
+                                                                                        <PackageCheck size={12} /> Receive
+                                                                                    </button>
+                                                                                )}
+
+                                                                            </div>
                                                                         </td>
                                                                     </tr>
                                                                     {group.items.map((st, sIdx) => (
                                                                         <tr key={`${gIdx}-${sIdx}`} className="hover:bg-amber-50/40 border-b border-amber-100">
                                                                             <td className="p-2.5 text-slate-400 text-center font-bold">↳</td>
                                                                             <td className="p-2.5 font-bold text-slate-800 font-mono">{st.itemCode}</td>
-                                                                            <td className="p-2.5 font-semibold text-slate-700">{st.productName}</td>
+                                                                            <td className="p-2.5 font-semibold text-slate-700">
+                                                                                {st.productName}
+                                                                                {st.hasAvailableStock && (
+                                                                                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300">
+                                                                                        <ShieldCheck size={10} /> Stock Available
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
                                                                             <td className="p-2.5 text-center font-bold text-slate-700">{st.requiredQuantity} {st.unitOfMeasure}</td>
                                                                             <td className="p-2.5 text-center font-bold text-emerald-600">{st.receivedQuantity}</td>
                                                                             <td className="p-2.5 text-center font-black text-rose-600">{st.pendingQuantity} {st.unitOfMeasure}</td>

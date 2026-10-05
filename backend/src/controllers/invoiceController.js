@@ -55,6 +55,13 @@ const deductStockForInvoice = async (invoice, userId) => {
         }
     }
 
+    // Get project name from sales order if available
+    let projectName = null;
+    if (invoice.salesOrderIds && invoice.salesOrderIds.length > 0) {
+        const salesOrder = await SalesOrder.findById(invoice.salesOrderIds[0]);
+        projectName = salesOrder?.projectName;
+    }
+
     const deductedMovements = [];
     try {
         for (const item of invoice.items) {
@@ -68,6 +75,7 @@ const deductStockForInvoice = async (invoice, userId) => {
                     type: 'invoice',
                     id: invoice._id,
                     number: invoice.invoiceNumber,
+                    projectName,
                 },
                 reason: `Inventory deduction for Commercial Invoice ${invoice.invoiceNumber}`,
                 userId,
@@ -97,6 +105,7 @@ const deductStockForInvoice = async (invoice, userId) => {
                         type: 'invoice',
                         id: invoice._id,
                         number: invoice.invoiceNumber,
+                        projectName,
                     },
                     reason: `Rollback deduction failure for invoice ${invoice.invoiceNumber}`,
                     userId,

@@ -151,6 +151,19 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
             chequeStatus,
         } = req.body;
 
+        // Validate bank account for non-cash payments
+        if (paymentMethod !== 'cash') {
+            if (!bankAccountId) {
+                res.status(400);
+                throw new Error('Bank/Cash Account is required for non-cash payments');
+            }
+            const bankAccount = await BankAccount.findById(bankAccountId);
+            if (!bankAccount) {
+                res.status(404);
+                throw new Error('Bank/Cash Account not found');
+            }
+        }
+
         // Helper function to execute operations with or without session
         const executePOSOperations = async (session = null) => {
             const sessionOptions = session ? { session } : {};
@@ -203,6 +216,7 @@ export const createSalesOrder = asyncHandler(async (req, res) => {
                         type: 'sales_order',
                         id: order._id,
                         number: order.orderNumber,
+                        projectName: order.projectName,
                     },
                     reason: 'POS sale checkout',
                     userId: req.user._id,
@@ -620,6 +634,7 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
                         type: 'sales_order',
                         id: order._id,
                         number: order.orderNumber,
+                        projectName: order.projectName,
                     },
                     reason: 'Sales order approved',
                     userId: req.user._id,
@@ -701,6 +716,7 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
                                     type: 'sales_order',
                                     id: order._id,
                                     number: order.orderNumber,
+                                    projectName: order.projectName,
                                 },
                                 reason: reason || 'Order cancelled — stock restored',
                                 userId: req.user._id,
@@ -737,6 +753,7 @@ export const changeSalesOrderStatus = asyncHandler(async (req, res) => {
                                 type: 'sales_order',
                                 id: order._id,
                                 number: order.orderNumber,
+                                projectName: order.projectName,
                             },
                             reason: reason || 'Order cancelled — stock restored',
                             userId: req.user._id,

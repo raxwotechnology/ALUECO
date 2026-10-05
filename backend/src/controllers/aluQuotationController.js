@@ -2029,13 +2029,19 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
     const whId = warehouse?._id;
 
     // Check stock for all required materials, reserve available raw materials for the project, and auto-generate AluEco PO for shortages
+    // NOTE: Stock is reserved but NOT auto-issued to production. User will manually issue later via "Issue to Production" button
     let aluPurchaseOrder = null;
-    const { reserveStockForProject } = await import('../services/bomExplosionService.js');
+    const { reserveStockForProject, checkStockAndShortages } = await import('../services/bomExplosionService.js');
     const reservationResult = await reserveStockForProject(salesOrder._id, whId, req.user._id);
     const reservedItems = reservationResult.reservations || [];
     const shortageItemsRaw = reservationResult.shortages || [];
 
-    const shortageItems = shortageItemsRaw.map(s => ({
+    // Re-check stock after reservation to ensure accurate shortage calculation
+    // This prevents PO creation for items that actually have stock
+    const recheckResult = await checkStockAndShortages(salesOrder._id, whId);
+    const finalShortages = recheckResult.items.filter(i => i.shortage > 0);
+
+    const shortageItems = finalShortages.map(s => ({
         itemCode: s.itemCode,
         materialType: s.type || 'profile',
         productName: s.name,
@@ -2071,16 +2077,16 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
         module: 'CRM',
         documentId: salesOrder._id,
         documentCode: salesOrder.orderNumber,
-        description: `Converted aluminium quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & generated Job Card ${jobCardNumber}${aluPurchaseOrder ? ` and AluEco PO ${aluPurchaseOrder.poNumber}` : ''}. Reserved ${reservedItems.length} raw material items in stock.`,
+        description: `Converted aluminium quotation ${quotation.quoteNumber} to Sales Order ${salesOrder.orderNumber} & generated Job Card ${jobCardNumber}${aluPurchaseOrder ? ` and AluEco PO ${aluPurchaseOrder.poNumber}` : ''}. Reserved ${reservedItems.length} raw material items in stock. Materials will be issued to production manually when PO items are received.`,
         req
     });
-    
-    res.status(201).json({ 
-        success: true, 
-        data: { 
-            salesOrder, 
-            invoice, 
-            invoiceId: invoice._id, 
+
+    res.status(201).json({
+        success: true,
+        data: {
+            salesOrder,
+            invoice,
+            invoiceId: invoice._id,
             invoiceNumber: invoice.invoiceNumber,
             jobCardNumber,
             reservedItemCount: reservedItems.length,
@@ -2091,7 +2097,7 @@ export const convertAluQuotationToOrder = asyncHandler(async (req, res) => {
                 shortageItemCount: shortageItems.length,
                 totalEstimatedCost: aluPurchaseOrder.totalEstimatedCost
             } : null
-        } 
+        }
     });
 });
 

@@ -327,11 +327,6 @@ export default function AluRawMaterialsPage() {
             } 
         },
         {
-            key: 'categoryType',
-            label: 'Type',
-            render: (r) => getCategoryBadge(r.productId?.aluCategory || r.aluCategory, r.productId?.aluSpecs)
-        },
-        {
             key: 'unitOfMeasure',
             label: 'UOM / Unit',
             render: (r) => (

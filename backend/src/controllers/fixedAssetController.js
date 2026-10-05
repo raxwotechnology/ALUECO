@@ -1,5 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import FixedAsset from '../models/FixedAsset.js';
+import Payment from '../models/Payment.js';
+import BankAccount from '../models/BankAccount.js';
 import { createAuditLog } from '../utils/auditLogger.js';
 
 /**
@@ -115,27 +117,64 @@ export const deleteFixedAsset = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const addAssetPayment = asyncHandler(async (req, res) => {
-    const { amount, date, reference, notes } = req.body;
+    const { amount, date, reference, notes, bankAccountId } = req.body;
     const asset = await FixedAsset.findById(req.params.id);
     if (!asset) {
         res.status(404);
         throw new Error('Fixed Asset not found');
     }
 
+    // Validate bank account if provided
+    if (bankAccountId) {
+        const bankAccount = await BankAccount.findById(bankAccountId);
+        if (!bankAccount) {
+            res.status(404);
+            throw new Error('Bank account not found');
+        }
+    }
+
+    // Add payment to asset
     asset.payments.push({
         amount: Number(amount) || 0,
         date: date ? new Date(date) : new Date(),
         reference,
-        notes
+        notes,
+        bankAccountId: bankAccountId || undefined
     });
 
     await asset.save();
+
+    // Create Payment record to track in bank ledger (only if bank account is selected)
+    if (bankAccountId) {
+        console.log(`[Fixed Asset Payment] Creating payment record for bank account ${bankAccountId}`);
+        const payment = await Payment.create({
+            direction: 'paid',
+            bankAccountId,
+            partyName: `Fixed Asset: ${asset.name}`,
+            paymentDate: date ? new Date(date) : new Date(),
+            amount: Number(amount) || 0,
+            method: 'bank_transfer',
+            status: 'confirmed',
+            notes: `Capital expenditure payment for ${asset.name}${reference ? ` - Ref: ${reference}` : ''}`,
+            createdBy: req.user._id,
+            receivedBy: req.user._id
+        });
+        console.log(`[Fixed Asset Payment] Payment created: ${payment.paymentNumber}, ID: ${payment._id}`);
+
+        // Update bank account balance
+        const bankAccount = await BankAccount.findById(bankAccountId);
+        if (bankAccount) {
+            bankAccount.balance = +(bankAccount.balance - (Number(amount) || 0)).toFixed(2);
+            await bankAccount.save();
+            console.log(`[Fixed Asset Payment] Bank account balance updated to: ${bankAccount.balance}`);
+        }
+    }
 
     createAuditLog({
         action: 'update',
         module: 'finance',
         documentId: asset._id,
-        description: `Recorded payment of LKR ${amount} for asset: ${asset.name}`,
+        description: `Recorded payment of LKR ${amount} for asset: ${asset.name}${bankAccountId ? ' (Bank account updated)' : ' (Manual entry - no bank account)'}`,
         req
     });
 

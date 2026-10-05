@@ -17,15 +17,21 @@ export const getStockItems = asyncHandler(async (req, res) => {
         search, productId, warehouseId, lowStock,
         page = 1, limit = 50,
         stockType,
+        category,
+        businessType,
+        stockStatus,
     } = req.query;
 
     const filter = {};
     if (productId) filter.productId = productId;
     if (warehouseId) filter.warehouseId = warehouseId;
+    
+    // Smart search - matches productCode, productName, and sku
     if (search) {
         filter.$or = [
             { productCode: { $regex: search, $options: 'i' } },
             { productName: { $regex: search, $options: 'i' } },
+            { 'productId.sku': { $regex: search, $options: 'i' } },
         ];
     }
 
@@ -38,11 +44,45 @@ export const getStockItems = asyncHandler(async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     let items = await StockItem.find(filter)
-        .populate('productId', 'name productCode sku stockLevels type productType')
+        .populate('productId', 'name productCode sku stockLevels type productType aluCategory businessType')
         .populate('warehouseId', 'name warehouseCode')
         .sort({ productName: 1 })
         .skip(skip)
         .limit(Number(limit));
+
+    // Filter by category (aluCategory for ALUECO items)
+    if (category) {
+        items = items.filter((s) => {
+            const aluCat = s.productId?.aluCategory || '';
+            return aluCat.toLowerCase() === category.toLowerCase();
+        });
+    }
+
+    // Filter by business type (alueco vs general)
+    if (businessType) {
+        items = items.filter((s) => {
+            const bType = s.productId?.businessType || '';
+            return bType.toLowerCase() === businessType.toLowerCase();
+        });
+    }
+
+    // Filter by stock status
+    if (stockStatus) {
+        items = items.filter((s) => {
+            const onHand = s.quantities.onHand || 0;
+            const reorder = s.productId?.stockLevels?.reorderLevel || 0;
+            const min = s.productId?.stockLevels?.minimumLevel || 0;
+
+            if (stockStatus === 'out_of_stock') {
+                return onHand <= 0;
+            } else if (stockStatus === 'low_stock') {
+                return onHand > 0 && (onHand <= min || (reorder && onHand <= reorder));
+            } else if (stockStatus === 'in_stock') {
+                return onHand > 0 && onHand > min && (!reorder || onHand > reorder);
+            }
+            return true;
+        });
+    }
 
     // Filter low-stock in-memory (depends on product's reorderLevel)
     if (lowStock === 'true') {
@@ -92,7 +132,7 @@ export const getStockByProduct = asyncHandler(async (req, res) => {
 export const getStockMovements = asyncHandler(async (req, res) => {
     const {
         productId, warehouseId, movementType,
-        startDate, endDate,
+        startDate, endDate, search,
         page = 1, limit = 50,
     } = req.query;
 
@@ -107,7 +147,12 @@ export const getStockMovements = asyncHandler(async (req, res) => {
     }
     if (movementType) filter.movementType = movementType;
 
-    if (startDate || endDate) {
+    // Default to last 30 days if no date range specified
+    if (!startDate && !endDate) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        filter.timestamp = { $gte: thirtyDaysAgo };
+    } else if (startDate || endDate) {
         filter.timestamp = {};
         if (startDate) filter.timestamp.$gte = new Date(startDate);
         if (endDate) filter.timestamp.$lte = new Date(endDate);
@@ -127,6 +172,21 @@ export const getStockMovements = asyncHandler(async (req, res) => {
             .limit(Number(limit)),
         StockMovement.countDocuments(filter),
     ]);
+
+    // Filter by search in-memory (project name, product name, ref number)
+    if (search) {
+        const searchLower = search.toLowerCase();
+        movements = movements.filter((m) => {
+            return (
+                (m.productName && m.productName.toLowerCase().includes(searchLower)) ||
+                (m.productCode && m.productCode.toLowerCase().includes(searchLower)) ||
+                (m.movementNumber && m.movementNumber.toLowerCase().includes(searchLower)) ||
+                (m.sourceDocument?.number && m.sourceDocument.number.toLowerCase().includes(searchLower)) ||
+                (m.sourceDocument?.projectName && m.sourceDocument.projectName.toLowerCase().includes(searchLower)) ||
+                (m.reason && m.reason.toLowerCase().includes(searchLower))
+            );
+        });
+    }
 
     res.json({
         success: true,

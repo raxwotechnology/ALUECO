@@ -292,16 +292,224 @@ export const reserveProjectMaterials = asyncHandler(async (req, res) => {
 
 export const issueProjectMaterials = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { warehouseId } = req.body;
-    
-    if (!warehouseId) {
-        res.status(400);
-        throw new Error('warehouseId is required');
+    const body = req.body || {};
+    const { warehouseId } = body;
+
+    // If warehouseId not provided, use default warehouse
+    let targetWarehouseId = warehouseId;
+    if (!targetWarehouseId) {
+        const Warehouse = (await import('../models/Warehouse.js')).default;
+        const defaultWarehouse = await Warehouse.findOne({ isDefault: true, deletedAt: null }) || await Warehouse.findOne({ deletedAt: null });
+        if (!defaultWarehouse) {
+            res.status(400);
+            throw new Error('No warehouse found. Please specify a warehouseId.');
+        }
+        targetWarehouseId = defaultWarehouse._id;
     }
-    
+
     const { issueMaterialsToProduction } = await import('../services/bomExplosionService.js');
-    const result = await issueMaterialsToProduction(id, warehouseId, req.user._id);
+    const result = await issueMaterialsToProduction(id, targetWarehouseId, req.user._id);
     res.json({ success: true, data: result });
+});
+
+export const issueMaterialsToProject = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const body = req.body || {};
+    const { warehouseId } = body;
+
+    // If warehouseId not provided, use default warehouse
+    let targetWarehouseId = warehouseId;
+    if (!targetWarehouseId) {
+        const Warehouse = (await import('../models/Warehouse.js')).default;
+        const defaultWarehouse = await Warehouse.findOne({ isDefault: true, deletedAt: null }) || await Warehouse.findOne({ deletedAt: null });
+        if (!defaultWarehouse) {
+            res.status(400);
+            throw new Error('No warehouse found. Please specify a warehouseId.');
+        }
+        targetWarehouseId = defaultWarehouse._id;
+    }
+
+    const { decreaseStock } = await import('../services/stockService.js');
+    const AluQuotation = (await import('../models/AluQuotation.js')).default;
+    const StockItem = (await import('../models/StockItem.js')).default;
+    const Product = (await import('../models/Product.js')).default;
+
+    // Find the quotation/project
+    const quotation = await AluQuotation.findById(id);
+    if (!quotation) {
+        res.status(404);
+        throw new Error('Project/Quotation not found');
+    }
+
+    let issuedCount = 0;
+    const skippedItems = [];
+
+    // Issue profiles from cuttingOptimizationResults
+    if (quotation.cuttingOptimizationResults && Object.keys(quotation.cuttingOptimizationResults).length > 0) {
+        for (const [key, profile] of Object.entries(quotation.cuttingOptimizationResults)) {
+            const code = (profile.profileCode || '').toUpperCase();
+            if (!code) continue;
+
+            const product = await Product.findOne({ productCode: code, deletedAt: null });
+            if (product) {
+                const stockItem = await StockItem.findOne({
+                    productId: product._id,
+                    warehouseId: targetWarehouseId
+                });
+
+                const totalBars = profile.totalBarsPurchased || (profile.bars ? profile.bars.length : 0);
+                if (stockItem && stockItem.quantities.onHand >= totalBars) {
+                    await decreaseStock({
+                        productId: product._id,
+                        warehouseId: targetWarehouseId,
+                        quantity: totalBars,
+                        movementType: 'production_issue',
+                        sourceDocument: {
+                            type: 'quotation',
+                            id: quotation._id,
+                            number: quotation.quoteNumber,
+                            projectName: quotation.projectName
+                        },
+                        reason: `Issued ${totalBars} bars of ${code} to project ${quotation.projectName}`,
+                        userId: req.user._id,
+                    });
+                    issuedCount++;
+                } else {
+                    skippedItems.push({ code, reason: 'Insufficient stock' });
+                }
+            }
+        }
+    }
+
+    // Issue glass, accessories, and gaskets from items
+    if (quotation.items && quotation.items.length > 0) {
+        for (const item of quotation.items) {
+            // Glass items
+            if (item.glassItems && item.glassItems.length > 0) {
+                for (const glass of item.glassItems) {
+                    const code = (glass.glassCode || '').toUpperCase();
+                    if (!code) continue;
+
+                    const product = await Product.findOne({ productCode: code, deletedAt: null });
+                    if (product) {
+                        const stockItem = await StockItem.findOne({
+                            productId: product._id,
+                            warehouseId: targetWarehouseId
+                        });
+
+                        const qty = glass.qty || 1;
+                        if (stockItem && stockItem.quantities.onHand >= qty) {
+                            await decreaseStock({
+                                productId: product._id,
+                                warehouseId: targetWarehouseId,
+                                quantity: qty,
+                                movementType: 'production_issue',
+                                sourceDocument: {
+                                    type: 'quotation',
+                                    id: quotation._id,
+                                    number: quotation.quoteNumber,
+                                    projectName: quotation.projectName
+                                },
+                                reason: `Issued ${qty} panes of ${code} to project ${quotation.projectName}`,
+                                userId: req.user._id,
+                            });
+                            issuedCount++;
+                        } else {
+                            skippedItems.push({ code, reason: 'Insufficient stock' });
+                        }
+                    }
+                }
+            }
+
+            // Accessory items
+            if (item.accessories && item.accessories.length > 0) {
+                for (const accessory of item.accessories) {
+                    const code = (accessory.code || '').toUpperCase();
+                    if (!code) continue;
+
+                    const product = await Product.findOne({ productCode: code, deletedAt: null });
+                    if (product) {
+                        const stockItem = await StockItem.findOne({
+                            productId: product._id,
+                            warehouseId: targetWarehouseId
+                        });
+
+                        const qty = accessory.qty || 0;
+                        const unit = accessory.unit || 'pcs';
+                        if (stockItem && stockItem.quantities.onHand >= qty) {
+                            await decreaseStock({
+                                productId: product._id,
+                                warehouseId: targetWarehouseId,
+                                quantity: qty,
+                                movementType: 'production_issue',
+                                sourceDocument: {
+                                    type: 'quotation',
+                                    id: quotation._id,
+                                    number: quotation.quoteNumber,
+                                    projectName: quotation.projectName
+                                },
+                                reason: `Issued ${qty} ${unit} of ${code} to project ${quotation.projectName}`,
+                                userId: req.user._id,
+                            });
+                            issuedCount++;
+                        } else {
+                            skippedItems.push({ code, reason: 'Insufficient stock' });
+                        }
+                    }
+                }
+            }
+
+            // Gasket items
+            if (item.gasketItems && item.gasketItems.length > 0) {
+                for (const gasket of item.gasketItems) {
+                    const code = (gasket.code || '').toUpperCase();
+                    if (!code) continue;
+
+                    const product = await Product.findOne({ productCode: code, deletedAt: null });
+                    if (product) {
+                        const stockItem = await StockItem.findOne({
+                            productId: product._id,
+                            warehouseId: targetWarehouseId
+                        });
+
+                        const qty = gasket.qty || 0;
+                        const unit = gasket.unit || 'm';
+                        if (stockItem && stockItem.quantities.onHand >= qty) {
+                            await decreaseStock({
+                                productId: product._id,
+                                warehouseId: targetWarehouseId,
+                                quantity: qty,
+                                movementType: 'production_issue',
+                                sourceDocument: {
+                                    type: 'quotation',
+                                    id: quotation._id,
+                                    number: quotation.quoteNumber,
+                                    projectName: quotation.projectName
+                                },
+                                reason: `Issued ${qty} ${unit} of ${code} to project ${quotation.projectName}`,
+                                userId: req.user._id,
+                            });
+                            issuedCount++;
+                        } else {
+                            skippedItems.push({ code, reason: 'Insufficient stock' });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (skippedItems.length > 0) {
+        console.log('[issueMaterialsToProject] Skipped items due to insufficient stock:', skippedItems);
+    }
+
+    res.json({ 
+        success: true, 
+        data: { 
+            issuedItemCount: issuedCount,
+            skippedItems: skippedItems.length > 0 ? skippedItems : undefined
+        } 
+    });
 });
 
 // === DEDICATED ALUECO RAW MATERIALS & GRN ===
@@ -1045,6 +1253,38 @@ export const processAluGrn = asyncHandler(async (req, res) => {
             userId: req.user?._id,
         });
 
+        // Check if this item is linked to a project via PO and auto-allocate to production
+        if (targetCode && item.poId) {
+            const po = await AluPurchaseOrder.findById(item.poId);
+            if (po && po.quotationId) {
+                // This PO is linked to a quotation/project - auto-issue to production
+                const { decreaseStock } = await import('../services/stockService.js');
+                const AluQuotation = (await import('../models/AluQuotation.js')).default;
+                const quotation = await AluQuotation.findById(po.quotationId);
+                
+                if (quotation) {
+                    await decreaseStock({
+                        productId: pId,
+                        warehouseId,
+                        quantity: qty,
+                        movementType: 'production_issue',
+                        sourceDocument: {
+                            type: 'sales_order',
+                            id: quotation._id,
+                            number: quotation.quoteNumber,
+                            projectName: quotation.projectName
+                        },
+                        reason: `Auto-allocated to project ${quotation.projectName || quotation.quoteNumber} from PO ${po.poNumber}`,
+                        userId: req.user?._id,
+                    });
+                    console.log(`[GRN Auto-Allocation] ${qty} ${item.unitOfMeasure || 'pcs'} of ${targetCode} allocated to project ${quotation.projectName}`);
+                    
+                    // Update quotation status to in_production
+                    await AluQuotation.findByIdAndUpdate(quotation._id, { status: 'in_production' });
+                }
+            }
+        }
+
         grnLineItems.push({
             productId: pId,
             productCode: targetCode,
@@ -1435,6 +1675,11 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
                 const isPending = poItem.status === 'pending' || poItem.pendingQuantity > 0;
                 if (isPending) hasPendingPO = true;
 
+                // Check if this item has available stock in warehouse
+                const itemCodeUpper = (poItem.itemCode || '').toUpperCase();
+                const availableStock = stockMap[itemCodeUpper] || 0;
+                const hasAvailableStock = availableStock > 0;
+
                 shortageItems.push({
                     poId: po._id,
                     itemId: poItem._id,
@@ -1447,7 +1692,9 @@ export const getProjectsMaterialsSummary = asyncHandler(async (req, res) => {
                     pendingQuantity: poItem.pendingQuantity || Math.max(0, (poItem.requiredQuantity || 0) - (poItem.receivedQuantity || 0)),
                     unitOfMeasure: poItem.unitOfMeasure,
                     estimatedTotalCost: poItem.estimatedTotalCost || 0,
-                    status: poItem.status || po.status
+                    status: poItem.status || po.status,
+                    hasAvailableStock, // Flag to indicate if stock is available in warehouse
+                    availableStockQty: availableStock // Actual available quantity
                 });
                 totalPendingPOValue += (poItem.estimatedTotalCost || 0);
             });

@@ -4,7 +4,8 @@ const paymentInstallmentSchema = new mongoose.Schema({
   amount:    { type: Number, required: true, min: 0 },
   date:      { type: Date, default: Date.now },
   reference: { type: String, trim: true },
-  notes:     { type: String, trim: true }
+  notes:     { type: String, trim: true },
+  bankAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'BankAccount' }
 });
 
 const fixedAssetSchema = new mongoose.Schema({

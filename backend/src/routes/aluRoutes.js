@@ -9,7 +9,7 @@ import {
     getScraps, createScrap, updateScrap, deleteScrap,
     getJobCards, updateJobCardStatus, updateItemQuantityByStage,
     getSurveys, createSurvey, updateSurvey, deleteSurvey,
-    checkProjectStockAndShortages, reserveProjectMaterials, issueProjectMaterials,
+    checkProjectStockAndShortages, reserveProjectMaterials, issueProjectMaterials, issueMaterialsToProject,
     getAluRawMaterials, createAluRawMaterial, updateAluRawMaterial, deleteAluRawMaterial, processAluGrn, getProjectsMaterialsSummary
 } from '../controllers/aluController.js';
 import {
@@ -143,6 +143,7 @@ router.get('/projects/materials-summary', getProjectsMaterialsSummary);
 router.get('/projects/:id/stock-check', checkProjectStockAndShortages);
 router.post('/projects/:id/reserve-materials', reserveProjectMaterials);
 router.post('/projects/:id/issue-materials', issueProjectMaterials);
+router.post('/projects/:id/issue-to-project', issueMaterialsToProject);
 router.get('/projects/:id/costing-sheet', getProjectCostingSheet);
 
 // AluEco Purchase Orders & Shortage Management

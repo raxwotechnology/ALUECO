@@ -60,6 +60,10 @@ export default function ProductAutocompleteSelect({
         p.productCode?.toLowerCase().includes(inputValue.toLowerCase())
     );
 
+    const handleToggleDropdown = () => {
+        setIsOpen(!isOpen);
+    };
+
     const handleSelectOption = (product) => {
         setIsSelecting(true);
         setInputValue(product.name);
@@ -168,12 +172,32 @@ export default function ProductAutocompleteSelect({
                     onFocus={() => setIsOpen(true)}
                     onBlur={handleBlur}
                     disabled={disabled}
-                    className="w-full px-3 py-2 border border-gray-300 focus:border-primary-500 focus:ring-primary-200 rounded-lg text-sm focus:outline-none bg-white font-medium transition"
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 focus:border-primary-500 focus:ring-primary-200 rounded-lg text-sm focus:outline-none bg-white font-medium transition"
                 />
+                <button
+                    type="button"
+                    onClick={handleToggleDropdown}
+                    disabled={disabled}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                >
+                    <svg
+                        className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                        />
+                    </svg>
+                </button>
             </div>
             {isOpen && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filtered.map(p => (
+                    {(inputValue.trim() ? filtered : products).map(p => (
                         <button
                             key={p._id}
                             type="button"

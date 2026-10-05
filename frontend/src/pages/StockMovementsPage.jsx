@@ -24,6 +24,7 @@ const movementTypeLabels = {
     adjustment_in: 'Adjustment (+)',
     adjustment_out: 'Adjustment (−)',
     damage: 'Damage',
+    production_issue: 'Production Issue',
 };
 
 const directionVariant = {
@@ -34,7 +35,7 @@ const directionVariant = {
 export default function StockMovementsPage() {
     const navigate = useNavigate();
     const [filters, setFilters] = useState({
-        movementType: '', warehouseId: '',
+        movementType: '', warehouseId: '', search: '',
         page: 1, limit: 25,
     });
 
@@ -63,6 +64,12 @@ export default function StockMovementsPage() {
         {
             key: 'timestamp', label: 'Date',
             render: (r) => <span className="text-xs">{fmtDate(r.timestamp)}</span>,
+        },
+        {
+            key: 'project', label: 'Project',
+            render: (r) => r.sourceDocument?.projectName ? (
+                <span className="text-xs font-medium text-gray-700">{r.sourceDocument.projectName}</span>
+            ) : <span className="text-gray-400">—</span>,
         },
         {
             key: 'product', label: 'Product',
@@ -126,18 +133,28 @@ export default function StockMovementsPage() {
 
             <Card>
                 <div className="p-4 border-b border-gray-200 flex flex-wrap gap-3">
-                    <div className="w-56">
+                    <div className="relative flex-1 min-w-0">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by project name, product, ref #..."
+                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            value={filters.search}
+                            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
+                        />
+                    </div>
+                    <div className="w-44">
                         <Select
                             placeholder="All Types"
-                            options={Object.entries(movementTypeLabels).map(([v, l]) => ({ value: v, label: l }))}
+                            options={[{ value: '', label: 'All Types' }, ...Object.entries(movementTypeLabels).map(([v, l]) => ({ value: v, label: l }))]}
                             value={filters.movementType}
                             onChange={(e) => setFilters((f) => ({ ...f, movementType: e.target.value, page: 1 }))}
                         />
                     </div>
-                    <div className="w-56">
+                    <div className="w-44">
                         <Select
-                            placeholder="All Warehouses"
-                            options={warehouseOptions}
+                            placeholder="Warehouse"
+                            options={[{ value: '', label: 'All Warehouses' }, ...warehouseOptions]}
                             value={filters.warehouseId}
                             onChange={(e) => setFilters((f) => ({ ...f, warehouseId: e.target.value, page: 1 }))}
                         />
