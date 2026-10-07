@@ -275,7 +275,7 @@ function App() {
         <Route path="/departments" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><DepartmentsPage /></ProtectedRoute>} />
         <Route path="/designations" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><DesignationsPage /></ProtectedRoute>} />
         <Route path="/shifts" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><ShiftsPage /></ProtectedRoute>} />
-        <Route path="/attendance" element={<ProtectedRoute requiredPermission="hr.attendance.view" excludeRoles={['employee']}><AttendancePage /></ProtectedRoute>} />
+        <Route path="/attendance" element={<ProtectedRoute requiredPermission="hr.attendance.view" excludeRoles={['employee']}><ErrorBoundary><AttendancePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/employees/month" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><EmployeeOfMonthPage /></ProtectedRoute>} />
         <Route path="/leaves" element={<ProtectedRoute requiredPermission="hr.leaves.view" excludeRoles={['employee']}><LeaveRequestsPage /></ProtectedRoute>} />
         <Route path="/holidays" element={<ProtectedRoute requiredPermission="hr.employees.view" excludeRoles={['employee']}><HolidaysPage /></ProtectedRoute>} />

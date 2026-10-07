@@ -6,7 +6,7 @@ import {
     AlertCircle, FileSpreadsheet, Eye, ChevronDown, ChevronUp,
     Search, UserPlus, Users, ArrowLeft, RefreshCw, FileCheck,
     DollarSign, Play, Clock, CalendarDays, History, Sparkles,
-    Check, Filter, ArrowRight
+    Check, Filter, ArrowRight, CalendarCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -639,12 +639,12 @@ export default function AttendancePage() {
                         </div>
 
                         {/* History Chips of Uploaded Monthly Reports */}
-                        <div className="p-3.5 bg-white border-b flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs">
+                        <div className="p-3.5 bg-white border-b flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-xs">
                             <span className="font-semibold text-gray-500 flex items-center gap-1.5 flex-shrink-0">
                                 <History size={14} className="text-primary-600" />
                                 Uploaded Monthly Reports:
                             </span>
-                            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                            <div className="flex flex-wrap items-center gap-1.5 overflow-visible w-full">
                                 {uploadedMonths.length === 0 ? (
                                     <span className="text-gray-400 italic text-[11px]">
                                         No monthly reports uploaded yet. Click 'Upload Sheet' to import your biometric Excel report.
